@@ -1,13 +1,14 @@
 {
   "name": "LearnHub",
   "short_name": "LearnHub",
+  "description": "E-Learning & Community Platform",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0b0b0c",
-  "theme_color": "#0b0b0c",
+  "background_color": "#0b0d10",
+  "theme_color": "#0c1626",
   "icons": [
-    { "src": "/icons/calculator-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/calculator-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icons/calculator-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose":"any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose":"any maskable" }
   ]
 }
