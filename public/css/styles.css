@@ -8,7 +8,7 @@
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:var(--fs);}
 
-/* Themes */
+/* Instant theme palettes & font sizing */
 [data-theme="ocean"]{--brand:#60a5fa;--brand2:#93c5fd;--highlight:rgba(96,165,250,.18)}
 [data-theme="forest"]{--brand:#34d399;--brand2:#6ee7b7;--highlight:rgba(52,211,153,.16)}
 [data-theme="sunrise"]{--brand:#f472b6;--brand2:#fca5a5;--highlight:rgba(244,114,182,.18)}
@@ -79,7 +79,7 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);fon
 /* Modal */
 .modal{position:fixed;inset:0;display:none;place-items:center;z-index:30}
 .modal.active{display:grid}
-.modal-backdrop,.mb-active{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:25}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:25}
 .modal.active + .modal-backdrop,.modal-backdrop.active{display:block}
 .dialog{width:min(980px,96vw);max-height:90vh;background:var(--panel);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column}
 .dialog .head,.dialog .foot{padding:10px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}

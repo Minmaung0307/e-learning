@@ -1,62 +1,53 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LearnHub</title>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>LearnHub</title>
 
-    <!-- PWA + icons -->
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#0b0d10" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="192x192"
-      href="/icons/icon-192.png"
-    />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <!-- PWA + icons -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0b0d10"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
-    <!-- Remix Icon (icons) -->
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css"
-    />
+  <!-- Remix Icon -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css"/>
 
-    <!-- Styles -->
-    <link rel="stylesheet" href="/css/styles.css" />
+  <!-- Styles -->
+  <link rel="stylesheet" href="/css/styles.css"/>
 
-    <!-- Firebase compat SDKs (v8 style) -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+  <!-- Firebase compat SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 
-    <!-- Your Firebase config -->
-    <script>
-      window.__FIREBASE_CONFIG = {
-        apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
+  <!-- Your Firebase config -->
+  <script>
+    window.__FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
         authDomain: "e-learning-mm.firebaseapp.com",
         projectId: "e-learning-mm",
         storageBucket: "e-learning-mm.firebasestorage.app",
         messagingSenderId: "523808908467",
         appId: "1:523808908467:web:01b9bac036137744647cc6",
         measurementId: "G-JYF6HGM5XC",
-      };
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <div id="notification" class="notification"></div>
+    };
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="notification" class="notification"></div>
 
-    <!-- App -->
-    <script src="/js/app.js"></script>
+  <!-- App -->
+  <script src="/js/app.js"></script>
 
-    <script>
-      // Service worker
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/service-worker.js").catch(() => {});
-      }
-    </script>
-  </body>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+    }
+  </script>
+</body>
 </html>

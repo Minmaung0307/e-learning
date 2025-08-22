@@ -1,58 +1,47 @@
-/* LearnHub — E-Learning & Community Platform (v1.2)
-   - Pure JS + Firebase (compat) — Auth, Firestore, Storage
-   - Roles: student | instructor | admin (roles/{uid}.role) + email override
-   - Features: Courses, Reader (video+html+images+TOC), Enrollments,
-               Finals-only assessments, Attempts, Credits, Certificates,
-               Course Chat, Sticky Notes (per-lesson private), Tasks, Profiles,
-               Transcript CSV, Theme palettes (instant), Clickable dashboard cards
+/* LearnHub — E-Learning & Community Platform (v1.3)
+   Fixes: My Learning open, composite-index errors, profile refresh, certificate visibility
+   Adds: Reader announcements (owner/admin), passing seed attempt
 */
 (() => {
   'use strict';
 
-  /* ---------- Firebase ---------- */
+  // Firebase
   if(!window.firebase || !window.__FIREBASE_CONFIG) console.error('Firebase SDK or config missing.');
   firebase.initializeApp(window.__FIREBASE_CONFIG);
   const auth=firebase.auth();
   const db=firebase.firestore();
   const stg=firebase.storage();
 
-  /* ---------- Constants ---------- */
+  // Constants
   const ADMIN_EMAILS=['admin@learnhub.com'];
   const VALID_ROLES=['student','instructor','admin'];
 
-  /* ---------- State ---------- */
+  // State
   const state={
     user:null, role:'student', route:'dashboard',
     theme:{palette:'sunrise',font:'medium'},
     searchQ:'', highlightId:null,
     courses:[], enrollments:[], finals:[], attempts:[], messages:[], tasks:[], profiles:[], announcements:[],
-    notes:[], // current-lesson view only (fetched per lesson)
     unsub:[]
   };
 
-  /* ---------- Utils ---------- */
+  // Utils
   const $=(s,r=document)=>r.querySelector(s);
   const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
   const myUid=()=>auth.currentUser?.uid;
-  const notify=(msg,type='ok')=>{
-    const n=$('#notification'); if(!n) return;
-    n.textContent=msg; n.className=`notification show ${type}`; setTimeout(()=> n.className='notification',2200);
-  };
-  const setTheme=(p,f)=>{ if(p) state.theme.palette=p; if(f) state.theme.font=f;
-    document.documentElement.setAttribute('data-theme', state.theme.palette);
-    document.documentElement.setAttribute('data-font', state.theme.font);
-  };
+  const notify=(msg,type='ok')=>{ const n=$('#notification'); if(!n)return; n.textContent=msg; n.className=`notification show ${type}`; setTimeout(()=>n.className='notification',2200); };
+  const setTheme=(p,f)=>{ if(p) state.theme.palette=p; if(f) state.theme.font=f; document.documentElement.setAttribute('data-theme',state.theme.palette); document.documentElement.setAttribute('data-font',state.theme.font); };
   const col=(name)=>db.collection(name);
   const doc=(name,id)=>db.collection(name).doc(id);
   const escapeHTML=(s)=> String(s||'').replace(/[&<>"]/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
   const nowYear=()=>new Date().getFullYear();
   const fmtDate=(ts)=> ts?.toDate ? ts.toDate().toLocaleString() : (ts ? new Date(ts).toLocaleString() : '—');
 
-  /* ---------- Permissions ---------- */
+  // Permissions
   const canCreateCourse = ()=> ['instructor','admin'].includes(state.role);
   const canManageUsers  = ()=> state.role==='admin';
 
-  /* ---------- Search ---------- */
+  // Search
   function buildIndex(){
     const ix=[];
     state.courses.forEach(c=> ix.push({label:c.title,section:'Courses',route:'courses',id:c.id,text:`${c.title} ${c.category||''} ${c.ownerEmail||''}`}));
@@ -70,7 +59,7 @@
     }).filter(Boolean).sort((a,b)=>b.score-a.score).map(x=>x.item).slice(0,20);
   }
 
-  /* ---------- Router + Layout ---------- */
+  // Router + layout
   const routes=['dashboard','courses','learning','assessments','chat','tasks','profile','admin','settings','search'];
   function go(route){ state.route = routes.includes(route)?route:'dashboard'; closeSidebar(); render(); }
 
@@ -98,9 +87,7 @@
               <i class="${ic}"></i><span>${label}</span>
             </div>`).join('')}
         </div>
-        <div class="footer">
-          <div class="muted" id="copyright" style="font-size:12px">© ${nowYear()} LearnHub</div>
-        </div>
+        <div class="footer"><div class="muted" id="copyright" style="font-size:12px">© ${nowYear()} LearnHub</div></div>
       </aside>
 
       <div>
@@ -130,7 +117,7 @@
     </div></div><div class="modal-backdrop" id="mb-modal"></div>`;
   }
 
-  /* ---------- Views ---------- */
+  // Views
   const vLogin=()=>`
   <div style="display:grid;place-items:center;min-height:100vh;padding:20px">
     <div class="card" style="width:min(420px,96vw)"><div class="card-body">
@@ -138,7 +125,7 @@
         <div class="logo" style="width:44px;height:44px;border-radius:12px;background:#0c1626;display:grid;place-items:center">
           <img src="/assets/learnhub-mark.svg" alt="LearnHub" style="width:100%;height:100%;object-fit:cover"/>
         </div>
-        <div><div style="font-size:20px;font-weight:800">LearnHub</div><div class="muted">Sign in to continue</div></div>
+        <div><div style="font-size:20px;font-weight:800">LearnHub</div><div class="muted">Sign in or create an account</div></div>
       </div>
       <div style="display:grid;gap:10px">
         <label>Email</label><input id="li-email" class="input" type="email" placeholder="you@example.com" autocomplete="username"/>
@@ -156,10 +143,7 @@
   const dashCard=(label,value,route,icon)=>`
     <div class="card clickable" data-go="${route}">
       <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <div class="muted" style="font-size:12px">${label}</div>
-          <h2 style="margin:0">${value}</h2>
-        </div>
+        <div><div class="muted" style="font-size:12px">${label}</div><h2 style="margin:0">${value}</h2></div>
         <i class="${icon}" style="font-size:28px;opacity:.8"></i>
       </div>
     </div>`;
@@ -178,7 +162,7 @@
 
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">Welcome</h3>
-        <p class="muted">Read lessons (video + text + images), take the final, earn credits and download your certificate.</p>
+        <p class="muted">Open a course → Enroll → read lessons (video + text + images) → take Final → earn credits → download your certificate.</p>
       </div></div>
     `;
   }
@@ -202,8 +186,8 @@
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
                   <button class="btn" data-open="${c.id}"><i class="ri-book-open-line"></i> Open</button>
-                  ${(!isEnrolled(c.id))? `<button class="btn ghost" data-enroll="${c.id}"><i class="ri-checkbox-circle-line"></i></button>` : ``}
-                  ${(canEditCourse(c))? `<button class="btn ghost" data-edit="${c.id}"><i class="ri-edit-line"></i></button>` : ``}
+                  ${(!isEnrolled(c.id))? `<button class="btn ghost" data-enroll="${c.id}" title="Enroll"><i class="ri-checkbox-circle-line"></i></button>` : ``}
+                  ${(canEditCourse(c))? `<button class="btn ghost" data-edit="${c.id}" title="Edit"><i class="ri-edit-line"></i></button>` : ``}
                 </div>
               </div>
             </div>`).join('')}
@@ -219,7 +203,7 @@
     return `
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">My Learning</h3>
-        <div class="grid cols-2">
+        <div class="grid cols-2" id="learning-grid">
           ${list.map(c=>`
             <div class="card">
               <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
@@ -268,7 +252,7 @@
             <tbody>
               ${my.map(a=>`
                 <tr data-open-course="${a.courseId}">
-                  <td class="open-course">${state.courses.find(c=>c.id===a.courseId)?.title||'(course)'} </td>
+                  <td class="open-course">${state.courses.find(c=>c.id===a.courseId)?.title||'(course)'}</td>
                   <td>${a.quizTitle}</td>
                   <td class="num">${a.score}%</td>
                   <td>${fmtDate(a.createdAt)}</td>
@@ -434,10 +418,7 @@
         </div>
         ${res.length? `<div class="grid">${res.map(r=>`
           <div class="card"><div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <div style="font-weight:700">${r.label}</div>
-              <div class="muted" style="font-size:12px">${r.section}</div>
-            </div>
+            <div><div style="font-weight:700">${r.label}</div><div class="muted" style="font-size:12px">${r.section}</div></div>
             <button class="btn" data-open-route="${r.route}" data-id="${r.id||''}">Open</button>
           </div></div>`).join('')}</div>` : `<p class="muted">No results.</p>`}
       </div></div>`;
@@ -459,23 +440,20 @@
     }
   }
 
-  /* ---------- Render ---------- */
+  // Render
   function render(){
     const root=$('#root');
     if(!auth.currentUser){ root.innerHTML=vLogin(); wireLogin(); return; }
     root.innerHTML = layout( safeView(state.route) );
     wireShell(); wireRoute();
-
-    // focus/highlight after search open
-    if(state.highlightId){
-      const el=document.getElementById(state.highlightId);
-      if(el) el.scrollIntoView({behavior:'smooth',block:'center'});
-    }
+    if(state.highlightId){ const el=document.getElementById(state.highlightId); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); }
   }
 
-  /* ---------- Sidebar / topbar ---------- */
+  // Shell
   function openSidebar(){ document.body.classList.add('sidebar-open'); $('#backdrop')?.classList.add('active'); }
   function closeSidebar(){ document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); }
+  function openModal(){ $('#m-modal')?.classList.add('active'); $('#mb-modal')?.classList.add('active'); }
+  function closeModal(){ $('#m-modal')?.classList.remove('active'); $('#mb-modal')?.classList.remove('active'); }
 
   function wireShell(){
     $('#burger')?.addEventListener('click', ()=> document.body.classList.contains('sidebar-open')? closeSidebar(): openSidebar());
@@ -487,18 +465,15 @@
       const it=e.target.closest('.item[data-route]'); if(it){ go(it.getAttribute('data-route')); }
     });
 
-    // logout
     $('#btnLogout')?.addEventListener('click', ()=> auth.signOut());
-
-    // notifications
     $('#btnNotify')?.addEventListener('click', ()=> showNotificationsModal());
 
-    // dashboard card clicks
+    // dashboard card routing
     $('#main')?.addEventListener('click', (e)=>{
       const card=e.target.closest('.card.clickable[data-go]'); if(card) go(card.getAttribute('data-go'));
     });
 
-    // search bar autocomplete
+    // search autocomplete
     const input=$('#globalSearch'), results=$('#searchResults');
     if(input && results){
       let t;
@@ -519,7 +494,7 @@
       document.addEventListener('click', e=>{ if(!results.contains(e.target) && e.target!==input) results.classList.remove('active'); });
     }
 
-    $('#mm-close')?.addEventListener('click', ()=> closeModal());
+    $('#mm-close')?.addEventListener('click', closeModal);
   }
 
   function wireRoute(){
@@ -536,10 +511,7 @@
     }
   }
 
-  function openModal(){ $('#m-modal')?.classList.add('active'); $('#mb-modal')?.classList.add('active'); }
-  function closeModal(){ $('#m-modal')?.classList.remove('active'); $('#mb-modal')?.classList.remove('active'); }
-
-  /* ---------- Login ---------- */
+  // Login
   function wireLogin(){
     const doLogin=async ()=>{
       const email=$('#li-email')?.value.trim(), pass=$('#li-pass')?.value.trim();
@@ -569,12 +541,12 @@
     });
   }
 
-  /* ---------- Courses ---------- */
+  // Courses helpers
   function canEditCourse(c){ return state.role==='admin' || c.ownerUid===myUid(); }
   function isEnrolled(courseId){ return state.enrollments.some(e=> e.uid===myUid() && e.courseId===courseId); }
 
+  // Courses wiring
   function wireCourses(){
-    // Create new
     $('#add-course')?.addEventListener('click', ()=>{
       if(!canCreateCourse()) return notify('Instructors/Admins only','warn');
       $('#mm-title').textContent='New Course';
@@ -609,8 +581,7 @@
       const editBtn=e.target.closest('button[data-edit]');
       if(openBtn){
         const id=openBtn.getAttribute('data-open'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
-        const c={id:snap.id, ...snap.data()};
-        showCourseReader(c,0,0); // open reader at first lesson
+        showCourseReader({id:snap.id, ...snap.data()},0,0);
       }
       if(enrollBtn){
         const id=enrollBtn.getAttribute('data-enroll'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
@@ -647,13 +618,11 @@
     });
   }
 
-  /* ---------- Reader (video + html + images + TOC + notes + final) ---------- */
+  // Reader helpers
   function embedVideoHTML(url){
     if(!url) return '';
-    // YouTube
     const m = String(url).match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
     if(m){ return `<div class="video"><iframe width="100%" height="100%" src="https://www.youtube.com/embed/${m[1]}" title="Video" frameborder="0" allowfullscreen></iframe></div>`; }
-    // MP4 direct
     if(/\.(mp4|webm|ogg)(\?|$)/i.test(url)) return `<video class="video" controls src="${url}"></video>`;
     return '';
   }
@@ -699,8 +668,9 @@
   function paintNotes(courseId, lkey){
     const root=$('#notes-list'); if(!root) return;
     col('notes').where('uid','==',myUid()).where('courseId','==',courseId).where('lkey','==',lkey)
-      .orderBy('createdAt').get().then(s=>{
-        const items=s.docs.map(d=>({id:d.id,...d.data()}));
+      .get().then(s=>{
+        const items=s.docs.map(d=>({id:d.id,...d.data()}))
+          .sort((a,b)=> (a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0));
         root.innerHTML = items.map(n=>`
           <div class="note">
             <div style="display:flex;justify-content:space-between;align-items:center">
@@ -717,53 +687,22 @@
       });
   }
 
-  function wireLessonActions(course,ci,li,lkey){
-    $('#prev-lesson')?.addEventListener('click', ()=>{
-      if(ci===0 && li===0) return;
-      let nci=ci, nli=li-1;
-      if(nli<0){ nci=ci-1; nli=(course.outline?.[nci]?.lessons?.length||1)-1; }
-      const lesson=(course.outline?.[nci]?.lessons?.[nli])||{};
-      showLesson(lesson,course,nci,nli);
-    });
-    $('#next-lesson')?.addEventListener('click', ()=>{
-      let nci=ci, nli=li+1;
-      if(nli>=(course.outline?.[ci]?.lessons?.length||0)){ nci=ci+1; nli=0; }
-      const lesson=(course.outline?.[nci]?.lessons?.[nli])||{};
-      if(!lesson.title && !lesson.html && !lesson.video) return;
-      showLesson(lesson,course,nci,nli);
-    });
-    $('#bookmark-lesson')?.addEventListener('click', async ()=>{
-      await col('bookmarks').add({ uid:myUid(), courseId:course.id, lkey, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
-      notify('Bookmarked');
-    });
-    $('#add-note')?.addEventListener('click', async ()=>{
-      const text=prompt('Note text'); if(!text) return;
-      await col('notes').add({ uid:myUid(), courseId:course.id, lkey, text, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
-      paintNotes(course.id,lkey);
-    });
-    $('#take-final')?.addEventListener('click', ()=>{
-      const f=finalForCourse(course.id); if(!f) return notify('No final set','warn');
-      openFinalModal(f);
-    });
-  }
-
   function showLesson(lesson, course, ci, li){
     $('#mm-title').textContent = course.title;
 
     const enrolled = isEnrolled(course.id);
     const best = userBestScore(course.id);
-    const myCredits = (state.profiles.find(p=>p.uid===myUid())||{}).credits||0;
+    const me = state.profiles.find(p=>p.uid===myUid())||{};
     const f = finalForCourse(course.id);
+    const passed = f ? (best >= (f.passScore||70)) : false;
     const finalInfo = f?.scheduleAt ? `Final: ${fmtDate(f.scheduleAt)}` : (f ? 'Final: available' : 'Final: not set');
 
     let html=(lesson.html||'').toString();
-    if(!/[<][a-z/]/i.test(html)){ // plain text -> wrap
-      html = `<p>${escapeHTML(html).replace(/\n{2,}/g,'</p><p>').replace(/\n/g,'<br>')}</p>`;
-    }
+    if(!/[<][a-z/]/i.test(html)){ html = `<p>${escapeHTML(html).replace(/\n{2,}/g,'</p><p>').replace(/\n/g,'<br>')}</p>`; }
     const imgs=(Array.isArray(lesson.images)?lesson.images:[]).map(u=>`<img src="${u}" alt="">`).join('');
     const video=embedVideoHTML(lesson.video||'');
-
     const lkey=lessonKey(ci,li);
+
     $('#mm-body').innerHTML=`
       <div class="card"><div class="card-body" style="display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap">
         <div>
@@ -772,10 +711,12 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <div class="badge">Best: ${best}%</div>
-          <div class="badge">Credits: ${myCredits}</div>
+          <div class="badge">Credits: ${me.credits||0}</div>
           <div class="badge">${finalInfo}</div>
           <button class="btn ghost" id="view-ann"><i class="ri-notification-3-line"></i> Messages</button>
-          ${!enrolled? `<button class="btn" id="btn-enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>` : `<button class="btn ok" disabled>Enrolled</button>`}
+          ${passed? `<button class="btn ghost" id="dl-cert"><i class="ri-award-line"></i> Certificate</button>`:''}
+          ${(!enrolled && state.role==='student')? `<button class="btn" id="btn-enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>` : `<button class="btn ok" disabled>Enrolled</button>`}
+          ${ (canEditCourse(course)) ? `<button class="btn ghost" id="post-ann"><i class="ri-megaphone-line"></i> Announce</button>`:''}
         </div>
       </div></div>
 
@@ -807,18 +748,56 @@
       </div>`;
 
     buildToc(course,ci,li);
-    wireLessonActions(course,ci,li,lkey);
-    paintNotes(course.id,lkey);
-    saveProgress(course.id,ci,li);
-
+    // actions
+    $('#prev-lesson')?.addEventListener('click', ()=>{
+      if(ci===0 && li===0) return;
+      let nci=ci, nli=li-1;
+      if(nli<0){ nci=ci-1; nli=(course.outline?.[nci]?.lessons?.length||1)-1; }
+      const lesson2=(course.outline?.[nci]?.lessons?.[nli])||{};
+      showLesson(lesson2,course,nci,nli);
+    });
+    $('#next-lesson')?.addEventListener('click', ()=>{
+      let nci=ci, nli=li+1;
+      if(nli>=(course.outline?.[ci]?.lessons?.length||0)){ nci=ci+1; nli=0; }
+      const lesson2=(course.outline?.[nci]?.lessons?.[nli])||{};
+      if(!lesson2.title && !lesson2.html && !lesson2.video) return;
+      showLesson(lesson2,course,nci,nli);
+    });
+    $('#bookmark-lesson')?.addEventListener('click', async ()=>{
+      const lkey=lessonKey(ci,li);
+      await col('bookmarks').add({ uid:myUid(), courseId:course.id, lkey, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+      notify('Bookmarked');
+    });
+    $('#add-note')?.addEventListener('click', async ()=>{
+      const text=prompt('Note text'); if(!text) return;
+      const lkey=lessonKey(ci,li);
+      await col('notes').add({ uid:myUid(), courseId:course.id, lkey, text, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+      paintNotes(course.id,lkey);
+    });
+    $('#take-final')?.addEventListener('click', ()=>{
+      const f=finalForCourse(course.id); if(!f) return notify('No final set','warn');
+      openFinalModal(f);
+    });
     $('#view-ann')?.addEventListener('click', ()=> showNotificationsModal(course.id));
     $('#btn-enroll')?.addEventListener('click', async ()=>{
-      await col('enrollments').add({
-        uid:myUid(), courseId:course.id, createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-        course:{id:course.id,title:course.title,category:course.category}
-      });
+      await col('enrollments').add({ uid:myUid(), courseId:course.id, createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+        course:{id:course.id,title:course.title,category:course.category} });
       notify('Enrolled'); showLesson(lesson,course,ci,li);
     });
+    $('#dl-cert')?.addEventListener('click', ()=>{
+      const p=state.profiles.find(x=>x.uid===myUid())||{name:auth.currentUser.email};
+      generateCertificatePNG({ name:p.name||p.email, signName:p.signName||'', signImg:p.signImg||'',
+        course:course.title||course.id, org:'LearnHub', credits:course.credit||0, date:new Date() });
+    });
+    $('#post-ann')?.addEventListener('click', async ()=>{
+      const title=prompt('Announcement title'); if(!title) return;
+      const text=prompt('Message'); if(!text) return;
+      await col('announcements').add({ courseId:course.id, title, text, createdAt:firebase.firestore.FieldValue.serverTimestamp(), readBy:[] });
+      notify('Announcement posted');
+    });
+
+    paintNotes(course.id, lessonKey(ci,li));
+    saveProgress(course.id,ci,li);
   }
 
   function showCourseReader(course, ci=0, li=0){
@@ -831,7 +810,7 @@
     showLesson(lesson, course, ci, li);
   }
 
-  /* ---------- Finals (assessments) ---------- */
+  // Finals modal
   function openFinalModal(q){
     $('#mm-title').textContent=q.title;
     $('#mm-body').innerHTML = (q.items||[]).map((it,idx)=>`
@@ -843,7 +822,7 @@
               <input type="${it.multi?'checkbox':'radio'}" name="q${idx}" value="${i}"/> <span>${escapeHTML(c)}</span>
             </label>`).join('')}
         </div>
-      </div></div>`).join('');
+      </div></div>`).join('') || '<p class="muted">No questions yet.</p>';
     $('#mm-foot').innerHTML=`<button class="btn" id="q-submit"><i class="ri-checkbox-circle-line"></i> Submit</button>`;
     openModal();
 
@@ -865,7 +844,6 @@
         uid:myUid(), email:auth.currentUser.email, quizId:q.id, quizTitle:q.title, courseId:q.courseId, score,
         createdAt:firebase.firestore.FieldValue.serverTimestamp()
       });
-      // credits if pass
       if(pass){
         const me = state.profiles.find(p=>p.uid===myUid()) || {credits:0};
         await doc('profiles', myUid()).set({ credits: (me.credits||0) + (state.courses.find(c=>c.id===q.courseId)?.credit||0) },{merge:true});
@@ -875,8 +853,8 @@
     };
   }
 
+  // Wire assessments
   function wireAssessments(){
-    // new final
     $('#new-final')?.addEventListener('click', ()=>{
       if(!['instructor','admin'].includes(state.role)) return notify('Instructors/Admins only','warn');
       $('#mm-title').textContent='New Final';
@@ -902,14 +880,12 @@
       };
     });
 
-    // take/edit
     const sec=$('[data-sec="finals"]'); if(!sec||sec.__wired){return;} sec.__wired=true;
     sec.addEventListener('click', async (e)=>{
       const take=e.target.closest('button[data-take]'); const edit=e.target.closest('button[data-edit]');
       if(take){
         const id=take.getAttribute('data-take'); const snap=await doc('finals',id).get(); if(!snap.exists) return;
         const q={id:snap.id,...snap.data()};
-        // require enrollment
         if(!isEnrolled(q.courseId) && state.role==='student') return notify('Enroll first to take final','warn');
         openFinalModal(q);
       }
@@ -926,7 +902,6 @@
           </div>`;
         $('#mm-foot').innerHTML=`<button class="btn" id="q-save">Save</button>`;
         openModal();
-        // prefill date
         const pre=q.scheduleAt?.toDate?.();
         if(pre){
           const pad=n=>String(n).padStart(2,'0');
@@ -943,21 +918,21 @@
       }
     });
 
-    // attempts row click -> open course
+    // open course from attempts
     $('#attempts-table')?.addEventListener('click', async (e)=>{
       const tr=e.target.closest('tr[data-open-course]'); if(!tr) return;
       const id=tr.getAttribute('data-open-course'); const snap=await doc('courses',id).get(); if(!snap.exists) return notify('Course not found','warn');
-      const c={id:snap.id,...snap.data()};
-      showCourseReader(c,0,0);
+      showCourseReader({id:snap.id,...snap.data()},0,0);
     });
   }
 
-  /* ---------- Chat ---------- */
+  // Chat
   function wireChat(){
     const box=$('#chat-box'); const courseSel=$('#chat-course'); const input=$('#chat-input'); const send=$('#chat-send');
     let unsubChat=null, currentCourse='';
     const paint=(msgs)=>{
-      box.innerHTML = msgs.map(m=>`
+      const sorted=[...msgs].sort((a,b)=> (a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0));
+      box.innerHTML = sorted.map(m=>`
         <div style="margin-bottom:8px">
           <div style="font-weight:600">${escapeHTML(m.name||m.email||'User')} <span class="muted" style="font-size:12px">• ${fmtDate(m.createdAt)}</span></div>
           <div>${escapeHTML(m.text||'').replace(/\n/g,'<br>')}</div>
@@ -967,7 +942,8 @@
     const sub=(cid)=>{
       unsubChat?.(); unsubChat=null; currentCourse=cid; box.innerHTML='';
       if(!cid) return;
-      unsubChat = col('messages').where('courseId','==',cid).orderBy('createdAt').onSnapshot(s=>{
+      // Removed .orderBy to avoid composite index; sort client-side
+      unsubChat = col('messages').where('courseId','==',cid).onSnapshot(s=>{
         state.messages = s.docs.map(d=>({id:d.id,...d.data()})); paint(state.messages);
       });
     };
@@ -981,7 +957,7 @@
     });
   }
 
-  /* ---------- Tasks ---------- */
+  // Tasks
   function wireTasks(){
     const root=$('[data-sec="tasks"]'); if(!root) return;
 
@@ -996,7 +972,6 @@
       };
     });
 
-    // edit/delete + DnD
     root.addEventListener('click', async (e)=>{
       const btn=e.target.closest('button'); if(!btn) return;
       const id=btn.getAttribute('data-edit')||btn.getAttribute('data-del'); if(!id) return;
@@ -1018,6 +993,7 @@
       }
     });
 
+    // DnD
     root.querySelectorAll('.task-card').forEach(card=>{
       card.setAttribute('draggable','true'); card.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', card.getAttribute('data-task')); card.classList.add('dragging'); });
       card.addEventListener('dragend', ()=> card.classList.remove('dragging'));
@@ -1032,7 +1008,7 @@
     });
   }
 
-  /* ---------- Profile ---------- */
+  // Profile
   function wireProfile(){
     $('#pf-pick')?.addEventListener('click', ()=> $('#pf-avatar')?.click());
     $('#pf-picksign')?.addEventListener('click', ()=> $('#pf-signimg')?.click());
@@ -1053,14 +1029,12 @@
         const ref=stg.ref().child(`signatures/${uid}/${sign.name}`); await ref.put(sign);
         const url=await ref.getDownloadURL(); await doc('profiles',uid).set({ signImg:url },{merge:true});
       }
-      // clear file inputs (so your placeholders look empty)
       if($('#pf-avatar')) $('#pf-avatar').value='';
       if($('#pf-signimg')) $('#pf-signimg').value='';
       notify('Profile saved');
-      render(); // refresh preview
+      render();
     });
 
-    // Export transcript
     $('#pf-export')?.addEventListener('click', ()=>{
       const rows=[['Course','Best Score','Completed']];
       buildTranscript(myUid()).forEach(r=> rows.push([r.courseTitle, String(r.best), r.completed?'yes':'no']));
@@ -1069,66 +1043,37 @@
       const a=document.createElement('a'); a.href=url; a.download='transcript.csv'; a.click(); URL.revokeObjectURL(url);
     });
 
-    // certificate download
+    // certificate download from transcript
     $('#main')?.addEventListener('click', async (e)=>{
       const b=e.target.closest('button[data-cert]'); if(!b) return;
       const courseId=b.getAttribute('data-cert'); const course=state.courses.find(c=>c.id===courseId)||{};
       const p=state.profiles.find(x=>x.uid===myUid())||{name:auth.currentUser.email};
-      await generateCertificatePNG({ name:p.name||p.email, signName:p.signName||'', signImg:p.signImg||'', course:course.title||courseId,
-        org:'LearnHub', credits:course.credit||0, date:new Date() });
+      await generateCertificatePNG({ name:p.name||p.email, signName:p.signName||'', signImg:p.signImg||'', course:course.title||courseId, org:'LearnHub', credits:course.credit||0, date:new Date() });
     });
   }
 
   async function generateCertificatePNG({name,signName,signImg,course,org,credits,date}){
     const canvas=document.createElement('canvas'); canvas.width=1400; canvas.height=1000;
     const c=canvas.getContext('2d');
-
-    // background + border
     c.fillStyle='#0b0d10'; c.fillRect(0,0,1400,1000);
     c.strokeStyle='#7ad3ff'; c.lineWidth=12; c.strokeRect(40,40,1320,920);
     c.strokeStyle='rgba(255,255,255,.18)'; c.lineWidth=4; c.strokeRect(70,70,1260,860);
-
-    // heading
-    c.fillStyle='#fff'; c.font='bold 64px Inter, Arial, sans-serif';
-    c.fillText('Certificate of Completion', 330, 210);
-
-    // body
-    c.font='28px Inter, Arial, sans-serif';
-    c.fillText(`This is to certify that`, 330, 290);
-    c.font='bold 44px Inter, Arial, sans-serif';
-    c.fillText(name, 330, 350);
-    c.font='28px Inter, Arial, sans-serif';
-    c.fillText(`has successfully completed the course`, 330, 410);
-    c.font='bold 36px Inter, Arial, sans-serif';
-    c.fillText(course, 330, 460);
-    c.font='28px Inter, Arial, sans-serif';
-    c.fillText(`Credits: ${credits}`, 330, 510);
+    c.fillStyle='#fff'; c.font='bold 64px Inter, Arial, sans-serif'; c.fillText('Certificate of Completion', 330, 210);
+    c.font='28px Inter, Arial, sans-serif'; c.fillText(`This is to certify that`, 330, 290);
+    c.font='bold 44px Inter, Arial, sans-serif'; c.fillText(name, 330, 350);
+    c.font='28px Inter, Arial, sans-serif'; c.fillText(`has successfully completed the course`, 330, 410);
+    c.font='bold 36px Inter, Arial, sans-serif'; c.fillText(course, 330, 460);
+    c.font='28px Inter, Arial, sans-serif'; c.fillText(`Credits: ${credits}`, 330, 510);
     c.fillText(`Date: ${date.toLocaleDateString()}`, 330, 560);
-
-    // org + signature area
-    c.font='28px Inter, Arial, sans-serif';
-    c.fillText(org, 330, 760);
-    c.fillText('Authorized Signature', 920, 760);
+    c.font='28px Inter, Arial, sans-serif'; c.fillText(org, 330, 760); c.fillText('Authorized Signature', 920, 760);
     c.beginPath(); c.moveTo(880,720); c.lineTo(1240,720); c.strokeStyle='rgba(255,255,255,.6)'; c.lineWidth=2; c.stroke();
-
-    // signature image (if any)
-    if(signImg){
-      try{
-        const img=await loadImage(signImg);
-        const ratio=img.width/img.height; const w=280; const h=w/ratio;
-        c.drawImage(img, 900, 650, w, h);
-      }catch{}
-    } else if(signName){
-      c.font='italic 38px "Times New Roman", serif';
-      c.fillText(signName, 910, 705);
-    }
-
-    const url=canvas.toDataURL('image/png');
-    const a=document.createElement('a'); a.href=url; a.download=`certificate_${course.replace(/\s+/g,'_')}.png`; a.click();
+    if(signImg){ try{ const img=await loadImage(signImg); const ratio=img.width/img.height; const w=280; const h=w/ratio; c.drawImage(img, 900, 650, w, h);}catch{} }
+    else if(signName){ c.font='italic 38px "Times New Roman", serif'; c.fillText(signName, 910, 705); }
+    const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`certificate_${course.replace(/\s+/g,'_')}.png`; a.click();
   }
   function loadImage(src){ return new Promise((res,rej)=>{ const i=new Image(); i.crossOrigin='anonymous'; i.onload=()=>res(i); i.onerror=rej; i.src=src; }); }
 
-  /* ---------- Admin ---------- */
+  // Admin
   function wireAdmin(){
     $('#rm-save')?.addEventListener('click', async ()=>{
       const uid=$('#rm-uid')?.value.trim(); const role=$('#rm-role')?.value||'student';
@@ -1138,14 +1083,14 @@
     });
   }
 
-  /* ---------- Settings ---------- */
+  // Settings
   function wireSettings(){
     $('#theme-palette')?.addEventListener('change', e=> setTheme(e.target.value,null));
     $('#theme-font')?.addEventListener('change', e=> setTheme(null,e.target.value));
     $('#save-theme')?.addEventListener('click', ()=> notify('Theme saved'));
   }
 
-  /* ---------- Search view ---------- */
+  // Search view
   function wireSearch(){
     $('#main')?.querySelectorAll('[data-open-route]').forEach(el=>{
       el.addEventListener('click', ()=>{
@@ -1154,20 +1099,28 @@
     });
   }
 
-  /* ---------- Transcript ---------- */
+  // Learning (fix: open reader)
+  function wireLearning(){
+    $('#learning-grid')?.addEventListener('click', async (e)=>{
+      const btn=e.target.closest('button[data-open-course]'); if(!btn) return;
+      const id=btn.getAttribute('data-open-course'); const snap=await doc('courses',id).get(); if(!snap.exists) return notify('Course not found','warn');
+      showCourseReader({id:snap.id, ...snap.data()},0,0);
+    });
+  }
+
+  // Transcript
   function buildTranscript(uid){
     const byCourse = {};
     (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
       byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId, best:0, completed:false};
       byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score||0);
       const q = state.finals.find(x=>x.courseId===a.courseId);
-      const pass = q ? (byCourse[a.courseId].best >= (q.passScore||70)) : false;
-      byCourse[a.courseId].completed = pass;
+      byCourse[a.courseId].completed = q ? (byCourse[a.courseId].best >= (q.passScore||70)) : false;
     });
     return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
   }
 
-  /* ---------- Announcements ---------- */
+  // Announcements
   function showNotificationsModal(courseIdFilter=null){
     const listAll = state.announcements;
     const list = courseIdFilter ? listAll.filter(n=>n.courseId===courseIdFilter) : listAll;
@@ -1176,21 +1129,14 @@
       <div class="card"><div class="card-body">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div><strong>${escapeHTML(n.title||'Message')}</strong> <span class="muted" style="font-size:12px">• ${fmtDate(n.createdAt)}</span></div>
-          ${!n.read? `<button class="btn ghost" data-read="${n.id}">Mark read</button>`:''}
         </div>
         <p style="margin:6px 0">${escapeHTML(n.text||'')}</p>
       </div></div>`).join('') : '<p class="muted">No notifications.</p>';
     $('#mm-foot').innerHTML=`<button class="btn ghost" id="close">Close</button>`;
-    openModal();
-    $('#close')?.addEventListener('click',closeModal);
-    $('#mm-body').onclick=async e=>{
-      const b=e.target.closest('button[data-read]'); if(!b) return;
-      const id=b.getAttribute('data-read');
-      await doc('announcements',id).set({readBy:firebase.firestore.FieldValue.arrayUnion(myUid())},{merge:true});
-    };
+    openModal(); $('#close')?.addEventListener('click',closeModal);
   }
 
-  /* ---------- Firestore sync ---------- */
+  // Firestore sync (removed orderBy+where combos to avoid composite index prompts)
   function clearUnsubs(){ state.unsub.forEach(u=>{try{u()}catch{}}); state.unsub=[]; }
   function sync(){
     clearUnsubs();
@@ -1198,11 +1144,15 @@
     state.unsub.push(col('courses').orderBy('createdAt','desc').onSnapshot(s=>{ state.courses=s.docs.map(d=>({id:d.id,...d.data()})); if(['dashboard','courses','learning','assessments','chat'].includes(state.route)) render(); }));
     if(myUid()){
       state.unsub.push(col('enrollments').where('uid','==',myUid()).onSnapshot(s=>{ state.enrollments=s.docs.map(d=>({id:d.id,...d.data()})); if(['dashboard','learning'].includes(state.route)) render(); }));
-      state.unsub.push(col('attempts').where('uid','==',myUid()).orderBy('createdAt','desc').onSnapshot(s=>{ state.attempts=s.docs.map(d=>({id:d.id,...d.data()})); if(['assessments','profile','dashboard'].includes(state.route)) render(); }));
+      // attempts: no orderBy; sort client-side
+      state.unsub.push(col('attempts').where('uid','==',myUid()).onSnapshot(s=>{
+        state.attempts=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=> (b.createdAt?.toMillis?.()||0)-(a.createdAt?.toMillis?.()||0));
+        if(['assessments','profile','dashboard'].includes(state.route)) render();
+      }));
       state.unsub.push(col('tasks').where('uid','==',myUid()).onSnapshot(s=>{ state.tasks=s.docs.map(d=>({id:d.id,...d.data()})); if(['tasks'].includes(state.route)) render(); }));
     }
     state.unsub.push(col('finals').orderBy('createdAt','desc').onSnapshot(s=>{ state.finals=s.docs.map(d=>({id:d.id,...d.data()})); if(['assessments'].includes(state.route)) render(); }));
-    state.unsub.push(col('announcements').orderBy('createdAt','desc').onSnapshot(s=>{ state.announcements=s.docs.map(d=>({id:d.id,read: (d.data().readBy||[]).includes(myUid()), ...d.data()})); }));
+    state.unsub.push(col('announcements').orderBy('createdAt','desc').onSnapshot(s=>{ state.announcements=s.docs.map(d=>({id:d.id,...d.data()})); }));
   }
 
   async function resolveRole(uid,email){
@@ -1212,7 +1162,7 @@
     }catch{return 'student';}
   }
 
-  /* ---------- Auth ---------- */
+  // Auth
   auth.onAuthStateChanged(async (user)=>{
     state.user=user||null;
     if(!user){ clearUnsubs(); render(); return; }
@@ -1225,10 +1175,10 @@
     sync(); render();
   });
 
-  /* ---------- Boot ---------- */
+  // Boot
   setTheme('sunrise','medium'); render();
 
-  /* ---------- Dev: seeder available at /tools/seed.html ---------- */
+  // Seeder (call from /tools/seed.html)
   window.seedSampleData = async function(){
     const u=auth.currentUser; if(!u) return alert('Sign in first');
     const outline=[{title:"Chapter 1: Basics",lessons:[
@@ -1237,12 +1187,20 @@
     ]},{title:"Chapter 2: Algebra",lessons:[
       {title:"Equations",html:"ax + b = 0",images:[]}
     ]}];
-    const c1=await col('courses').add({title:'Algebra Basics',category:'Math',credit:3,desc:'Equations, functions, factoring.',outline,ownerUid:u.uid,ownerEmail:u.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-    await col('enrollments').add({uid:u.uid,courseId:c1.id,createdAt:firebase.firestore.FieldValue.serverTimestamp(),course:{id:c1.id,title:'Algebra Basics',category:'Math'}});
-    await col('finals').add({title:'Algebra Final',courseId:c1.id,courseTitle:'Algebra Basics',passScore:70,items:[
+    const c1Ref=await col('courses').add({title:'Algebra Basics',category:'Math',credit:3,desc:'Equations, functions, factoring.',outline,ownerUid:u.uid,ownerEmail:u.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    const c1={id:c1Ref.id,title:'Algebra Basics',category:'Math'};
+    await col('enrollments').add({uid:u.uid,courseId:c1.id,createdAt:firebase.firestore.FieldValue.serverTimestamp(),course:c1});
+    const fRef=await col('finals').add({title:'Algebra Final',courseId:c1.id,courseTitle:'Algebra Basics',passScore:70,items:[
       {q:'2+2?',choices:['3','4','5'],answer:1},
       {q:'Select primes',choices:['2','4','5'],answer:[0,2],multi:true}
     ],ownerUid:u.uid,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-    alert('Seeded: course + enrollment + final');
+    // seed a passing attempt so certificate/transcript show
+    await col('attempts').add({ uid:u.uid, email:u.email, quizId:fRef.id, quizTitle:'Algebra Final', courseId:c1.id, score:92, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+    // a welcome announcement
+    await col('announcements').add({ courseId:c1.id, title:'Welcome to Algebra!', text:'Final exam opens next week. Good luck!', createdAt:firebase.firestore.FieldValue.serverTimestamp(), readBy:[] });
+    // a couple of tasks
+    await col('tasks').add({ uid:u.uid, title:'Finish Chapter 1', status:'todo', createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+    await col('tasks').add({ uid:u.uid, title:'Revise equations', status:'inprogress', createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+    alert('Seeded: course + enrollment + final + passing attempt + announcement + tasks');
   };
 })();
