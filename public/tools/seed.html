@@ -1,276 +1,38 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>LearnHub – Seed Data</title>
-  <style>
-    :root { color-scheme: light dark; --fg:#111; --muted:#6b7280; --ok:#10b981; --warn:#f59e0b; --err:#ef4444; --bd:#e5e7eb; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; margin: 24px; }
-    h1 { margin: 0 0 6px 0; }
-    .card { border:1px solid var(--bd); border-radius:12px; padding:16px; max-width:900px; }
-    .row { display:flex; gap:10px; flex-wrap: wrap; margin: 10px 0; }
-    .btn { padding:10px 14px; border-radius:10px; border:1px solid var(--bd); background:#fff; cursor:pointer; }
-    .btn.primary { background:#111; color:#fff; }
-    .btn.ghost { background:transparent; }
-    .muted { color:var(--muted); font-size:13px; }
-    #log { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; border:1px dashed var(--bd); border-radius:10px; padding:12px; min-height:160px; white-space:pre-wrap; }
-    input[type="email"], input[type="password"] { padding:10px 12px; border:1px solid var(--bd); border-radius:8px; min-width:260px; }
-    a { color: #2563eb; text-decoration: none; }
-  </style>
-
-  <!-- Firebase Hosting auto-inject init (works on *.web.app / *.firebaseapp.com) -->
-  <script src="/__/firebase/9.23.0/firebase-app-compat.js"></script>
-  <script src="/__/firebase/9.23.0/firebase-auth-compat.js"></script>
-  <script src="/__/firebase/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="/__/firebase/9.23.0/firebase-storage-compat.js"></script>
-  <script src="/__/firebase/init.js?useEmulator=false"></script>
-</head>
-<body>
-  <h1>LearnHub Seed Data</h1>
-  <div class="muted">Use this once to populate example courses, quizzes, chat, attempts, and tasks.</div>
-  <br/>
-
-  <div class="card">
-    <div class="row">
-      <input id="email" type="email" placeholder="admin@learnhub.com" value="admin@learnhub.com"/>
-      <input id="pass" type="password" placeholder="admin123" value="admin123"/>
-      <button class="btn" id="btnSignIn">Sign in</button>
-      <button class="btn ghost" id="btnMakeAcct">Create account</button>
-      <span id="who" class="muted"></span>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>LearnHub Seeder</title>
+    <style>body{font-family:Inter,system-ui,sans-serif;background:#0b0d10;color:#e5e7eb;display:grid;place-items:center;min-height:100vh} .card{background:#111418;border:1px solid #1b212a;border-radius:12px;padding:16px;max-width:560px} .btn{padding:10px 12px;border-radius:12px;border:1px solid #1b212a;background:#60a5fa;color:#0b0d10;font-weight:700;cursor:pointer}</style>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  </head>
+  <body>
+    <div class="card">
+      <h2>Seed Sample Data</h2>
+      <p>This uses the same Firebase project as your app.</p>
+      <button class="btn" id="seed">Seed</button>
+      <div style="margin-top:8px;font-size:12px;color:#9aa4b2">Tip: make sure you’re signed-in in the main app tab.</div>
     </div>
-
-    <div class="row">
-      <button class="btn" id="btnRole">Set my role = instructor</button>
-      <button class="btn" id="btnProfile">Ensure my profile</button>
-    </div>
-
-    <div class="row">
-      <button class="btn" id="btnCourses">Create 3 sample courses</button>
-      <button class="btn" id="btnQuiz">Create a sample quiz for Course #1</button>
-      <button class="btn" id="btnEnroll">Enroll me in Course #1 & #2</button>
-    </div>
-
-    <div class="row">
-      <button class="btn" id="btnAttempt">Create a sample attempt</button>
-      <button class="btn" id="btnChat">Post sample chat messages</button>
-      <button class="btn" id="btnTasks">Create my sample tasks</button>
-    </div>
-
-    <div class="row">
-      <button class="btn primary" id="btnAll">Seed Everything</button>
-      <a class="btn ghost" href="/" title="Back to app">↩ Back to app</a>
-    </div>
-
-    <div class="row">
-      <div id="log"></div>
-    </div>
-
-    <div class="row">
-      <div class="muted">
-        Tip: If you see “requires an index” later, deploy the provided <code>firestore.indexes.json</code> via <code>firebase deploy --only firestore:indexes</code>.
-      </div>
-    </div>
-  </div>
-
-<script>
-(function(){
-  'use strict';
-  const logEl = document.getElementById('log');
-  const log = (m, kind='info') => {
-    const tag = kind==='ok'?'✅':kind==='warn'?'⚠️':kind==='err'?'❌':'•';
-    logEl.textContent += `${tag} ${m}\n`;
-    logEl.scrollTop = logEl.scrollHeight;
-  };
-
-  // Firebase
-  const app = firebase.app();
-  const auth = firebase.auth();
-  const db   = firebase.firestore();
-  const stg  = firebase.storage();
-  const ts   = firebase.firestore.FieldValue.serverTimestamp();
-
-  const col = (name)=> db.collection(name);
-  const docRef = (name,id)=> db.collection(name).doc(id);
-
-  // UI
-  const emailInp = document.getElementById('email');
-  const passInp  = document.getElementById('pass');
-  const whoSpan  = document.getElementById('who');
-
-  function who() {
-    whoSpan.textContent = auth.currentUser ? `Signed in as ${auth.currentUser.email}` : '(not signed in)';
-  }
-
-  document.getElementById('btnSignIn').onclick = async ()=>{
-    try {
-      await auth.signInWithEmailAndPassword(emailInp.value.trim(), passInp.value.trim());
-      log('Signed in.', 'ok'); who();
-    } catch (e) {
-      log(`Sign in failed: ${e.message}`, 'err');
-    }
-  };
-
-  document.getElementById('btnMakeAcct').onclick = async ()=>{
-    const e=emailInp.value.trim(), p=passInp.value.trim()||'admin123';
-    if(!e){ log('Enter an email first, then click Create account again.', 'warn'); return; }
-    try{
-      await auth.createUserWithEmailAndPassword(e,p);
-      log('Account created. You are signed in.', 'ok'); who();
-      // ensure profile baseline
-      await ensureProfile();
-    }catch(err){
-      log(`Create account failed: ${err.message}`, 'err');
-    }
-  };
-
-  // Seed helpers (idempotent via deterministic ids)
-  async function ensureProfile(){
-    const u = auth.currentUser; if(!u){ log('Sign in first', 'warn'); return; }
-    const p = await docRef('profiles', u.uid).get();
-    if(!p.exists){
-      await docRef('profiles', u.uid).set({ uid:u.uid, email:u.email, name:'Demo Admin', bio:'I enjoy teaching & learning.', portfolio:'', createdAt:ts });
-      log('Profile created.', 'ok');
-    } else {
-      await docRef('profiles', u.uid).set({ email:u.email }, { merge:true });
-      log('Profile exists (updated email).', 'ok');
-    }
-  }
-
-  async function setMyRoleInstructor(){
-    const u=auth.currentUser; if(!u){ log('Sign in first', 'warn'); return; }
-    await docRef('roles', u.uid).set({ uid:u.uid, role:'instructor', updatedAt:ts }, { merge:true });
-    log('Role set to instructor.', 'ok');
-  }
-
-  async function createCourses(){
-    const u=auth.currentUser; if(!u){ log('Sign in first', 'warn'); return; }
-    const base = {
-      ownerUid: u.uid, ownerEmail: u.email, createdAt: ts
-    };
-    const courses = [
-      { id: 'sample-course-1', title:'Intro to Web Development', category:'Programming', desc:'HTML, CSS, and JS fundamentals.' },
-      { id: 'sample-course-2', title:'Data Fundamentals', category:'Data', desc:'CSV, JSON, and basic analysis.' },
-      { id: 'sample-course-3', title:'Design Basics', category:'Design', desc:'Color, layout, and typography.' }
-    ];
-    for(const c of courses){
-      await docRef('courses', c.id).set({ id:c.id, ...c, ...base }, { merge:true });
-      log(`Course ensured: ${c.title}`, 'ok');
-    }
-  }
-
-  async function createQuiz(){
-    const u=auth.currentUser; if(!u){ log('Sign in first', 'warn'); return; }
-    // for sample-course-1
-    const quiz = {
-      id: 'sample-quiz-1',
-      title: 'Web Dev Basics',
-      courseId: 'sample-course-1',
-      courseTitle: 'Intro to Web Development',
-      passScore: 70,
-      ownerUid: u.uid,
-      items: [
-        { q:'What does HTML stand for?', choices:['Hyperlinks and Text Markup Language','Hyper Text Markup Language','Home Tool Markup Language'], answer:1 },
-        { q:'Which CSS property sets text color?', choices:['font-style','color','text-color'], answer:1 },
-        { q:'Where do you put <script> tags in HTML?', choices:['Head or body','Only head','Only body'], answer:0 }
-      ],
-      createdAt: ts
-    };
-    await docRef('quizzes', quiz.id).set(quiz, { merge:true });
-    log('Quiz ensured: Web Dev Basics', 'ok');
-  }
-
-  async function enrollMe(){
-    const u=auth.currentUser; if(!u){ log('Sign in first', 'warn'); return; }
-    const pairs = [
-      { courseId:'sample-course-1', title:'Intro to Web Development', category:'Programming' },
-      { courseId:'sample-course-2', title:'Data Fundamentals', category:'Data' }
-    ];
-    for(const p of pairs){
-      const id = `${u.uid}_${p.courseId}`;
-      await docRef('enrollments', id).set({
-        uid:u.uid, courseId:p.courseId, createdAt: ts,
-        course: { id:p.courseId, title:p.title, category:p.category }
-      }, { merge:true });
-      log(`Enrolled into: ${p.title}`, 'ok');
-    }
-  }
-
-  async function createAttempt(){
-    const u=auth.currentUser; if(!u){ log('Sign in first', 'warn'); return; }
-    const id = `${u.uid}_sample-quiz-1_1`;
-    await docRef('attempts', id).set({
-      uid:u.uid, email:u.email,
-      quizId:'sample-quiz-1', quizTitle:'Web Dev Basics',
-      courseId:'sample-course-1', score: 85,
-      createdAt: ts
-    }, { merge:true });
-    log('Sample attempt created (score 85%).', 'ok');
-  }
-
-  async function postChat(){
-    const u=auth.currentUser; if(!u){ log('Sign in first', 'warn'); return; }
-    const who = (await docRef('profiles', u.uid).get()).data() || { name: u.email };
-    const msgs = [
-      { text:'Hello everyone! Excited to learn web development.' },
-      { text:'Tip: Use Flexbox to align items easily.' }
-    ];
-    for(const m of msgs){
-      await col('messages').add({
-        courseId:'sample-course-1',
-        uid:u.uid, email:u.email, name: who.name || u.email,
-        text: m.text, createdAt: ts
-      });
-    }
-    log('Sample chat messages posted in Course #1.', 'ok');
-  }
-
-  async function createTasks(){
-    const u=auth.currentUser; if(!u){ log('Sign in first', 'warn'); return; }
-    const list = [
-      { id:`${u.uid}_t1`, title:'Finish Lesson 1', status:'todo' },
-      { id:`${u.uid}_t2`, title:'Submit Quiz 1', status:'inprogress' },
-      { id:`${u.uid}_t3`, title:'Update portfolio link', status:'done' }
-    ];
-    for(const t of list){
-      await docRef('tasks', t.id).set({ uid:u.uid, ...t, createdAt: ts }, { merge:true });
-    }
-    log('Sample tasks created for your account.', 'ok');
-  }
-
-  // Buttons
-  document.getElementById('btnRole').onclick    = setMyRoleInstructor;
-  document.getElementById('btnProfile').onclick = ensureProfile;
-  document.getElementById('btnCourses').onclick = createCourses;
-  document.getElementById('btnQuiz').onclick    = createQuiz;
-  document.getElementById('btnEnroll').onclick  = enrollMe;
-  document.getElementById('btnAttempt').onclick = createAttempt;
-  document.getElementById('btnChat').onclick    = postChat;
-  document.getElementById('btnTasks').onclick   = createTasks;
-
-  document.getElementById('btnAll').onclick = async ()=>{
-    try{
-      if(!auth.currentUser){
-        await auth.signInWithEmailAndPassword(emailInp.value.trim()||'admin@learnhub.com', passInp.value.trim()||'admin123');
-        who(); log('Signed in.', 'ok');
-      }
-      await ensureProfile();
-      await setMyRoleInstructor();
-      await createCourses();
-      await createQuiz();
-      await enrollMe();
-      await createAttempt();
-      await postChat();
-      await createTasks();
-      log('All done. Go back to the app and refresh.', 'ok');
-    }catch(e){
-      log(`Seed failed: ${e.message}`, 'err');
-    }
-  };
-
-  auth.onAuthStateChanged(()=> who());
-  who();
-})();
-</script>
-</body>
+    <script>
+      (function(){
+        try{
+          window.__FIREBASE_CONFIG = JSON.parse(localStorage.getItem('__FIREBASE_CONFIG')||'{}');
+        }catch{}
+        if(!window.__FIREBASE_CONFIG || !__FIREBASE_CONFIG.projectId) alert('Config missing. Open the main app once to store config.');
+        firebase.initializeApp(window.__FIREBASE_CONFIG);
+        const auth=firebase.auth(), db=firebase.firestore();
+        document.getElementById('seed').onclick=async ()=>{
+          const u=auth.currentUser; if(!u){ alert('Sign in first in the main app tab.'); return; }
+          const col=(n)=>db.collection(n);
+          const outline=[{title:'Ch.1',lessons:[{title:'Intro',html:'<p>Hello!</p>'}]}];
+          const c=await col('courses').add({title:'Sample Course',category:'General',desc:'Demo content',outline,ownerUid:u.uid,ownerEmail:u.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+          await col('enrollments').add({uid:u.uid,courseId:c.id,createdAt:firebase.firestore.FieldValue.serverTimestamp(),course:{id:c.id,title:'Sample Course',category:'General'}});
+          await col('quizzes').add({title:'Sample Quiz',courseId:c.id,courseTitle:'Sample Course',passScore:70,items:[{q:'2+2?',type:'single',choices:['3','4','5'],answer:1}],ownerUid:u.uid,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+          alert('Seeded.');
+        };
+      })();
+    </script>
+  </body>
 </html>

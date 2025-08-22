@@ -86,3 +86,5 @@ precache-manifest.*.js
 # Misc
 # ------------------------------
 *.local
+
+appA.js
