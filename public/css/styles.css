@@ -86,6 +86,25 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);fon
 .dialog .foot{border-top:1px solid var(--border);border-bottom:0}
 .dialog .body{padding:10px;overflow:auto}
 
+/* Scrollable quiz modal */
+.modal .dialog{
+  max-height:90vh;
+  display:flex;
+  flex-direction:column;
+}
+.modal .dialog .body{
+  flex:1 1 auto;
+  overflow:auto;             /* <— lets the quiz scroll all the way down */
+  padding-right:6px;
+}
+.modal .dialog .foot{
+  position:sticky;           /* submit button stays visible at bottom */
+  bottom:0;
+  background:var(--panel, #0f141b);
+  border-top:1px solid var(--border, rgba(255,255,255,.08));
+  padding:10px;
+}
+
 /* Reader */
 .course-wrap{display:grid;grid-template-columns:290px 1fr;gap:12px}
 @media (max-width: 1000px){.course-wrap{grid-template-columns:1fr}}
