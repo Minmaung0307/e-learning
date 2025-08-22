@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Roles: roles/{uid} => { role: "student"|"instructor"|"admin" }
+    match /roles/{uid} {
+      allow read: if request.auth != null; // anyone signed-in can read roles
+      // Only admins can set roles. Admins are:
+      //   - users with role "admin" in roles/{request.auth.uid}, or
+      //   - hardcoded admin emails below.
+      function isAdmin() {
+        return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == "admin"
+               || (request.auth.token.email in ["admin@learnhub.com"]);
+      }
+      allow write: if request.auth != null && isAdmin();
+    }
+
+    // Profiles: profiles/{uid}
+    match /profiles/{uid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Courses
+    match /courses/{id} {
+      allow read: if request.auth != null;
+      function isInstructor() {
+        return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role in ["instructor","admin"]
+               || (request.auth.token.email in ["admin@learnhub.com"]);
+      }
+      allow create: if request.auth != null && isInstructor();
+      allow update, delete: if request.auth != null && (isInstructor() || resource.data.ownerUid == request.auth.uid);
+    }
+
+    // Enrollments: anyone can read their own; create if authed
+    match /enrollments/{id} {
+      allow read: if request.auth != null && request.resource.data.uid == request.auth.uid || request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Quizzes (created by instructors/admin)
+    match /quizzes/{id} {
+      allow read: if request.auth != null;
+      function isInstructor() {
+        return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role in ["instructor","admin"]
+               || (request.auth.token.email in ["admin@learnhub.com"]);
+      }
+      allow create: if request.auth != null && isInstructor();
+      allow update, delete: if request.auth != null && isInstructor();
+    }
+
+    // Attempts (students write their own)
+    match /attempts/{id} {
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid
+        || get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role in ["instructor","admin"]);
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Messages (course chat) — must be enrolled or instructor/admin
+    match /messages/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null &&
+        (
+          // instructor/admin:
+          get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role in ["instructor","admin"]
+          ||
+          // enrolled student:
+          exists(/databases/$(database)/documents/enrollments/$(request.resource.data.courseId + "_" + request.auth.uid))
+        ) &&
+        request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Personal tasks
+    match /tasks/{id} {
+      allow read, create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+  }
+}

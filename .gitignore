@@ -1,0 +1,88 @@
+# ------------------------------
+# OS junk
+# ------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# ------------------------------
+# Logs
+# ------------------------------
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ------------------------------
+# Environment files
+# (keep an example to show required keys)
+# ------------------------------
+.env
+.env.*
+!.env.example
+
+# ------------------------------
+# Node / package managers
+# ------------------------------
+node_modules/
+.pnpm-store/
+
+# ------------------------------
+# Build outputs / caches (pick what you use)
+# ------------------------------
+dist/
+build/
+public/build/
+public/dist/
+.tmp/
+tmp/
+temp/
+.build/
+.cache/
+.parcel-cache/
+.vite/
+coverage/
+
+# ------------------------------
+# Editor & IDE
+# ------------------------------
+.idea/
+*.iml
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# ------------------------------
+# Hosting / CI platforms
+# ------------------------------
+.netlify/
+.vercel/
+
+# ------------------------------
+# Firebase
+# ------------------------------
+.firebase/
+firebase-debug.log
+# Functions build artifacts (if you add Cloud Functions later)
+functions/lib/
+functions/node_modules/
+
+# ------------------------------
+# Workbox/Service Worker generated artifacts (if you generate SW)
+# Keep your handwritten service worker & manifest
+# ------------------------------
+sw.js.map
+service-worker.js.map
+workbox-*.js
+precache-manifest.*.js
+!service-worker.js
+!manifest.webmanifest
+!manifest.json
+
+# ------------------------------
+# Misc
+# ------------------------------
+*.local

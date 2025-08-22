@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="sunrise" data-font="medium">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <title>LearnHub — E-Learning SPA</title>
+
+  <!-- Fonts + Icons -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet"/>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <meta name="theme-color" content="#0b0b0c"/>
+  <link rel="icon" sizes="48x48" href="/icons/calculator-48.png"/>
+  <link rel="apple-touch-icon" href="/icons/calculator-180.png"/>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="./css/styles.css"/>
+
+  <!-- Firebase v9 compat -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js" defer></script>
+
+  <!-- Your Firebase config -->
+  <script>
+    // FILL THIS with your project values
+    window.__FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
+  authDomain: "e-learning-mm.firebaseapp.com",
+  projectId: "e-learning-mm",
+  storageBucket: "e-learning-mm.firebasestorage.app",
+  messagingSenderId: "523808908467",
+  appId: "1:523808908467:web:01b9bac036137744647cc6",
+  measurementId: "G-JYF6HGM5XC"
+    };
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Service worker -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/service-worker.js").catch(()=>{});
+      });
+    }
+  </script>
+
+  <!-- App -->
+  <script src="./js/app.js?v=1.0.0" defer></script>
+</body>
+</html>
