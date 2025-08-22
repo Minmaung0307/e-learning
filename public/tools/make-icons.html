@@ -3,34 +3,28 @@
 <head><meta charset="utf-8"><title>Make Icons</title></head>
 <body style="font-family:system-ui; background:#0b0d10; color:#e5e7eb; padding:20px">
   <h2>Create LearnHub Icons</h2>
-  <p>Click each button to download the correct PNG. Move them into <code>public/icons/</code>.</p>
+  <p>Click each button to download the correct PNG. Move them into <code>public/icons/</code> as <code>learnhub-192.png</code> and <code>learnhub-512.png</code>.</p>
   <button id="b192">Download learnhub-192.png</button>
   <button id="b512" style="margin-left:8px">Download learnhub-512.png</button>
   <script>
     function make(size){
       const c=document.createElement('canvas'); c.width=size; c.height=size;
       const ctx=c.getContext('2d');
-      // background gradient
       const g=ctx.createLinearGradient(0,0,size,size);
       g.addColorStop(0,'#0c1626'); g.addColorStop(1,'#7ad3ff'); ctx.fillStyle=g; ctx.fillRect(0,0,size,size);
-      // rounded mask
       const r=size*0.18; ctx.globalCompositeOperation='destination-in';
       ctx.beginPath(); ctx.moveTo(r,0); ctx.arcTo(size,0,size,size,r); ctx.arcTo(size,size,0,size,r);
       ctx.arcTo(0,size,0,0,r); ctx.arcTo(0,0,size,0,r); ctx.closePath(); ctx.fill();
       ctx.globalCompositeOperation='source-over';
-      // letters
       ctx.fillStyle='#0b0d10'; ctx.font=`${Math.round(size*0.42)}px Inter, Arial, sans-serif`;
       ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('LH', size/2, size/2+size*0.02);
-      // border
       ctx.strokeStyle='rgba(0,0,0,.25)'; ctx.lineWidth=Math.max(2, size*0.02);
       ctx.strokeRect(ctx.lineWidth/2,ctx.lineWidth/2,size-ctx.lineWidth,size-ctx.lineWidth);
       return c.toDataURL('image/png');
     }
-    function dl(dataURL, name){
-      const a=document.createElement('a'); a.href=dataURL; a.download=name; a.click();
-    }
-    document.getElementById('b192').onclick=()=> dl(make(192),'learnhub-192.png');
-    document.getElementById('b512').onclick=()=> dl(make(512),'learnhub-512.png');
+    function dl(dataURL, name){ const a=document.createElement('a'); a.href=dataURL; a.download=name; a.click(); }
+    b192.onclick=()=> dl(make(192),'learnhub-192.png');
+    b512.onclick=()=> dl(make(512),'learnhub-512.png');
   </script>
 </body>
 </html>

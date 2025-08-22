@@ -1,67 +1,56 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="sunrise" data-font="medium">
-  <head>
-    <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width,initial-scale=1,viewport-fit=cover"
-    />
-    <title>LearnHub</title>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LearnHub</title>
 
-    <!-- PWA -->
-    <meta name="theme-color" content="#0b0d10" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/icons/learnhub-192.png" />
-    <meta name="mobile-web-app-capable" content="yes" />
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#0b0d10" />
 
-    <!-- Icons & fonts -->
-    <link
-      href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css"
-      rel="stylesheet"
-    />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Georgia:wght@400;700&display=swap"
-      rel="stylesheet"
-    />
+  <!-- Icons / Favicon (ensure these files exist) -->
+  <link rel="icon" sizes="192x192" href="/icons/learnhub-192.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/icons/learnhub-192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="/icons/learnhub-512.png" />
 
-    <!-- App CSS -->
-    <link rel="stylesheet" href="/css/styles.css" />
-  </head>
-  <body>
-    <div id="root"></div>
+  <!-- Remix Icon (for UI icons) -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
 
-    <!-- Notification (created on demand too, but pre-adding avoids layout jank) -->
-    <div id="notification" class="notification"></div>
+  <link rel="stylesheet" href="/css/styles.css" />
 
-    <!-- Firebase (compat) -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-
-    <!-- Your Firebase project config -->
-    <script>
-      // REPLACE with your real config (Project settings → General → SDK setup and configuration)
-      window.__FIREBASE_CONFIG = {
-        apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
+  <script>
+    /* ====== YOUR FIREBASE CONFIG ====== */
+    window.__FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
         authDomain: "e-learning-mm.firebaseapp.com",
         projectId: "e-learning-mm",
         storageBucket: "e-learning-mm.firebasestorage.app",
         messagingSenderId: "523808908467",
         appId: "1:523808908467:web:01b9bac036137744647cc6",
         measurementId: "G-JYF6HGM5XC",
-      };
-    </script>
+    };
+  </script>
 
-    <!-- App JS -->
-    <script src="/js/app.js"></script>
+  <!-- Firebase compat (Auth + Firestore + Storage) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+</head>
+<body>
+  <div id="root"></div>
 
-    <!-- Service worker -->
-    <script>
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/service-worker.js").catch(() => {});
-      }
-    </script>
-  </body>
+  <!-- Notification toaster (created early so notify() always finds it) -->
+  <div id="notification" class="notification"></div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js');
+      });
+    }
+  </script>
+</body>
 </html>

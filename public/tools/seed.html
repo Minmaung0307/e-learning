@@ -1,14 +1,9 @@
 <!doctype html>
 <html>
-<head>
-  <meta charset="utf-8"/>
-  <title>Seed LearnHub</title>
-  <style>body{font-family:system-ui,Inter,Arial; background:#0b0d10; color:#e5e7eb; padding:20px} button{padding:10px 12px; border-radius:10px; border:none; background:#7ad3ff; color:#0b0d10; font-weight:700; cursor:pointer}</style>
-</head>
-<body>
-  <h2>Seed LearnHub data</h2>
-  <p>Sign in on the main app first in this browser tab. Then click:</p>
-  <button onclick="window.opener && window.opener.seedSampleData ? window.opener.seedSampleData() : alert('Open the main app first')">Seed sample course & final</button>
-  <p style="margin-top:12px; color:#9aa4af">This uses the logged-in user as the owner/instructor for the demo course.</p>
+<head><meta charset="utf-8"><title>Seed LearnHub</title></head>
+<body style="font-family:system-ui;padding:20px;background:#0b0d10;color:#e5e7eb">
+  <h2>Seed Helper</h2>
+  <p>Open the app, sign in, then paste in the DevTools console: <code>seedSampleData()</code></p>
+  <p>To generate icons quickly, use <a href="/tools/make-icons.html">/tools/make-icons.html</a> and move the PNGs into <code>/public/icons/</code>.</p>
 </body>
 </html>
