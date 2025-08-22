@@ -1,70 +1,60 @@
-<!doctype html>
-<html lang="en" data-theme="slate" data-font="medium">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>LearnHub</title>
 
-    <!-- PWA -->
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#0b0d10">
-    <link rel="manifest" href="/manifest.webmanifest">
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0b0d10">
 
-    <!-- Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=Playfair+Display:wght@600;700&family=Great+Vibes&display=swap" rel="stylesheet">
+  <!-- Icons (Remix) -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+  <!-- Styles -->
+  <link rel="stylesheet" href="/css/styles.css">
 
-    <!-- Fonts & Icons -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:wght@700&family=Great+Vibes&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-
-    <!-- Pre-apply saved theme before CSS paint -->
-    <script>
+  <script>
+    /* Pre-apply saved theme before first paint */
+    (function(){
       try{
-        var t = JSON.parse(localStorage.getItem('lh_theme')||'{}');
-        if(t && t.palette) document.documentElement.setAttribute('data-theme', t.palette);
-        if(t && t.font) document.documentElement.setAttribute('data-font', t.font);
+        const t = JSON.parse(localStorage.getItem('lh_theme')||'{}');
+        if(t.palette) document.documentElement.setAttribute('data-theme', t.palette);
+        if(t.font) document.documentElement.setAttribute('data-font', t.font);
       }catch{}
-    </script>
+    })();
+  </script>
 
-    <link rel="stylesheet" href="/css/styles.css" />
-    <title>LearnHub</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <div id="notification" class="notification"></div>
+  <!-- Firebase Compat (Auth, Firestore, Storage) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
-    <!-- Firebase compat (9.x) -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-
-    <!-- Your config -->
-    <script>
-      /* Replace with your real values */
-      window.__FIREBASE_CONFIG = {
-        apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
+  <!-- Your Firebase config object -->
+  <script>
+    window.__FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
         authDomain: "e-learning-mm.firebaseapp.com",
         projectId: "e-learning-mm",
         storageBucket: "e-learning-mm.firebasestorage.app",
         messagingSenderId: "523808908467",
         appId: "1:523808908467:web:01b9bac036137744647cc6",
         measurementId: "G-JYF6HGM5XC",
-      };
-      // let the seed tool pick it up
-      try{ localStorage.setItem('__FIREBASE_CONFIG', JSON.stringify(window.__FIREBASE_CONFIG)); }catch{}
-    </script>
-
-    <script src="/js/app.js"></script>
-
-    <script>
-      // Service worker (rename your file to service-worker.js if needed)
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
-      }
-    </script>
-  </body>
+    };
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="notification" class="notification"></div>
+  <script src="/js/app.js"></script>
+  <script>
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+    }
+  </script>
+</body>
 </html>
