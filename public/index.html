@@ -1,33 +1,17 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="sunrise" data-font="medium">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>LearnHub — E-Learning</title>
+    <title>LearnHub — E‑Learning</title>
 
-    <!-- Fonts + Icons -->
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css"
-      rel="stylesheet"
-    />
-
-    <!-- App CSS -->
-    <link rel="stylesheet" href="./css/styles.css" />
-
-    <!-- PWA + Icons -->
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#12151b" />
-    <!-- Favicon (SVG) -->
-    <link rel="icon" type="image/svg+xml" href="/assets/learnhub-mark.svg" />
-    <!-- Fallback PNGs (optional if you export them) -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link
       rel="icon"
       type="image/png"
@@ -40,21 +24,18 @@
       sizes="512x512"
       href="/icons/icon-512.png"
     />
-    <!-- iOS Home Screen -->
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta
-      name="apple-mobile-web-app-status-bar-style"
-      content="black-translucent"
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css"
+      rel="stylesheet"
     />
 
-    <!-- EmailJS (optional) -->
-    <script
-      src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"
-      defer
-    ></script>
-
-    <!-- Firebase v9 compat (no bundler needed) -->
     <script
       src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"
       defer
@@ -67,10 +48,12 @@
       src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"
       defer
     ></script>
+    <script
+      src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"
+      defer
+    ></script>
 
-    <!-- Your Firebase config -->
     <script>
-      // TODO: paste your project config here
       window.__FIREBASE_CONFIG = {
         apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
         authDomain: "e-learning-mm.firebaseapp.com",
@@ -81,73 +64,10 @@
         measurementId: "G-JYF6HGM5XC",
       };
     </script>
-
-    <!-- Inline override: show the pencil+notebook logo in every .logo box (login & sidebar) -->
-    <style>
-      /* keep your existing styles.css; this just swaps the emoji for the SVG icon */
-      .logo {
-        position: relative;
-        width: 38px;
-        height: 38px;
-        border-radius: 12px;
-        display: grid;
-        place-items: center;
-        overflow: hidden;
-      }
-      .logo > * {
-        /* hide any emoji/text inside the .logo element */
-        visibility: hidden;
-      }
-      .logo::before {
-        content: "";
-        width: 26px;
-        height: 26px;
-        display: block;
-        background: no-repeat center / contain;
-        /* Pencil + Notebook SVG as data URI (keeps it self-contained) */
-        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%23ff9d5c'/><stop offset='100%25' stop-color='%23ffd1b0'/></linearGradient></defs><rect x='2' y='2' width='60' height='60' rx='14' fill='url(%23g)'/><rect x='16' y='16' width='26' height='32' rx='4' fill='%23ffffff' fill-opacity='.96' stroke='%23000' stroke-opacity='.08'/><line x1='20' y1='24' x2='38' y2='24' stroke='%23000' stroke-opacity='.18' stroke-width='2'/><line x1='20' y1='30' x2='38' y2='30' stroke='%23000' stroke-opacity='.14' stroke-width='2'/><line x1='20' y1='36' x2='38' y2='36' stroke='%23000' stroke-opacity='.14' stroke-width='2'/><line x1='20' y1='42' x2='38' y2='42' stroke='%23000' stroke-opacity='.14' stroke-width='2'/><g transform='rotate(-20 46 20)'><rect x='40' y='16' width='16' height='8' rx='3' fill='%23ffd166' stroke='%23000' stroke-opacity='.08'/><polygon points='56,20 60,22 58,26 54,24' fill='%23f59e0b'/><rect x='43' y='18' width='10' height='4' rx='2' fill='%23ffffff'/></g></svg>");
-      }
-
-      /* Slightly larger on login card if you use the same .logo there */
-      .login-card .logo {
-        width: 48px;
-        height: 48px;
-      }
-      .login-card .logo::before {
-        width: 34px;
-        height: 34px;
-      }
-    </style>
   </head>
   <body>
-    <!-- Optional inline SVG file (export it as /assets/learnhub-mark.svg if you prefer external files)
-         Save the same SVG below into /assets/learnhub-mark.svg to use in manifest/favicons, too. -->
-    <!--
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" id="learnhub-mark" style="display:none">
-      <defs>
-        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#ff9d5c"/>
-          <stop offset="100%" stop-color="#ffd1b0"/>
-        </linearGradient>
-      </defs>
-      <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#g)"/>
-      <rect x="16" y="16" width="26" height="32" rx="4" fill="#fff" fill-opacity=".96" stroke="#000" stroke-opacity=".08"/>
-      <line x1="20" y1="24" x2="38" y2="24" stroke="#000" stroke-opacity=".18" stroke-width="2"/>
-      <line x1="20" y1="30" x2="38" y2="30" stroke="#000" stroke-opacity=".14" stroke-width="2"/>
-      <line x1="20" y1="36" x2="38" y2="36" stroke="#000" stroke-opacity=".14" stroke-width="2"/>
-      <line x1="20" y1="42" x2="38" y2="42" stroke="#000" stroke-opacity=".14" stroke-width="2"/>
-      <g transform="rotate(-20 46 20)">
-        <rect x="40" y="16" width="16" height="8" rx="3" fill="#ffd166" stroke="#000" stroke-opacity=".08"/>
-        <polygon points="56,20 60,22 58,26 54,24" fill="#f59e0b"/>
-        <rect x="43" y="18" width="10" height="4" rx="2" fill="#fff"/>
-      </g>
-    </svg>
-    -->
-
-    <!-- App Root -->
     <div id="root"></div>
 
-    <!-- Service worker (optional) -->
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
@@ -158,25 +78,6 @@
       }
     </script>
 
-    <!-- Your main JS -->
-    <script src="./js/app.js" defer></script>
-
-    <!-- Fallback (optional): shows brand if JS disabled -->
-    <noscript>
-      <div
-        style="
-          display: flex;
-          gap: 10px;
-          align-items: center;
-          justify-content: center;
-          padding: 24px;
-        "
-      >
-        <div class="logo"></div>
-        <div style="font-family: Inter, system-ui; font-weight: 800">
-          LearnHub
-        </div>
-      </div>
-    </noscript>
+    <script src="/js/app.js" defer></script>
   </body>
 </html>
