@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LearnHub — Demo Seeder</title>
+
+  <!-- Firebase v9 compat (no bundler) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <!-- REUSE your exact config from index.html -->
+  <script>
+    window.__FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
+  authDomain: "e-learning-mm.firebaseapp.com",
+  projectId: "e-learning-mm",
+  storageBucket: "e-learning-mm.firebasestorage.app",
+  messagingSenderId: "523808908467",
+  appId: "1:523808908467:web:01b9bac036137744647cc6",
+  measurementId: "G-JYF6HGM5XC"
+    };
+  </script>
+
+  <style>
+    body{font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial;margin:0;background:#0b0d10;color:#e6edf3;display:grid;place-items:center;min-height:100vh}
+    .card{width:min(780px,96vw);background:#12151b;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:16px}
+    button{background:#7aa2f7;border:0;color:#0b0d10;font-weight:700;padding:10px 12px;border-radius:10px;cursor:pointer}
+    pre{white-space:pre-wrap;background:#0f131a;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px;max-height:280px;overflow:auto}
+    .muted{color:#9aa6b2}
+    .row{display:flex;gap:10px;align-items:center}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="margin:0 0 8px">LearnHub — Demo Data Loader</h2>
+    <div class="muted">Sign in as an admin in another tab first, then click Load.</div>
+    <div class="row" style="margin:12px 0">
+      <button id="load">Load Demo Data</button>
+      <button id="wipe" style="background:#f7768e;color:#fff">Wipe Demo Data</button>
+    </div>
+    <pre id="log">Ready.</pre>
+    <div class="muted" style="margin-top:10px">Collections created: userRegistry, profiles, courses, modules, lessons, assessments, enrollments, tasks, messages (course, dm)</div>
+  </div>
+
+<script>
+(function(){
+  firebase.initializeApp(window.__FIREBASE_CONFIG);
+  const auth = firebase.auth();
+  const db   = firebase.firestore();
+
+  const ADMIN_EMAILS = ['admin@learnhub.app','minmaung0307@gmail.com']; // add yours (lowercase)
+
+  const log = (m)=>{ const el=document.getElementById('log'); el.textContent+= '\\n' + m; el.scrollTop=el.scrollHeight; };
+  const id  = ()=> db.collection('_').doc().id;
+  const ts  = ()=> firebase.firestore.FieldValue.serverTimestamp();
+
+  async function seed(){
+    const user = auth.currentUser;
+    if(!user){ log('✖ Not signed in'); return; }
+    log('✔ Signed in as: ' + user.email);
+
+    // 1) Roles / registry (global)
+    const roles = [
+      {email:'admin@learnhub.app',   role:'admin',   name:'Site Admin'},
+      {email:'instructor@learnhub.app', role:'instructor', name:'Alex Instructor'},
+      {email:'student@learnhub.app', role:'student', name:'Sam Student'},
+      {email:'manager@learnhub.app', role:'manager', name:'Morgan Manager'}
+    ];
+    for(const r of roles){
+      const key = r.email.toLowerCase();
+      await db.collection('userRegistry').doc(key).set({
+        email: key, role: r.role, updatedAt: ts()
+      }, {merge:true});
+      await db.collection('profiles').doc(key).set({
+        email:key, name:r.name, headline: r.role==='instructor'?'Full-Stack Educator':'Learner',
+        website:'https://example.com/'+key.split('@')[0],
+        avatar:'https://avatars.githubusercontent.com/u/9919?s=80&v=4', // placeholder
+        createdAt: ts(), updatedAt: ts()
+      }, {merge:true});
+    }
+    log('✓ userRegistry & profiles seeded');
+
+    // 2) Courses
+    const courseA = id(), courseB = id();
+    const courses = [
+      {
+        id: courseA,
+        title:'JavaScript Essentials',
+        summary:'From zero to modern JS: syntax, DOM, async, and patterns.',
+        cover:'https://images.unsplash.com/photo-1515879218367-8466d910aaa4?q=80&w=1200',
+        tags:['javascript','web','beginner'],
+        level:'beginner',
+        instructor:'instructor@learnhub.app',
+        published:true, createdAt: ts()
+      },
+      {
+        id: courseB,
+        title:'Intro to Data Science',
+        summary:'Python, pandas, notebooks, and telling stories with data.',
+        cover:'https://images.unsplash.com/photo-1517433456452-f9633a875f6f?q=80&w=1200',
+        tags:['python','data','analytics'],
+        level:'beginner',
+        instructor:'instructor@learnhub.app',
+        published:true, createdAt: ts()
+      }
+    ];
+    for(const c of courses){
+      await db.collection('courses').doc(c.id).set(c);
+    }
+    log('✓ courses seeded');
+
+    // 3) Modules & Lessons (flat collections referencing parent)
+    const modules = [
+      {id:id(), courseId:courseA, title:'Getting Started', order:1},
+      {id:id(), courseId:courseA, title:'Async & APIs',   order:2},
+      {id:id(), courseId:courseB, title:'Python Basics',  order:1},
+      {id:id(), courseId:courseB, title:'pandas & Plots', order:2}
+    ];
+    const lessons = [
+      {id:id(), courseId:courseA, moduleTitle:'Getting Started', title:'Variables & Types', order:1, content:'let, const, types, operators'},
+      {id:id(), courseId:courseA, moduleTitle:'Getting Started', title:'Functions & Scope', order:2, content:'declarations, arrow functions, closures'},
+      {id:id(), courseId:courseA, moduleTitle:'Async & APIs', title:'Promises', order:1, content:'then/catch, error handling'},
+      {id:id(), courseId:courseA, moduleTitle:'Async & APIs', title:'fetch()', order:2, content:'fetch JSON, display in DOM'},
+
+      {id:id(), courseId:courseB, moduleTitle:'Python Basics', title:'Syntax 101', order:1, content:'variables, lists, dicts'},
+      {id:id(), courseId:courseB, moduleTitle:'Python Basics', title:'Control Flow', order:2, content:'if/for/while'},
+      {id:id(), courseId:courseB, moduleTitle:'pandas & Plots', title:'DataFrames', order:1, content:'load CSV, clean'},
+      {id:id(), courseId:courseB, moduleTitle:'pandas & Plots', title:'Plotting', order:2, content:'matplotlib basics'}
+    ];
+    for(const m of modules) await db.collection('modules').doc(m.id).set({...m, createdAt: ts()});
+    for(const l of lessons) await db.collection('lessons').doc(l.id).set({...l, createdAt: ts()});
+    log('✓ modules & lessons seeded');
+
+    // 4) Assessments
+    const assessments = [
+      {id:id(), courseId:courseA, title:'JS Quiz 1', type:'quiz', maxPoints:20,
+        questions:[
+          {q:'Which keyword declares a block-scoped variable?', a:['var','let','function'], correct:1},
+          {q:'What does fetch() return?', a:['XMLHttpRequest','Promise','Array'], correct:1}
+        ], createdAt: ts()
+      },
+      {id:id(), courseId:courseB, title:'Data Challenge', type:'assignment', maxPoints:100,
+        description:'Clean a CSV and submit a summary notebook.', createdAt: ts()
+      }
+    ];
+    for(const a of assessments) await db.collection('assessments').doc(a.id).set(a);
+    log('✓ assessments seeded');
+
+    // 5) Enrollments
+    const enrolls = [
+      {id:id(), courseId:courseA, user:'student@learnhub.app', status:'active', progress:0},
+      {id:id(), courseId:courseB, user:'student@learnhub.app', status:'active', progress:0}
+    ];
+    for(const e of enrolls) await db.collection('enrollments').doc(e.id).set({...e, createdAt: ts()});
+    log('✓ enrollments seeded');
+
+    // 6) Tasks (same board idea: todo/inprogress/done)
+    const tasks = [
+      {id:id(), title:'Create welcome post', status:'todo'},
+      {id:id(), title:'Review JS Quiz', status:'inprogress'},
+      {id:id(), title:'Publish Data Course', status:'done'}
+    ];
+    for(const t of tasks) await db.collection('tasks').doc(t.id).set({...t, createdAt: ts()});
+    log('✓ tasks seeded');
+
+    // 7) Chat — course rooms + DMs
+    // course room: messages where scope='course', courseId=...
+    const msgs = [
+      {id:id(), scope:'course', courseId:courseA, from:'instructor@learnhub.app', text:'Welcome to JS Essentials!', createdAt: ts()},
+      {id:id(), scope:'course', courseId:courseA, from:'student@learnhub.app', text:'Excited to learn!', createdAt: ts()},
+      // direct message: scope='dm', threadId is sorted "a|b" (lowercase emails)
+      {id:id(), scope:'dm', threadId:['instructor@learnhub.app','student@learnhub.app'].sort().join('|'),
+       from:'student@learnhub.app', text:'I have a question about promises.', createdAt: ts()}
+    ];
+    for(const m of msgs) await db.collection('messages').doc(m.id).set(m);
+    log('✓ messages seeded');
+
+    log('✔ DONE. Open the app — data is ready.');
+  }
+
+  async function wipe(){
+    const cols = ['courses','modules','lessons','assessments','enrollments','tasks','messages'];
+    for(const c of cols){
+      const snap = await db.collection(c).get();
+      const batch = db.batch();
+      snap.forEach(d=> batch.delete(d.ref));
+      await batch.commit();
+      log('Wiped ' + c);
+    }
+  }
+
+  document.getElementById('load').onclick = seed;
+  document.getElementById('wipe').onclick = wipe;
+})();
+</script>
+</body>
+</html>
