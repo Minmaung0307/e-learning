@@ -1,0 +1,32 @@
+mutation CreateNewCourse {
+  course_insert(data: {
+    title: "New Course Title",
+    description: "New Course Description",
+    status: "draft",
+    createdAt_expr: "request.time"
+  }) @auth(level: USER)
+}
+
+query ListAllCourses {
+  courses {
+    id
+    title
+    description
+    status
+  }
+} @auth(level: PUBLIC)
+
+mutation UpdateLessonOrder($id: UUID!, $orderIndex: Int!) {
+  lesson_update(key: {id: $id}, data: {orderIndex: $orderIndex}) @auth(level: USER)
+}
+
+query GetMyEnrollments {
+  enrollments(where: {studentId_expr: "auth.uid"}) {
+    course {
+      id
+      title
+    }
+    enrolledAt
+    progress
+  }
+} @auth(level: USER)

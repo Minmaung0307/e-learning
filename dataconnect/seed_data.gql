@@ -1,0 +1,16 @@
+mutation SeedData @auth(level: USER) {
+  movie_upsertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      title: "Inception",
+      imageUrl: "https://firebasestorage.googleapis.com/v0/b/fdc-quickstart-web.appspot.com/o/movies%2Finception.jpg?alt=media&token=07b09781-b302-4623-a5c3-1956d0143168",
+      genre: "sci-fi"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      title: "The Matrix",
+      imageUrl: "https://firebasestorage.googleapis.com/v0/b/fdc-quickstart-web.appspot.com/o/movies%2Fthe_matrix.jpg?alt=media&token=4975645d-fef8-409e-84a5-bcc1046e2059",
+      genre: "action"
+    }
+  ])
+}

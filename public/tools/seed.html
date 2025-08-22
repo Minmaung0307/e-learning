@@ -1,12 +1,24 @@
-<!DOCTYPE html><html><body style="font:14px/1.4 system-ui;padding:20px">
-<h3>Seed LearnHub Sample</h3>
-<p>Open your app in another tab and sign in. Then click seed:</p>
-<button id="seed">Seed sample data</button>
-
-<script>
-  document.getElementById('seed').onclick = ()=>{
-    if(!window.opener){ alert('Open from app window.'); return; }
-    try{ window.opener.seedSampleData(); }catch{ alert('seedSampleData() not available. Make sure app is loaded and you are signed in.'); }
-  };
-</script>
-</body></html>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Seeder • LearnHub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>body{font-family:system-ui,Arial,sans-serif;padding:20px} button{padding:8px 12px}</style>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script>
+    firebase.initializeApp(parent.__FIREBASE_CONFIG);
+    window.addEventListener('load', ()=>{
+      const btn=document.getElementById('seed');
+      btn.onclick=()=> parent.seedSampleData();
+    });
+  </script>
+</head>
+<body>
+  <h2>Seeder</h2>
+  <p>Sign in in the main app first, then click:</p>
+  <button id="seed">Seed sample course + final</button>
+</body>
+</html>
