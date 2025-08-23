@@ -3,19 +3,18 @@ service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() { return request.auth != null; }
 
-    // avatars and signatures: user can write own files, read signed-in
-    match /avatars/{uid}/{file=**} {
-      allow read: if signedIn();
-      allow write: if signedIn() && request.auth.uid == uid;
-    }
-    match /signatures/{uid}/{file=**} {
+    match /avatars/{uid}/{file} {
       allow read: if signedIn();
       allow write: if signedIn() && request.auth.uid == uid;
     }
 
-    // default deny
-    match /{all=**} {
-      allow read, write: if false;
+    match /signatures/{uid}/{file} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if signedIn();
     }
   }
 }

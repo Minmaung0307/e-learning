@@ -3,27 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-
     <title>LearnHub</title>
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" href="/icons/learnhub-192.png" sizes="192x192" />
+    <link rel="icon" href="/icons/learnhub-192.png" />
     <link rel="apple-touch-icon" href="/icons/learnhub-192.png" />
-
-    <!-- Remix Icon -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/css/styles.css" />
     <link
       href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css"
       rel="stylesheet"
     />
 
-    <link rel="stylesheet" href="/css/styles.css" />
-  </head>
-  <body class="theme-sunrise font-medium">
-    <div id="notification" class="notification"></div>
-    <div id="root"></div>
+    <!-- Firebase compat SDKs (keep compat since the app uses v8-style APIs) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
-    <!-- Firebase (Compat SDK v9) -->
+    <!-- 👇 Put your own config here -->
     <script>
-      // TODO: paste your actual config below
       window.__FIREBASE_CONFIG = {
         apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
         authDomain: "e-learning-mm.firebaseapp.com",
@@ -34,11 +31,12 @@
         measurementId: "G-JYF6HGM5XC",
       };
     </script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  </head>
+  <body>
+    <div id="notification" class="notification"></div>
+    <div id="root"></div>
 
+    <!-- Single app script -->
     <script src="/js/app.js"></script>
   </body>
 </html>

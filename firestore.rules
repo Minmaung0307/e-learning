@@ -1,66 +1,66 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{db}/documents {
+  match /databases/{database}/documents {
 
     function signedIn() { return request.auth != null; }
-    function isAdmin(uid) {
-      return exists(/databases/$(db)/documents/roles/$(uid)) &&
-             get(/databases/$(db)/documents/roles/$(uid)).data.role == "admin";
-    }
 
-    // Open read/write to signed-in users by default (tighten per-collection below)
-    match /{document=**} {
-      allow read, write: if signedIn();
-    }
-
-    // Profiles: users can read all, write their own. Admin can write all.
+    // open reads for signed-in users; writes only by owner or admin where applicable
     match /profiles/{uid} {
       allow read: if signedIn();
-      allow write: if signedIn() && (request.auth.uid == uid || isAdmin(request.auth.uid));
+      allow write: if signedIn() && (request.auth.uid == uid || get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin');
     }
 
-    // Roles: only admin can write; everyone signed-in can read (or restrict if you prefer)
     match /roles/{uid} {
       allow read: if signedIn();
-      allow write: if signedIn() && isAdmin(request.auth.uid);
+      allow write: if signedIn() && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Courses/quizzes/announcements: instructors/admin can create/update; signed-in can read
     match /courses/{id} {
       allow read: if signedIn();
-      allow create: if signedIn() && (isAdmin(request.auth.uid) || request.resource.data.ownerUid == request.auth.uid);
-      allow update, delete: if signedIn() && (isAdmin(request.auth.uid) || resource.data.ownerUid == request.auth.uid);
-    }
-    match /quizzes/{id} {
-      allow read: if signedIn();
-      allow write: if signedIn() && isAdmin(request.auth.uid);
-    }
-    match /announcements/{id} {
-      allow read: if signedIn();
-      allow write: if signedIn() && isAdmin(request.auth.uid);
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (resource.data.ownerUid == request.auth.uid || get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin');
     }
 
-    // Enrollments/attempts/notes/tasks/messages: users write their own items, read if owner
     match /enrollments/{id} {
-      allow read, create: if signedIn();
-      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete, update: if signedIn() && (resource.data.uid == request.auth.uid || get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin');
     }
+
+    match /quizzes/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (resource.data.ownerUid == request.auth.uid || get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin');
+    }
+
     match /attempts/{id} {
-      allow read, create: if signedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin');
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false; // immutable
     }
+
     match /tasks/{id} {
       allow read, create: if signedIn() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
-    match /notes/{id} {
-      allow read, create: if signedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid;
-    }
+
     match /messages/{id} {
-      allow read: if signedIn();
+      allow read: if signedIn(); // DM filtered in client; tighten if needed
       allow create: if signedIn();
-      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /notes/{id} {
+      allow read, write: if signedIn() && request.auth.uid == resource.data.uid;
+    }
+
+    match /announcements/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn() && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /{document=**} {
+      allow read, write: if signedIn();
     }
   }
 }
