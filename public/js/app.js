@@ -1,4 +1,4 @@
-/* LearnHub v1.6 */
+/* LearnHub v1.7 */
 (() => {
   'use strict';
 
@@ -8,33 +8,42 @@
   const db   = firebase.firestore();
   const stg  = firebase.storage();
 
-  // Constants
-  const ADMIN_EMAILS = ['admin@learnhub.com']; // add your admin email(s)
+  // App constants
+  const ADMIN_EMAILS = ['admin@learnhub.com']; // Add your admin emails here
   const VALID_ROLES  = ['student','instructor','admin'];
+
+  // Rotating “Daily Learning” YouTube pool (safe edu content)
+  const DAILY_VIDS = [
+    'H14bBuluwB8','8mAITcNt710','aircAruvnKk','c6I24S72Jps','yPWkPOfnGsw',
+    '8mAITMB7u6A','qz0aGYrrlhU','O5nskjZ_GoI','sBws8MSXN7A','mU6anWqZJcc'
+  ];
 
   // State
   const state = {
     user:null, role:'student', route:'dashboard',
     theme:{ palette:'dark', font:'medium' },
-    searchQ:'', highlightId:null,
-    profiles:[], courses:[], enrollments:[], quizzes:[], attempts:[], tasks:[], messages:[], notes:[], announcements:[],
-    myEnrolledIds:new Set(), unsub:[], _unsubChat:null
+    profiles:[], courses:[], enrollments:[], quizzes:[], attempts:[], tasks:[], notes:[],
+    announcements:[], messages:[],
+    myEnrolledIds:new Set(), unsub:[], _unsubChat:null, highlightId:null
   };
 
-  // Utils
+  // Short helpers
   const $=(s,r=document)=>r.querySelector(s);
   const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
   const col=name=>db.collection(name);
   const doc=(name,id)=>db.collection(name).doc(id);
-  const notify=(msg,type='ok')=>{ const n=$('#notification'); if(!n) return; n.textContent=msg; n.className=`notification show ${type}`; setTimeout(()=>n.className='notification',2200); };
   const safeTS = ts => ts && ts.toMillis ? ts.toMillis() : (typeof ts==='number'? ts : 0);
-  const nowYear=()=> new Date().getFullYear();
-
-  const canManageUsers = ()=> state.role==='admin';
-  const canEditCourse = c => state.role==='admin' || c.ownerUid===auth.currentUser?.uid;
+  const notify=(msg,type='ok')=>{
+    const n=$('#notification'); if(!n) return;
+    n.textContent=msg; n.className=`notification show ${type}`;
+    setTimeout(()=>n.className='notification',2200);
+  };
+  const isAdmin = ()=> state.role==='admin';
+  const isSelf = uid => auth.currentUser?.uid===uid;
+  const canEditCourse = c => isAdmin() || c.ownerUid===auth.currentUser?.uid;
   const isEnrolled = id => state.myEnrolledIds.has(id);
-  const canPostMessage = cid => isEnrolled(cid) || state.role!=='student';
   const canTakeQuiz = cid => isEnrolled(cid) || state.role!=='student';
+  const todaySeed = ()=> Math.floor(Date.now()/86400000);
 
   const ytid = (url='')=>{
     try{
@@ -65,9 +74,9 @@
             ['admin','Admin','ri-shield-star-line'],
             ['settings','Settings','ri-settings-3-line'],
             ['guide','Guide','ri-question-line']
-          ].map(([r,label,ic])=>`
-            <div class="item ${state.route===r?'active':''} ${r==='admin'&&!canManageUsers()?'hidden':''}" data-route="${r}">
-              <i class="${ic}"></i><span>${label}</span>
+          ].map(([r,txt,ic])=>`
+            <div class="item ${state.route===r?'active':''} ${r==='admin'&&!isAdmin()?'hidden':''}" data-route="${r}">
+              <i class="${ic}"></i><span>${txt}</span>
             </div>`).join('')}
         </div>
         <div class="footer"><div class="muted" id="copyright" style="font-size:12px"></div></div>
@@ -103,27 +112,6 @@
   `;}
 
   // Views
-  const vLogin=()=>`
-    <div class="login-page">
-      <div class="card login-card"><div class="card-body">
-        <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px">
-          <div class="logo" style="width:44px;height:44px;border-radius:12px;background:#0c1626;display:grid;place-items:center;overflow:hidden">
-            <img src="/icons/learnhub-192.png" alt="LearnHub" style="width:100%;height:100%;object-fit:cover">
-          </div>
-          <div><div style="font-size:20px; font-weight:800">LearnHub</div><div class="muted">Sign in to continue</div></div>
-        </div>
-        <div class="grid">
-          <label>Email</label><input id="li-email" class="input" type="email" placeholder="you@example.com" autocomplete="username"/>
-          <label>Password</label><input id="li-pass" class="input" type="password" placeholder="••••••••" autocomplete="current-password"/>
-          <button id="btnLogin" class="btn"><i class="ri-login-box-line"></i> Sign In</button>
-          <div style="display:flex; justify-content:space-between; gap:8px">
-            <button id="link-forgot" class="btn ghost" style="padding:6px 10px; font-size:12px"><i class="ri-key-2-line"></i> Forgot password</button>
-            <button id="link-register" class="btn secondary" style="padding:6px 10px; font-size:12px"><i class="ri-user-add-line"></i> Sign up</button>
-          </div>
-        </div>
-      </div></div>
-    </div>`;
-
   const dashCard=(label,value,route,icon)=>`
     <div class="card clickable" data-go="${route}">
       <div class="card-body" style="display:flex; justify-content:space-between; align-items:center">
@@ -135,11 +123,18 @@
       </div>
     </div>`;
 
+  const dailyVideos = ()=>{
+    const seed=todaySeed();
+    const shuffled=[...DAILY_VIDS].sort((a,b)=>((a.charCodeAt(0)+seed)%7)-((b.charCodeAt(0)+seed)%7));
+    return shuffled.slice(0,3);
+  };
+
   function vDashboard(){
     const my=auth.currentUser?.uid;
     const myEnroll=state.enrollments.filter(e=>e.uid===my).length;
     const myAttempts=state.attempts.filter(a=>a.uid===my).length;
     const myTasks=state.tasks.filter(t=>t.uid===my && t.status!=='done').length;
+    const vids=dailyVideos();
     return `
       <div class="grid cols-4">
         ${dashCard('Courses', state.courses.length,'courses','ri-book-2-line')}
@@ -147,16 +142,27 @@
         ${dashCard('Finals', state.quizzes.filter(q=>q.isFinal).length,'assessments','ri-award-line')}
         ${dashCard('Open Tasks', myTasks,'tasks','ri-list-check-2')}
       </div>
+
+      <div class="card" style="margin-top:10px"><div class="card-body">
+        <div style="display:flex; justify-content:space-between; align-items:center">
+          <h3 style="margin:0">Daily Learning</h3>
+          <span class="muted" style="font-size:12px">Auto-rotates daily</span>
+        </div>
+        <div class="grid cols-3" style="margin-top:8px">
+          ${vids.map(id=>`<div class="card"><div class="card-body">
+            <iframe width="100%" height="180" src="https://www.youtube.com/embed/${id}" title="Video" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+          </div></div>`).join('')}
+        </div>
+      </div></div>
     `;
   }
 
   function vCourses(){
-    const canCreate = true;
     return `
       <div class="card"><div class="card-body">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
           <h3 style="margin:0">Courses</h3>
-          ${canCreate? `<button class="btn" id="add-course"><i class="ri-add-line"></i> New Course</button>`:''}
+          <button class="btn" id="add-course"><i class="ri-add-line"></i> New Course</button>
         </div>
         <div class="grid cols-2" data-sec="courses">
           ${state.courses.map(c=>`
@@ -215,7 +221,7 @@
                 </div>
                 <div class="actions" style="display:flex; gap:6px">
                   <button class="btn" data-take="${q.id}"><i class="ri-play-line"></i> Take</button>
-                  ${(q.ownerUid===auth.currentUser?.uid || canManageUsers())? `<button class="btn ghost" data-edit="${q.id}"><i class="ri-edit-line"></i></button>`:''}
+                  ${(q.ownerUid===auth.currentUser?.uid || isAdmin())? `<button class="btn ghost" data-edit="${q.id}"><i class="ri-edit-line"></i></button>`:''}
                 </div>
               </div>
             </div>`).join('')}
@@ -269,15 +275,42 @@
     return `<div data-sec="tasks">${lane('todo','To do','#f59e0b')}${lane('inprogress','In progress','#3b82f6')}${lane('done','Done','#10b981')}</div>`;
   }
 
+  function transcriptRows(uid){
+    const byCourse={};
+    (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
+      const title=(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId;
+      byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:title, best:0, completed:false};
+      byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score||0);
+      const q = state.quizzes.find(q=>q.courseId===a.courseId && q.isFinal);
+      const pass = q ? (byCourse[a.courseId].best >= (q.passScore||70)) : false;
+      byCourse[a.courseId].completed = pass;
+    });
+    return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
+  }
+
   function vProfile(){
     const me = state.profiles.find(p=> (p.uid||p.id)===auth.currentUser?.uid) || {};
+    const notes = (state.notes||[]).filter(n=>n.uid===auth.currentUser?.uid).sort((a,b)=>safeTS(b.createdAt)-safeTS(a.createdAt));
+    const rows = transcriptRows(auth.currentUser?.uid);
     return `
-      <div class="grid cols-2">
-        <div class="card"><div class="card-body">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <h3 style="margin:0">My Profile</h3>
-            <span class="muted" style="font-size:12px">UID: ${auth.currentUser?.uid||''}</span>
+      <div class="profile-wrap">
+        <div class="card profile-card"><div class="card-body">
+          <div style="display:flex; gap:12px; align-items:center">
+            <div class="avatar">
+              ${me.avatar? `<img src="${me.avatar}" referrerpolicy="no-referrer"
+                   onerror="this.parentNode.innerHTML='<span>no avatar</span>'"
+                   style="width:100%;height:100%;object-fit:cover">`
+                 : '<span>no avatar</span>'}
+            </div>
+            <div>
+              <div style="font-weight:900;font-size:20px">${me.name||'(no name)'}</div>
+              <div class="muted" style="font-size:12px">${me.email||''}</div>
+              ${me.portfolio? `<a href="${me.portfolio}" target="_blank" rel="noopener" class="chip" style="margin-top:6px"><i class="ri-link-m"/></i> Portfolio</a>`:''}
+            </div>
           </div>
+
+          <div class="line"></div>
+
           <div class="grid">
             <label>Name</label><input id="pf-name" class="input" value="${me.name||''}" placeholder="Your name"/>
             <label>Email</label><input id="pf-email" class="input" value="${me.email||auth.currentUser?.email||''}" placeholder="you@example.com"/>
@@ -285,39 +318,58 @@
             <label>Short bio</label><textarea id="pf-bio" class="input" placeholder="Tell us about you…">${me.bio||''}</textarea>
             <div class="grid cols-2">
               <div><label>Avatar (PNG/JPG/WEBP)</label><input id="pf-avatar" type="file" accept="image/*"/></div>
-              <div><label>Signature (PNG/WEBP)</label><input id="pf-sign" type="file" accept="image/png,image/webp,image/jpeg"/></div>
+              <div><label>Signature (PNG/WEBP/JPG)</label><input id="pf-sign" type="file" accept="image/png,image/webp,image/jpeg"/></div>
             </div>
             <div style="display:flex; gap:8px; flex-wrap:wrap">
               <button class="btn" id="pf-save"><i class="ri-save-3-line"></i> Save</button>
               <button class="btn ghost" id="pf-view"><i class="ri-id-card-line"></i> View card</button>
               <button class="btn danger" id="pf-delete"><i class="ri-delete-bin-6-line"></i> Delete profile</button>
             </div>
-            <div class="muted" style="font-size:12px">Note: deleting removes the profile document (not your Auth account). It will be recreated at next login.</div>
           </div>
         </div></div>
 
-        <div class="card"><div class="card-body">
-          <h3 style="margin:0 0 8px 0">Transcript</h3>
-          <div class="table-wrap">
-            <table class="table">
-              <thead><tr><th>Course</th><th>Best Score</th><th>Certificate</th></tr></thead>
-              <tbody>
-                ${buildTranscript(auth.currentUser?.uid).map(r=>`
-                  <tr>
-                    <td>${r.courseTitle}</td>
-                    <td class="num">${r.best}%</td>
-                    <td>${r.completed? `<button class="btn" data-cert="${r.courseId}"><i class="ri-award-line"></i> Download</button>`:'—'}</td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div></div>
+        <div class="grid">
+          <div class="card"><div class="card-body">
+            <h3 class="section-title"><i class="ri-file-list-2-line"></i> Transcript</h3>
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>Course</th><th>Best Score</th><th>Certificate</th></tr></thead>
+                <tbody>
+                  ${rows.map(r=>`
+                    <tr>
+                      <td>${r.courseTitle}</td>
+                      <td class="num">${r.best}%</td>
+                      <td>${r.completed? `<button class="btn" data-cert="${r.courseId}"><i class="ri-award-line"></i> Download</button>`:'—'}</td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div></div>
+
+          <div class="card"><div class="card-body">
+            <h3 class="section-title"><i class="ri-sticky-note-line"></i> My Notes</h3>
+            ${notes.length? `
+              <div class="table-wrap"><table class="table">
+                <thead><tr><th>Course</th><th>Note</th><th>When</th></tr></thead>
+                <tbody>
+                  ${notes.map(n=>{
+                    const course=state.courses.find(c=>c.id===n.courseId);
+                    return `<tr>
+                      <td>${course?.title||n.courseId}</td>
+                      <td>${(n.text||'').replace(/</g,'&lt;')}</td>
+                      <td class="muted">${new Date(n.createdAt?.toDate?.()||n.createdAt||Date.now()).toLocaleString()}</td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table></div>` : `<div class="muted">You haven’t added notes yet.</div>`}
+          </div></div>
+        </div>
       </div>
     `;
   }
 
   function vAdmin(){
-    if(!canManageUsers()) return `<div class="card"><div class="card-body">Admins only.</div></div>`;
+    if(!isAdmin()) return `<div class="card"><div class="card-body">Admins only.</div></div>`;
     return `
       <div class="grid cols-2">
         <div class="card"><div class="card-body">
@@ -326,6 +378,9 @@
             <input id="rm-uid" class="input" placeholder="User UID"/>
             <select id="rm-role" class="input">${VALID_ROLES.map(r=>`<option value="${r}">${r}</option>`).join('')}</select>
             <button class="btn" id="rm-save"><i class="ri-save-3-line"></i> Save Role</button>
+          </div>
+          <div style="margin-top:8px">
+            <button class="btn secondary" id="seed-demo"><i class="ri-magic-line"></i> Load Demo Data</button>
           </div>
         </div></div>
 
@@ -376,38 +431,44 @@
   function vGuide(){
     return `
       <div class="card"><div class="card-body">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
-          <h3 style="margin:0">Quick Guide</h3>
-          <span class="chip"><i class="ri-sparkling-2-line"></i> Beautiful UI · Practical steps</span>
-        </div>
-        <div class="grid cols-2">
+        <h3 class="guide-h" style="margin:0 0 8px 0"><i class="ri-lightbulb-flash-line"></i> Quick Guide (Step by Step)</h3>
+
+        <div class="grid cols-2" style="margin-top:8px">
           <div class="card"><div class="card-body">
-            <h4 style="margin:0 0 6px 0"><i class="ri-user-3-line"></i> Students</h4>
-            <ol style="margin:0; padding-left:18px; line-height:1.6">
-              <li><b>Enroll:</b> Go to <i>Courses</i> → open a course → <b>Enroll</b>.</li>
-              <li><b>Learn:</b> Watch the video, read text, view images. Add private <b>Notes</b> under each lesson.</li>
-              <li><b>Chat:</b> Use <i>Course Chat</i> to ask the instructor.</li>
-              <li><b>Finals:</b> Take the final exam. You’ll see your score immediately.</li>
-              <li><b>Certificate:</b> If pass ≥ threshold, go to <i>Profile → Transcript</i> and <b>Download</b>.</li>
-              <li><b>Tasks:</b> Track your own work in <i>Tasks</i> (drag to lanes).</li>
+            <h4 class="guide-p" style="margin:0 0 6px 0"><i class="ri-user-3-line"></i> Students</h4>
+            <ol style="margin:0; padding-left:18px; line-height:1.7">
+              <li>Go to <b>Courses</b> → open a course → click <b>Enroll</b>.</li>
+              <li>Each lesson shows <b>video</b>, <b>text</b>, <b>images</b>. Add private <b>Notes</b> at the bottom.</li>
+              <li>Use <b>Course Chat</b> to ask your instructor.</li>
+              <li>Take the <b>Final</b> in the <b>Finals</b> tab. Score shows instantly.</li>
+              <li>Pass ≥ threshold? Open <b>Profile → Transcript</b> → <b>Download Certificate</b>.</li>
+              <li>Track your tasks in <b>Tasks</b> and drag them across lanes.</li>
             </ol>
           </div></div>
+
           <div class="card"><div class="card-body">
-            <h4 style="margin:0 0 6px 0"><i class="ri-shield-star-line"></i> Instructors & Admin</h4>
-            <ol style="margin:0; padding-left:18px; line-height:1.6">
-              <li><b>Create course:</b> <i>Courses → New Course</i>. Paste <b>Outline JSON</b> (video, text, images).</li>
-              <li><b>Final exam:</b> <i>Finals → New Final</i>. Add questions (single choice or multi-select).</li>
-              <li><b>Promote roles:</b> <i>Admin</i> → set role to <b>instructor/admin</b>.</li>
-              <li><b>Announcements:</b> (Admin) create messages to notify everyone.</li>
+            <h4 class="guide-p" style="margin:0 0 6px 0"><i class="ri-shield-star-line"></i> Instructors & Admin</h4>
+            <ol style="margin:0; padding-left:18px; line-height:1.7">
+              <li><b>Admin → Role Manager</b> to promote users to <b>instructor</b> or <b>admin</b>.</li>
+              <li><b>Courses → New Course</b>: paste Outline JSON (video/text/images). Save.</li>
+              <li><b>Finals → New Final</b>: create single or multi-select questions.</li>
+              <li>Use <b>Course Chat</b> to broadcast tips or answer students.</li>
+              <li>(Optional) Click <b>Load Demo Data</b> in Admin to prefill samples.</li>
             </ol>
-            <div class="muted" style="margin-top:6px; font-size:12px">Tip: If an image URL is invalid, it’s hidden automatically — the course still opens.</div>
           </div></div>
         </div>
       </div></div>
     `;
   }
 
-  function safeView(r){
+  function render(){
+    const root=$('#root');
+    if(!auth.currentUser){ root.innerHTML=vLogin(); wireLogin(); return; }
+    root.innerHTML = layout( viewFor(state.route) );
+    wireShell(); wireRoute();
+    if(state.highlightId){ const el=document.getElementById(state.highlightId); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'});} }
+  }
+  function viewFor(r){
     switch(r){
       case 'dashboard': return vDashboard();
       case 'courses': return vCourses();
@@ -423,15 +484,7 @@
     }
   }
 
-  function render(){
-    const root=$('#root');
-    if(!auth.currentUser){ root.innerHTML=vLogin(); wireLogin(); return; }
-    root.innerHTML = layout( safeView(state.route) );
-    wireShell(); wireRoute();
-    if(state.highlightId){ const el=document.getElementById(state.highlightId); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'});} }
-  }
-
-  // Shell wiring
+  // Common UI plumbing
   const openSidebar=()=>{ document.body.classList.add('sidebar-open'); $('#backdrop')?.classList.add('active'); };
   const closeSidebar=()=>{ document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
   function openModal(id){ $('#'+id)?.classList.add('active'); $('#mb-modal')?.classList.add('active'); }
@@ -442,70 +495,67 @@
     $('#backdrop')?.addEventListener('click', closeSidebar);
     $('#brand')?.addEventListener('click', closeSidebar);
     $('#main')?.addEventListener('click', closeSidebar);
-
     $('#side-nav')?.addEventListener('click', e=>{
-      const it=e.target.closest('.item[data-route]'); if(it){ state.highlightId=null; go(it.getAttribute('data-route')); }
+      const it=e.target.closest('.item[data-route]'); if(it){ state.highlightId=null; state.route=it.getAttribute('data-route'); render(); }
     });
     $('#btnLogout')?.addEventListener('click', ()=> auth.signOut());
     $('#mm-close')?.addEventListener('click', ()=> closeModal('m-modal'));
+    $('#copyright')?.replaceChildren(document.createTextNode(`Powered by MM • ${new Date().getFullYear()}`));
 
-    $('#copyright')?.replaceChildren(document.createTextNode(`Powered by MM, ${nowYear()}`));
-
-    $('#main')?.addEventListener('click', e=>{
-      const c=e.target.closest('[data-go]'); if(c){ go(c.getAttribute('data-go')); }
-    });
-
-    // Search
+    // quick search
     const input=$('#globalSearch'), results=$('#searchResults'); let t;
     const doSearch=(q)=>{
-      const tokens=(q||'').toLowerCase().split(/\s+/).filter(Boolean);
+      const tok=(q||'').toLowerCase().split(/\s+/).filter(Boolean);
       const ix=[];
       state.courses.forEach(c=> ix.push({label:c.title, section:'Courses', route:'courses', id:c.id, text:`${c.title} ${c.category||''} ${c.short||''}`}));
       state.quizzes.forEach(q=> ix.push({label:q.title, section:'Finals', route:'assessments', id:q.id, text:q.courseTitle||''}));
       state.profiles.forEach(p=> ix.push({label:p.name||p.email||p.id, section:'Profiles', route:'profile', id:p.uid||p.id, text:(p.bio||'') + ' ' + (p.portfolio||'') }));
-      if(!tokens.length) return [];
-      return ix
-        .map(item=>{
-          const l=item.label.toLowerCase(), t=(item.text||'').toLowerCase();
-          const ok=tokens.every(tok=> l.includes(tok)||t.includes(tok));
-          return ok?{item,score:tokens.length + (l.includes(tokens[0])?1:0)}:null;
-        }).filter(Boolean).sort((a,b)=>b.score-a.score).map(x=>x.item).slice(0,12);
+      if(!tok.length) return [];
+      return ix.map(item=>{
+        const l=item.label.toLowerCase(), t=(item.text||'').toLowerCase();
+        const ok=tok.every(x=> l.includes(x)||t.includes(x));
+        return ok?item:null;
+      }).filter(Boolean).slice(0,12);
     };
     if(input && results){
-      input.addEventListener('keydown', e=>{
-        if(e.key==='Enter'){ state.searchQ=input.value.trim(); results.classList.remove('active'); go('guide'); }
-      });
       input.addEventListener('input', ()=>{
         clearTimeout(t);
-        const q=input.value.trim();
-        if(!q){ results.classList.remove('active'); results.innerHTML=''; return; }
         t=setTimeout(()=>{
-          const out=doSearch(q);
+          const out=doSearch(input.value.trim());
+          if(!out.length){ results.classList.remove('active'); results.innerHTML=''; return; }
           results.innerHTML=out.map(r=>`<div class="row" data-route="${r.route}" data-id="${r.id||''}"><strong>${r.label}</strong> <span class="muted">— ${r.section}</span></div>`).join('');
           results.classList.add('active');
           results.querySelectorAll('.row').forEach(row=>{
-            row.onclick=()=>{ const r=row.getAttribute('data-route'); const id=row.getAttribute('data-id'); state.highlightId=id; results.classList.remove('active'); go(r); };
+            row.onclick=()=>{ const r=row.getAttribute('data-route'); const id=row.getAttribute('data-id'); state.highlightId=id; results.classList.remove('active'); state.route=r; render(); };
           });
         },120);
       });
       document.addEventListener('click', e=>{ if(!results.contains(e.target) && e.target!==input) results.classList.remove('active'); });
     }
   }
-  function go(route){ state.route=route; render(); }
-  function wireRoute(){
-    switch(state.route){
-      case 'courses': wireCourses(); break;
-      case 'learning': wireLearning(); break;
-      case 'assessments': wireAssessments(); break;
-      case 'chat': wireChat(); break;
-      case 'tasks': wireTasks(); break;
-      case 'profile': wireProfile(); break;
-      case 'admin': wireAdmin(); break;
-      case 'settings': wireSettings(); break;
-    }
-  }
 
   // Login
+  const vLogin=()=>`
+    <div class="login-page">
+      <div class="card login-card"><div class="card-body">
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px">
+          <div class="logo" style="width:44px;height:44px;border-radius:12px;background:#0c1626;display:grid;place-items:center;overflow:hidden">
+            <img src="/icons/learnhub-192.png" alt="LearnHub" style="width:100%;height:100%;object-fit:cover">
+          </div>
+          <div><div style="font-size:20px; font-weight:800">LearnHub</div><div class="muted">Sign in to continue</div></div>
+        </div>
+        <div class="grid">
+          <label>Email</label><input id="li-email" class="input" type="email" placeholder="you@example.com" autocomplete="username"/>
+          <label>Password</label><input id="li-pass" class="input" type="password" placeholder="••••••••" autocomplete="current-password"/>
+          <button id="btnLogin" class="btn"><i class="ri-login-box-line"></i> Sign In</button>
+          <div style="display:flex; justify-content:space-between; gap:8px">
+            <button id="link-forgot" class="btn ghost" style="padding:6px 10px; font-size:12px"><i class="ri-key-2-line"></i> Forgot password</button>
+            <button id="link-register" class="btn secondary" style="padding:6px 10px; font-size:12px"><i class="ri-user-add-line"></i> Sign up</button>
+          </div>
+        </div>
+      </div></div>
+    </div>`;
+
   function wireLogin(){
     const doLogin=async ()=>{
       const email=$('#li-email')?.value.trim(), pass=$('#li-pass')?.value.trim();
@@ -524,16 +574,18 @@
       try{
         const cred=await auth.createUserWithEmailAndPassword(email, pass);
         const uid=cred.user.uid;
+        const role = ADMIN_EMAILS.includes(email.toLowerCase()) ? 'admin' : 'student';
         await Promise.all([
-          doc('roles', uid).set({ uid, email, role: ADMIN_EMAILS.includes(email.toLowerCase())?'admin':'student', createdAt:firebase.firestore.FieldValue.serverTimestamp() }),
-          doc('profiles', uid).set({ uid, email, name:(email.split('@')[0]), bio:'', portfolio:'', avatar:'', signature:'', role: ADMIN_EMAILS.includes(email.toLowerCase())?'admin':'student', createdAt:firebase.firestore.FieldValue.serverTimestamp() })
+          doc('roles', uid).set({ uid, email, role, createdAt:firebase.firestore.FieldValue.serverTimestamp() }),
+          doc('profiles', uid).set({ uid, email, name:(email.split('@')[0]), bio:'', portfolio:'', avatar:'', signature:'', role, createdAt:firebase.firestore.FieldValue.serverTimestamp() })
         ]);
         notify('Account created — sign in now.');
+        await auth.signOut();
       }catch(e){ notify(e?.message||'Signup failed','danger'); }
     });
   }
 
-  // Courses
+  // Outline rendering (video/text/images + notes)
   function parseOutline(str){ try{ const v=JSON.parse(str||'[]'); return Array.isArray(v)? v : []; }catch{return [];} }
   function imgTag(src){
     if(!/^https?:\/\//i.test(src||'')) return `<div class="muted" style="font-size:12px">Image URL invalid. Skipped.</div>`;
@@ -542,16 +594,18 @@
       onerror="this.style.display='none'; const m=document.createElement('div'); m.className='muted'; m.style.fontSize='12px'; m.textContent='(image unavailable)'; this.parentNode.appendChild(m)"
       style="border-radius:12px; margin-top:6px">`;
   }
+  const yta = id => `<iframe width="100%" height="320" src="https://www.youtube.com/embed/${id}" title="Video" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
   function renderCourseBody(c,enrolled){
     const outline=parseOutline(c.outline);
-    const chaptersHTML = outline.map((ch,ci)=>`
+    return outline.map((ch,ci)=>`
       <div class="card"><div class="card-body">
         <div style="font-weight:800">Chapter ${ci+1}. ${ch.title||''}</div>
         <div class="grid" style="margin-top:6px">
           ${(ch.lessons||[]).map((ls,li)=>`
             <div class="card"><div class="card-body">
               <div style="font-weight:700">${ls.title||''}</div>
-              ${ls.video && ytid(ls.video)? `<div style="margin:8px 0"><iframe width="100%" height="320" src="https://www.youtube.com/embed/${ytid(ls.video)}" title="Video" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe></div>`:''}
+              ${ls.video && ytid(ls.video)? `<div style="margin:8px 0">${yta(ytid(ls.video))}</div>`:''}
+              ${ls.audio? `<audio controls style="width:100%; margin:6px 0"><source src="${ls.audio}" type="audio/mpeg">Your browser does not support audio</audio>`:''}
               ${ls.html? `<div style="white-space:pre-wrap">${ls.html}</div>`:''}
               ${(ls.images||[]).map(src=> imgTag(src)).join('')}
               ${enrolled? `<div style="margin-top:8px">
@@ -562,11 +616,10 @@
           `).join('')}
         </div>
       </div></div>
-    `).join('');
-
-    return `<div class="grid">${c.short? `<p>${c.short}</p>`:''}${chaptersHTML||'<div class="muted">No outline yet.</div>'}</div>`;
+    `).join('') || '<div class="muted">No outline yet.</div>';
   }
 
+  // Courses wiring
   function wireCourses(){
     $('#add-course')?.addEventListener('click', ()=>{
       $('#mm-title').textContent='New Course';
@@ -589,10 +642,7 @@
         try{
           await col('courses').add(obj);
           closeModal('m-modal'); notify('Course saved');
-        }catch(e){
-          console.warn(e);
-          notify('Save blocked by rules. Please copy the Firestore rules I provided.', 'danger');
-        }
+        }catch(e){ console.warn(e); notify('Save blocked by rules. Please deploy the rules provided.', 'danger'); }
       };
     });
 
@@ -605,18 +655,20 @@
         $('#mm-title').textContent=c.title;
         $('#mm-body').innerHTML=renderCourseBody(c,enrolled);
         $('#mm-foot').innerHTML=`
-          <div style="display:flex; gap:8px">
+          <div style="display:flex; gap:8px; flex-wrap:wrap">
             ${!enrolled? `<button class="btn" id="enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>` : `<button class="btn ok" disabled>Enrolled</button>`}
             <button class="btn ghost" id="open-final"><i class="ri-award-line"></i> Final exam</button>
           </div>`;
         openModal('m-modal');
 
         $('#enroll')?.addEventListener('click', async ()=>{
-          const uid=auth.currentUser.uid;
-          await col('enrollments').add({ uid, courseId:c.id, createdAt:firebase.firestore.FieldValue.serverTimestamp(), course:{id:c.id, title:c.title, category:c.category, credits:c.credits||0} });
+          await col('enrollments').add({
+            uid:auth.currentUser.uid, courseId:c.id, createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+            course:{id:c.id, title:c.title, category:c.category, credits:c.credits||0}
+          });
           closeModal('m-modal'); notify('Enrolled');
         });
-        $('#open-final')?.addEventListener('click', ()=>{ state.highlightId=c.id; go('assessments'); });
+        $('#open-final')?.addEventListener('click', ()=>{ state.highlightId=c.id; state.route='assessments'; render(); });
 
         $('#mm-body')?.addEventListener('click', async (ev)=>{
           const b=ev.target.closest('button[data-save-note]'); if(!b) return;
@@ -644,7 +696,11 @@
           <button class="btn" id="c-save">Save</button>`;
         openModal('m-modal');
         $('#c-save').onclick=async ()=>{
-          await doc('courses', id).set({ title:$('#c-title')?.value.trim(), category:$('#c-category')?.value.trim(), credits:+($('#c-credits')?.value||0), short:$('#c-short')?.value.trim(), outline:$('#c-outline')?.value.trim(), updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+          await doc('courses', id).set({
+            title:$('#c-title')?.value.trim(), category:$('#c-category')?.value.trim(),
+            credits:+($('#c-credits')?.value||0), short:$('#c-short')?.value.trim(), outline:$('#c-outline')?.value.trim(),
+            updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+          },{merge:true});
           closeModal('m-modal'); notify('Saved');
         };
         $('#c-del').onclick=async ()=>{ await doc('courses',id).delete(); closeModal('m-modal'); notify('Deleted'); };
@@ -652,6 +708,7 @@
     });
   }
 
+  // Learning
   function wireLearning(){
     $('#main')?.addEventListener('click', async (e)=>{
       const btn=e.target.closest('button[data-open-course]'); if(!btn) return;
@@ -737,7 +794,7 @@
       }
       if(edit){
         const id=edit.getAttribute('data-edit'); const snap=await doc('quizzes',id).get(); if(!snap.exists) return;
-        const q={id:snap.id,...snap.data()}; if(!(q.ownerUid===auth.currentUser?.uid || canManageUsers())) return notify('No permission','warn');
+        const q={id:snap.id,...snap.data()}; if(!(q.ownerUid===auth.currentUser?.uid || isAdmin())) return notify('No permission','warn');
         $('#mm-title').textContent='Edit Final';
         $('#mm-body').innerHTML=`
           <div class="grid">
@@ -784,9 +841,7 @@
     send?.addEventListener('click', async ()=>{
       const text=input.value.trim(); const cid=courseSel?.value||'';
       if(!text||!cid) return;
-      if(!canPostMessage(cid)) return notify('Enroll to chat','warn');
-      const pSnap = await doc('profiles', auth.currentUser.uid).get();
-      const p=pSnap.data()||{};
+      const pSnap = await doc('profiles', auth.currentUser.uid).get(); const p=pSnap.data()||{};
       await col('messages').add({ courseId:cid, uid:auth.currentUser.uid, email:auth.currentUser.email, name:p.name||'', text, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
       input.value='';
     });
@@ -832,7 +887,7 @@
       }
     });
 
-    // Drag & drop
+    // Drag & drop lanes with highlight
     root.querySelectorAll('.task-card').forEach(card=>{
       card.setAttribute('draggable','true'); card.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', card.getAttribute('data-task')); card.classList.add('dragging'); });
       card.addEventListener('dragend', ()=> card.classList.remove('dragging'));
@@ -842,27 +897,13 @@
       const show=e=>{ e.preventDefault(); row?.classList.add('drop'); }; const hide=()=> row?.classList.remove('drop');
       grid.addEventListener('dragenter', show); grid.addEventListener('dragover', show); grid.addEventListener('dragleave', hide);
       grid.addEventListener('drop', async (e)=>{ e.preventDefault(); hide(); const id=e.dataTransfer.getData('text/plain'); if(!id) return;
-        try{
-          await doc('tasks',id).set({ status:lane, updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
-        }catch(ex){ notify('Permission denied (check Firestore rules for /tasks)', 'danger'); }
+        try{ await doc('tasks',id).set({ status:lane, updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); }
+        catch(ex){ notify('Permission denied (check Firestore rules for /tasks)', 'danger'); }
       });
     });
   }
 
-  // Profile (better “View card”, delete button)
-  function buildTranscript(uid){
-    const byCourse={};
-    (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
-      const title=(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId;
-      byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:title, best:0, completed:false};
-      byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score||0);
-      const q = state.quizzes.find(q=>q.courseId===a.courseId && q.isFinal);
-      const pass = q ? (byCourse[a.courseId].best >= (q.passScore||70)) : false;
-      byCourse[a.courseId].completed = pass;
-    });
-    return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
-  }
-
+  // Profile wiring (save / view / delete / certificate)
   function wireProfile(){
     $('#pf-save')?.addEventListener('click', async ()=>{
       try{
@@ -884,16 +925,20 @@
         const avatarUrl = await up('#pf-avatar','avatars','avatar');
         const signUrl   = await up('#pf-sign','signatures','signature');
 
-        // keep local state fresh
+        // local state refresh
         const idx = state.profiles.findIndex(p=> (p.uid||p.id)===uid);
         if(idx>=0){
-          state.profiles[idx] = { ...state.profiles[idx], name:$('#pf-name').value.trim(), email:$('#pf-email').value.trim(), portfolio:$('#pf-portfolio').value.trim(), bio:$('#pf-bio').value.trim(), ...(avatarUrl?{avatar:avatarUrl}:{}) , ...(signUrl?{signature:signUrl}:{}) };
+          state.profiles[idx] = { ...state.profiles[idx],
+            name:$('#pf-name').value.trim(), email:$('#pf-email').value.trim(),
+            portfolio:$('#pf-portfolio').value.trim(), bio:$('#pf-bio').value.trim(),
+            ...(avatarUrl?{avatar:avatarUrl}:{}) , ...(signUrl?{signature:signUrl}:{})
+          };
         }
         if ($('#pf-avatar')) $('#pf-avatar').value='';
         if ($('#pf-sign')) $('#pf-sign').value='';
         notify('Profile saved');
       }catch(e){
-        notify('Permission denied: you can only edit your own profile. Use Admin to edit others.', 'danger');
+        notify('Permission denied: you can only edit your own profile. Admins can edit others in Admin → Users.', 'danger');
       }
     });
 
@@ -911,7 +956,9 @@
         <div class="card"><div class="card-body">
           <div style="display:flex; gap:12px; align-items:center">
             <div style="width:84px;height:84px;border-radius:50%;overflow:hidden;background:#222">
-              ${me.avatar? `<img src="${me.avatar}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover">`
+              ${me.avatar? `<img src="${me.avatar}" referrerpolicy="no-referrer"
+                onerror="this.parentNode.innerHTML='<div class=&quot;muted&quot; style=&quot;font-size:12px;display:grid;place-items:center;height:100%&quot;>(avatar unavailable)</div>'"
+                style="width:100%;height:100%;object-fit:cover">`
                 : '<div class="muted" style="font-size:12px;display:grid;place-items:center;height:100%">no avatar</div>'}
             </div>
             <div>
@@ -921,7 +968,10 @@
             </div>
           </div>
           ${me.bio? `<div class="muted" style="margin-top:8px">${me.bio}</div>`:''}
-          ${me.signature? `<div style="margin-top:12px"><div class="muted" style="font-size:12px">Signature</div><img src="${me.signature}" referrerpolicy="no-referrer" style="height:52px"></div>`:''}
+          ${me.signature? `<div style="margin-top:12px"><div class="muted" style="font-size:12px">Signature</div>
+             <img src="${me.signature}" referrerpolicy="no-referrer"
+              onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=&quot;muted&quot; style=&quot;font-size:12px&quot;>(signature unavailable)</div>')"
+              style="height:52px"></div>`:''}
         </div></div>
       `;
       $('#mm-foot').innerHTML=`<button class="btn ghost" id="mm-ok">Close</button>`;
@@ -948,12 +998,13 @@
       ctx.fillText(`Date: ${new Date().toLocaleDateString()}`, 260, 380);
       ctx.beginPath(); ctx.moveTo(260, 560); ctx.lineTo(620,560); ctx.strokeStyle='#7ad3ff'; ctx.lineWidth=2; ctx.stroke();
       ctx.font='20px Inter'; ctx.fillText('Authorized Signature', 360, 590);
-      if (p.signature){ const img=new Image(); img.referrerPolicy='no-referrer'; img.onload=()=>{ ctx.drawImage(img,260,480,240,80); after(); }; img.src=p.signature; } else { after(); }
-      function after(){ ctx.fillStyle='#7ad3ff'; ctx.font='bold 32px Inter'; ctx.fillText('LearnHub', 1080, 760); const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`certificate_${course.title||courseId}.png`; a.click(); }
+      const after=()=>{ ctx.fillStyle='#7ad3ff'; ctx.font='bold 32px Inter'; ctx.fillText('LearnHub', 1080, 760);
+        const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`certificate_${course.title||courseId}.png`; a.click(); };
+      if (p.signature){ const img=new Image(); img.referrerPolicy='no-referrer'; img.onload=()=>{ ctx.drawImage(img,260,480,240,80); after(); }; img.onerror=after; img.src=p.signature; } else { after(); }
     });
   }
 
-  // Admin (edit + delete buttons; permission messages)
+  // Admin wiring (edit/delete user, seed demo data)
   function wireAdmin(){
     $('#rm-save')?.addEventListener('click', async ()=>{
       const uid=$('#rm-uid')?.value.trim(); const role=$('#rm-role')?.value||'student';
@@ -963,60 +1014,94 @@
       notify('Role saved');
     });
 
+    $('#seed-demo')?.addEventListener('click', async ()=>{
+      const u=auth.currentUser; if(!u) return;
+      // Sample outline with text, audio, video, image
+      const outline=[{
+        title:"Chapter 1: Basics",
+        lessons:[
+          { title:"Welcome", video:"https://www.youtube.com/watch?v=H14bBuluwB8", html:"Welcome to the course! This lesson introduces goals and structure.", images:["https://images.unsplash.com/photo-1529070538774-1843cb3265df?q=80&w=1200&auto=format&fit=crop"], audio:"https://samplelib.com/lib/preview/mp3/sample-3s.mp3" },
+          { title:"Numbers", html:"Understanding numbers, sets, and operations.\n\nKey terms: integers, rationals, reals.", images:[] }
+        ]
+      },{
+        title:"Chapter 2: Algebra",
+        lessons:[
+          { title:"Equations", html:"Solve ax + b = 0 → x = -b/a\nPractice problems in the final." }
+        ]
+      }];
+      const cRef = await col('courses').add({
+        title:'Algebra Basics', category:'Math', credits:3, short:'Equations, functions, factoring.',
+        outline:JSON.stringify(outline), ownerUid:u.uid, ownerEmail:u.email,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await col('enrollments').add({ uid:u.uid, courseId:cRef.id, createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+        course:{id:cRef.id, title:'Algebra Basics', category:'Math', credits:3} });
+
+      await col('quizzes').add({
+        title:'Algebra Final', courseId:cRef.id, courseTitle:'Algebra Basics', passScore:70, isFinal:true,
+        items:[
+          { q:'2+2?', choices:['3','4','5'], answer:1 },
+          { q:'Which are solutions to 2x=10?', choices:['x=2','x=5','x=10'], answers:[1] },
+          { q:'Select prime numbers', choices:['4','5','7','9'], answers:[1,2] }
+        ],
+        ownerUid:u.uid, createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Sample chat
+      await Promise.all([
+        col('messages').add({ courseId:cRef.id, uid:u.uid, email:u.email, name:'Admin', text:'Welcome to Algebra Basics!', createdAt:firebase.firestore.FieldValue.serverTimestamp() }),
+        col('messages').add({ courseId:cRef.id, uid:u.uid, email:u.email, name:'Admin', text:'Ask anything in this chat.', createdAt:firebase.firestore.FieldValue.serverTimestamp() })
+      ]);
+
+      notify('Demo data loaded');
+    });
+
     $('#main')?.addEventListener('click', async (e)=>{
       const editBtn = e.target.closest('button[data-edit-user]');
       const delBtn  = e.target.closest('button[data-del-user]');
       if(editBtn){
         const uid = editBtn.getAttribute('data-edit-user');
-        try{
-          const pSnap = await doc('profiles',uid).get(); const p = {uid, ...(pSnap.data()||{})};
-          const rSnap = await doc('roles',uid).get(); const curRole = (rSnap.data()?.role)|| (p.role||'student');
-          $('#mm-title').textContent = 'Edit User';
-          $('#mm-body').innerHTML = `
-            <div class="grid">
-              <input id="eu-name" class="input" placeholder="Name" value="${p.name||''}"/>
-              <input id="eu-email" class="input" placeholder="Email" value="${p.email||''}"/>
-              <select id="eu-role" class="input">
-                ${VALID_ROLES.map(r=>`<option value="${r}" ${curRole===r?'selected':''}>${r}</option>`).join('')}
-              </select>
-            </div>`;
-          $('#mm-foot').innerHTML = `
-            <button class="btn danger" id="eu-del"><i class="ri-delete-bin-6-line"></i> Delete</button>
-            <button class="btn" id="eu-save"><i class="ri-save-3-line"></i> Save</button>`;
-          openModal('m-modal');
+        const pSnap = await doc('profiles',uid).get(); const p = {uid, ...(pSnap.data()||{})};
+        const rSnap = await doc('roles',uid).get(); const curRole = (rSnap.data()?.role)|| (p.role||'student');
+        $('#mm-title').textContent = 'Edit User';
+        $('#mm-body').innerHTML = `
+          <div class="grid">
+            <input id="eu-name" class="input" placeholder="Name" value="${p.name||''}"/>
+            <input id="eu-email" class="input" placeholder="Email" value="${p.email||''}"/>
+            <select id="eu-role" class="input">
+              ${VALID_ROLES.map(r=>`<option value="${r}" ${curRole===r?'selected':''}>${r}</option>`).join('')}
+            </select>
+          </div>`;
+        $('#mm-foot').innerHTML = `
+          <button class="btn danger" id="eu-del"><i class="ri-delete-bin-6-line"></i> Delete</button>
+          <button class="btn" id="eu-save"><i class="ri-save-3-line"></i> Save</button>`;
+        openModal('m-modal');
 
-          $('#eu-save')?.addEventListener('click', async ()=>{
-            const name = $('#eu-name')?.value.trim();
-            const email = $('#eu-email')?.value.trim();
-            const role = $('#eu-role')?.value;
-            try{
-              await doc('profiles',uid).set({ name, email, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
-              await doc('roles',uid).set({ uid, email, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
-              notify('User updated'); closeModal('m-modal');
-            }catch(ex){ notify('Permission denied: only admins can edit others', 'danger'); }
-          });
+        $('#eu-save')?.addEventListener('click', async ()=>{
+          const name = $('#eu-name')?.value.trim();
+          const email = $('#eu-email')?.value.trim();
+          const role = $('#eu-role')?.value;
+          await doc('profiles',uid).set({ name, email, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
+          await doc('roles',uid).set({ uid, email, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
+          notify('User updated'); closeModal('m-modal');
+        });
 
-          $('#eu-del')?.addEventListener('click', async ()=>{
-            if(!confirm('Delete this user’s profile & role? (Auth user not deleted)')) return;
-            try{
-              await Promise.allSettled([ doc('profiles',uid).delete(), doc('roles',uid).delete() ]);
-              notify('Profile & role removed'); closeModal('m-modal');
-            }catch(ex){ notify('Permission denied: only admins can delete', 'danger'); }
-          });
-        }catch(ex){ notify('Permission denied: only admins can edit others', 'danger'); }
+        $('#eu-del')?.addEventListener('click', async ()=>{
+          if(!confirm('Delete this user’s profile & role? (Auth user not deleted)')) return;
+          await Promise.allSettled([ doc('profiles',uid).delete(), doc('roles',uid).delete() ]);
+          notify('Profile & role removed'); closeModal('m-modal');
+        });
       }
       if(delBtn){
         const uid = delBtn.getAttribute('data-del-user');
         if(!confirm('Delete this user’s profile & role?')) return;
-        try{
-          await Promise.allSettled([ doc('profiles',uid).delete(), doc('roles',uid).delete() ]);
-          notify('Profile & role removed');
-        }catch(ex){ notify('Permission denied: only admins can delete', 'danger'); }
+        await Promise.allSettled([ doc('profiles',uid).delete(), doc('roles',uid).delete() ]);
+        notify('Profile & role removed');
       }
     });
   }
 
-  // Settings (font-size live)
+  // Settings
   function applyTheme(){
     const p = state.theme.palette;
     const root = document.documentElement;
@@ -1082,11 +1167,7 @@
     ));
 
     state.unsub.push(col('notes').where('uid','==',uid).onSnapshot(s=>{
-      state.notes=s.docs.map(d=>({id:d.id,...d.data()}));
-    }));
-
-    state.unsub.push(col('announcements').orderBy('createdAt','desc').limit(25).onSnapshot(s=>{
-      state.announcements=s.docs.map(d=>({id:d.id,...d.data()})); if(['dashboard'].includes(state.route)) render();
+      state.notes=s.docs.map(d=>({id:d.id,...d.data()})); if(state.route==='profile') render();
     }));
   }
 
@@ -1098,7 +1179,6 @@
     }catch{return 'student';}
   }
 
-  // Auth
   auth.onAuthStateChanged(async (user)=>{
     state.user=user||null;
     if(!user){ clearUnsubs(); render(); return; }

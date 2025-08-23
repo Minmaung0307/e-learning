@@ -8,7 +8,7 @@
   --ok:#10b981;
   --warn:#f59e0b;
   --danger:#ef4444;
-  --base-font-size: 16px; /* live-updated */
+  --base-font-size: 16px;
 }
 
 *{box-sizing:border-box}
@@ -23,7 +23,6 @@ img{max-width:100%;display:block}
 .hidden{display:none}
 .clickable{cursor:pointer}
 
-/* Layout */
 .app{display:grid; grid-template-columns:260px 1fr; min-height:100vh}
 .sidebar{background:#0f172a; border-right:1px solid var(--border); display:flex; flex-direction:column}
 .brand{display:flex; gap:10px; align-items:center; padding:14px 12px; border-bottom:1px solid var(--border); cursor:pointer}
@@ -45,7 +44,6 @@ img{max-width:100%;display:block}
 .search-results .row{padding:8px; border-radius:10px; cursor:pointer}
 .search-results .row:hover{background:#0b1220}
 
-/* Cards, inputs, buttons */
 .card{background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:0 0 0 1px rgba(255,255,255,0.02) inset}
 .card-body{padding:12px}
 .input{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:#0b1220; color:var(--fg)}
@@ -75,7 +73,6 @@ img{max-width:100%;display:block}
 .notification.warn{border-color:#8a6a10}
 .notification.danger{border-color:#7f1d1d}
 
-/* Modal */
 .modal{position:fixed; inset:0; display:none; z-index:50}
 .modal.active{display:block}
 .modal .dialog{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(920px,96vw); max-height:80vh; background:#0f172a; border:1px solid var(--border); border-radius:16px; display:flex; flex-direction:column}
@@ -99,9 +96,19 @@ img{max-width:100%;display:block}
   .grid.cols-4{grid-template-columns:repeat(2,1fr)}
 }
 
-/* Search highlight & tasks */
+/* Extras */
 .highlight{outline:2px solid var(--brand); background:linear-gradient(0deg, rgba(122,211,255,.12), transparent)}
 .lane-row.drop{outline:2px dashed #0ea5e9; background:rgba(14,165,233,.08); border-radius:12px}
-
-/* Pretty Guide chips */
 .chip{display:inline-flex; align-items:center; gap:6px; background:#0b1220; border:1px solid var(--border); padding:6px 10px; border-radius:999px; font-size:.8rem}
+
+/* Profile polish */
+.profile-wrap{display:grid; grid-template-columns: 380px 1fr; gap:12px}
+@media (max-width: 960px){ .profile-wrap{grid-template-columns: 1fr} }
+.profile-card .avatar{
+  width:108px;height:108px;border-radius:50%;overflow:hidden;background:#0b1220; border:1px solid var(--border);
+  display:grid;place-items:center;color:var(--muted)
+}
+.profile-card .line{height:1px;background:var(--border);margin:10px 0}
+.section-title{font-weight:800;margin:0 0 8px 0;color:#cbd5e1}
+.guide-h{color:#a7f3d0}
+.guide-p{color:#c7d2fe}

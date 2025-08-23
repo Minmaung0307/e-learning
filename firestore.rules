@@ -19,26 +19,25 @@ service cloud.firestore {
 
     match /profiles/{uid} {
       allow read: if isSignedIn();
-      // self or admin can create/update/delete profile docs
       allow write: if isSelf(uid) || isAdmin();
     }
 
     match /courses/{id} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid || isAdmin();
+      allow update, delete: if (isSignedIn() && resource.data.ownerUid == request.auth.uid) || isAdmin();
     }
 
     match /enrollments/{id} {
       allow read: if isSignedIn() && (request.auth.uid == resource.data.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.uid == request.auth.uid || isAdmin();
+      allow update, delete: if (isSignedIn() && resource.data.uid == request.auth.uid) || isAdmin();
     }
 
     match /quizzes/{id} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid || isAdmin();
+      allow update, delete: if (isSignedIn() && resource.data.ownerUid == request.auth.uid) || isAdmin();
     }
 
     match /attempts/{id} {
@@ -48,7 +47,7 @@ service cloud.firestore {
     }
 
     match /tasks/{id} {
-      allow read, update, delete: if isSignedIn() && resource.data.uid == request.auth.uid || isAdmin();
+      allow read, update, delete: if (isSignedIn() && resource.data.uid == request.auth.uid) || isAdmin();
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
     }
 
@@ -59,7 +58,7 @@ service cloud.firestore {
     }
 
     match /notes/{id} {
-      allow read, update, delete: if isSignedIn() && resource.data.uid == request.auth.uid || isAdmin();
+      allow read, update, delete: if (isSignedIn() && resource.data.uid == request.auth.uid) || isAdmin();
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
     }
 
