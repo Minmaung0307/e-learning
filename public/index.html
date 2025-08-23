@@ -1,56 +1,66 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>LearnHub</title>
+  <head>
+    <meta charset="utf-8" />
+    <title>LearnHub</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- PWA -->
-  <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#0b0d10" />
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0b0d10" />
+    <link rel="apple-touch-icon" href="/icons/learnhub-192.png" />
 
-  <!-- Icons / Favicon (ensure these files exist) -->
-  <link rel="icon" sizes="192x192" href="/icons/learnhub-192.png" />
-  <link rel="apple-touch-icon" sizes="192x192" href="/icons/learnhub-192.png" />
-  <link rel="apple-touch-icon" sizes="512x512" href="/icons/learnhub-512.png" />
+    <!-- App icons in UI -->
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="/icons/learnhub-192.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="512x512"
+      href="/icons/learnhub-512.png"
+    />
 
-  <!-- Remix Icon (for UI icons) -->
-  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <!-- Remix Icon (for buttons/icons) -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css"
+      rel="stylesheet"
+    />
 
-  <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="notification" class="notification"></div>
 
-  <script>
-    /* ====== YOUR FIREBASE CONFIG ====== */
-    window.__FIREBASE_CONFIG = {
-      apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
+    <!-- Firebase compat v9 -->
+    <script>
+      // Fill with your Firebase web config
+      window.__FIREBASE_CONFIG = {
+        apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
         authDomain: "e-learning-mm.firebaseapp.com",
         projectId: "e-learning-mm",
         storageBucket: "e-learning-mm.firebasestorage.app",
         messagingSenderId: "523808908467",
         appId: "1:523808908467:web:01b9bac036137744647cc6",
         measurementId: "G-JYF6HGM5XC",
-    };
-  </script>
+      };
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
-  <!-- Firebase compat (Auth + Firestore + Storage) -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-</head>
-<body>
-  <div id="root"></div>
+    <script src="/js/app.js"></script>
 
-  <!-- Notification toaster (created early so notify() always finds it) -->
-  <div id="notification" class="notification"></div>
-
-  <script src="/js/app.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js');
-      });
-    }
-  </script>
-</body>
+    <!-- Service worker (optional) -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+      }
+    </script>
+  </body>
 </html>

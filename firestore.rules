@@ -1,63 +1,83 @@
-// Firestore Security Rules (LearnHub)
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{db}/documents {
+  match /databases/{database}/documents {
 
-    // Public profiles (read), user can write own
-    match /profiles/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == uid;
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // Roles (admin sets)
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == "admin";
+    }
+
+    function isInstructor() {
+      return isSignedIn() && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == "instructor";
+    }
+
+    // roles — admin only write, admins can read, others can read their own role doc
     match /roles/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.auth.token.email in ['admin@learnhub.com']; // add more admin emails here
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow write: if isAdmin();
     }
 
-    // Courses (owned by instructors/admin)
+    // profiles — user can read/write own, admin can read/write all
+    match /profiles/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isSelf(uid) || isAdmin();
+    }
+
+    // courses — everyone signed-in can read; write by instructors/admin
     match /courses/{id} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null; // checked in app for instructor/admin
-      allow update, delete: if request.auth != null
-                            && (resource.data.ownerUid == request.auth.uid);
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin() || isInstructor();
     }
 
-    // Enrollments: user can enroll self
+    // enrollments — create/read own only
     match /enrollments/{id} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
-    // Quizzes: created by instructor/admin (client-enforced)
+    // quizzes — read all; create/update by instructors/admin
     match /quizzes/{id} {
-      allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin() || isInstructor();
     }
 
-    // Attempts: only owner can write/read own
+    // attempts — user reads/writes own
     match /attempts/{id} {
-      allow read, write: if request.auth != null && (
-        (request.method == 'create' && request.resource.data.uid == request.auth.uid) ||
-        (request.method != 'create' && resource.data.uid == request.auth.uid)
-      );
-    }
-
-    // Messages: anyone authed can read; write if author is self
-    match /messages/{id} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if false;
     }
 
-    // Tasks: private to user
+    // tasks — user reads/writes own
     match /tasks/{id} {
-      allow read, write: if request.auth != null && (
-        (request.method == 'create' && request.resource.data.uid == request.auth.uid) ||
-        (request.method != 'create' && resource.data.uid == request.auth.uid)
-      );
+      allow read, update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // messages — signed-in read/write (course chat). You can tighten later.
+    match /messages/{id} {
+      allow read, create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // notes — user reads/writes own
+    match /notes/{id} {
+      allow read, update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // announcements — read all; write by instructor/admin
+    match /announcements/{id} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin() || isInstructor();
     }
   }
 }
