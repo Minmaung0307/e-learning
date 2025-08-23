@@ -1,36 +1,31 @@
-/* LearnHub — E-Learning & Community Platform (v1.3)
-   - Auth, Firestore, Storage (Firebase v9 compat)
-   - Roles: student | instructor | admin
-   - Collections: profiles, roles, courses, enrollments, quizzes, attempts, tasks, messages, notes, announcements
-*/
+/* LearnHub — v1.4 (roles/profile/admin fixes, theme font fix, avatar card fix, delete user) */
 (() => {
   'use strict';
 
-  /* ---------- Firebase ---------- */
+  // ---------- Firebase ----------
   if (!window.firebase || !window.__FIREBASE_CONFIG) console.error('Firebase SDK or config missing.');
   firebase.initializeApp(window.__FIREBASE_CONFIG);
   const auth = firebase.auth();
   const db   = firebase.firestore();
   const stg  = firebase.storage();
 
-  /* ---------- Constants ---------- */
-  const ADMIN_EMAILS = ['admin@learnhub.com']; // add extra admin emails here
+  // ---------- Constants ----------
+  const ADMIN_EMAILS = ['admin@learnhub.com']; // extend if needed
   const VALID_ROLES  = ['student','instructor','admin'];
 
-  /* ---------- State ---------- */
+  // ---------- State ----------
   const state = {
     user:null, role:'student', route:'dashboard',
-    theme:{ palette:'dark', font:'medium' },
+    theme:{ palette:'dark', font:'medium' }, // font: small | medium | large
     searchQ:'', highlightId:null,
-    // data
+
     profiles:[], courses:[], enrollments:[], quizzes:[], attempts:[], tasks:[], messages:[], notes:[], announcements:[],
     myEnrolledIds: new Set(),
-    // runtime
     unsub:[],
     _unsubChat:null
   };
 
-  /* ---------- Utils ---------- */
+  // ---------- Utils ----------
   const $=(s,r=document)=>r.querySelector(s);
   const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
   const nowYear=()=> new Date().getFullYear();
@@ -43,7 +38,7 @@
   const doc = (name,id)=> db.collection(name).doc(id);
   const safeTS = (ts)=> ts && ts.toMillis ? ts.toMillis() : (typeof ts==='number'? ts : 0);
 
-  /* ---------- Search ---------- */
+  // ---------- Search ----------
   function buildIndex(){
     const ix=[];
     state.courses.forEach(c=> ix.push({label:c.title, section:'Courses', route:'courses', id:c.id, text:`${c.title} ${c.category||''} ${c.ownerEmail||''} ${c.short||''}`}));
@@ -62,7 +57,7 @@
       }).filter(Boolean).sort((a,b)=>b.score-a.score).map(x=>x.item).slice(0,20);
   }
 
-  /* ---------- Permissions ---------- */
+  // ---------- Permissions ----------
   const canCreateCourse = ()=> ['instructor','admin'].includes(state.role);
   const canManageUsers  = ()=> state.role==='admin';
   const canEditCourse   = (c)=> state.role==='admin' || c.ownerUid===auth.currentUser?.uid;
@@ -70,11 +65,11 @@
   const canPostMessage  = (courseId)=> isEnrolled(courseId) || state.role!=='student';
   const canTakeQuiz     = (courseId)=> isEnrolled(courseId) || state.role!=='student';
 
-  /* ---------- Router ---------- */
+  // ---------- Router ----------
   const routes=['dashboard','courses','learning','assessments','chat','tasks','profile','admin','settings','search','guide'];
   function go(route){ state.route = routes.includes(route)? route : 'dashboard'; closeSidebar(); render(); }
 
-  /* ---------- Layout ---------- */
+  // ---------- Layout ----------
   function layout(content){
     return `
     <div class="app">
@@ -134,7 +129,7 @@
     `;
   }
 
-  /* ---------- Views ---------- */
+  // ---------- Views ----------
   const vLogin=()=>`
   <div class="login-page">
     <div class="card login-card"><div class="card-body">
@@ -395,46 +390,26 @@
   }
 
   function vSettings(){
+    const palettes=['dark','sunrise','ocean','forest','grape'];
+    const fonts=['small','medium','large'];
     return `
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">Theme</h3>
         <div class="grid cols-2">
           <div><label>Palette</label>
             <select id="theme-palette" class="input">
-              <option value="dark">dark</option>
-              <option value="sunrise">sunrise</option>
-              <option value="ocean">ocean</option>
-              <option value="forest">forest</option>
-              <option value="grape">grape</option>
+              ${palettes.map(p=>`<option value="${p}" ${state.theme.palette===p?'selected':''}>${p}</option>`).join('')}
             </select>
           </div>
           <div><label>Font size</label>
             <select id="theme-font" class="input">
-              <option value="small">small</option>
-              <option value="medium" selected>medium</option>
-              <option value="large">large</option>
+              ${fonts.map(f=>`<option value="${f}" ${state.theme.font===f?'selected':''}>${f}</option>`).join('')}
             </select>
           </div>
         </div>
         <div style="margin-top:10px"><button class="btn" id="save-theme"><i class="ri-save-3-line"></i> Save</button></div>
       </div></div>
     `;
-  }
-
-  function vSearch(){
-    const q=state.searchQ||''; const res=q?doSearch(q):[];
-    return `
-      <div class="card"><div class="card-body">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-          <h3 style="margin:0">Search</h3>
-          <div class="muted">Query: <strong>${q||'(empty)'}</strong></div>
-        </div>
-        ${res.length? `<div class="grid">${res.map(r=>`
-          <div class="card"><div class="card-body" style="display:flex; justify-content:space-between; align-items:center">
-            <div><div style="font-weight:700">${r.label}</div><div class="muted" style="font-size:12px">${r.section}</div></div>
-            <button class="btn" data-open-route="${r.route}" data-id="${r.id||''}">Open</button>
-          </div></div>`).join('')}</div>` : `<p class="muted">No results.</p>`}
-      </div></div>`;
   }
 
   function vGuide(){
@@ -446,20 +421,20 @@
             <strong>Students</strong>
             <ul>
               <li>Open <em>Courses</em> → pick a course → <em>Enroll</em>.</li>
-              <li>Study content chapter-by-chapter, watch videos, add personal notes.</li>
-              <li>Chat in <em>Course Chat</em> (must be enrolled).</li>
-              <li>Take the final in <em>Finals</em>. Passing ≥ pass score adds certificate.</li>
-              <li>See best scores & download certificate under <em>Profile → Transcript</em>.</li>
-              <li>Track your to-dos in <em>Tasks</em> (drag between lanes).</li>
+              <li>Study the outline (videos, text, images). Save private notes.</li>
+              <li>Use <em>Course Chat</em> to talk with peers/instructor.</li>
+              <li>Take the final in <em>Finals</em>. Pass to earn a certificate.</li>
+              <li>Download certificates under <em>Profile → Transcript</em>.</li>
+              <li>Track tasks in <em>Tasks</em> (drag between lanes).</li>
             </ul>
           </div></div>
           <div class="card"><div class="card-body">
             <strong>Instructors/Admin</strong>
             <ul>
-              <li>Create courses in <em>Courses</em> (title, category, credits, short, outline JSON).</li>
-              <li>Add a final under <em>Finals</em> (check “is final”, set pass score).</li>
-              <li>Use <em>Admin</em> → set user roles (student/instructor/admin).</li>
-              <li>Chat with students in <em>Course Chat</em>; use Announcements (future).</li>
+              <li>Create courses (title, category, credits, short, outline JSON).</li>
+              <li>Add a Final under <em>Finals</em> (check “This is final exam”).</li>
+              <li><em>Admin</em> → “Role Manager” to promote users.</li>
+              <li>Admin can edit/delete profile/role docs of any user.</li>
             </ul>
           </div></div>
         </div>
@@ -483,8 +458,23 @@
       default: return vDashboard();
     }
   }
+  function vSearch(){
+    const q=state.searchQ||''; const res=q?doSearch(q):[];
+    return `
+      <div class="card"><div class="card-body">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+          <h3 style="margin:0">Search</h3>
+          <div class="muted">Query: <strong>${q||'(empty)'}</strong></div>
+        </div>
+        ${res.length? `<div class="grid">${res.map(r=>`
+          <div class="card"><div class="card-body" style="display:flex; justify-content:space-between; align-items:center">
+            <div><div style="font-weight:700">${r.label}</div><div class="muted" style="font-size:12px">${r.section}</div></div>
+            <button class="btn" data-open-route="${r.route}" data-id="${r.id||''}">Open</button>
+          </div></div>`).join('')}</div>` : `<p class="muted">No results.</p>`}
+      </div></div>`;
+  }
 
-  /* ---------- Render ---------- */
+  // ---------- Render & shell ----------
   function render(){
     const root=$('#root');
     if(!auth.currentUser){ root.innerHTML=vLogin(); wireLogin(); return; }
@@ -493,11 +483,9 @@
     if(state.highlightId){ const el=document.getElementById(state.highlightId); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'});} }
   }
 
-  /* ---------- Sidebar (mobile) ---------- */
   const openSidebar=()=>{ document.body.classList.add('sidebar-open'); $('#backdrop')?.classList.add('active'); };
   const closeSidebar=()=>{ document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
 
-  /* ---------- Wiring ---------- */
   function openModal(id){ $('#'+id)?.classList.add('active'); $('#mb-modal')?.classList.add('active'); }
   function closeModal(id){ $('#'+id)?.classList.remove('active'); $('#mb-modal')?.classList.remove('active'); }
 
@@ -512,12 +500,12 @@
     });
     $('#btnLogout')?.addEventListener('click', ()=> auth.signOut());
 
-    // clickable dashboard cards
+    // dashboard cards
     $('#main')?.addEventListener('click', e=>{
       const c=e.target.closest('[data-go]'); if(c){ go(c.getAttribute('data-go')); }
     });
 
-    // search
+    // search popover
     const input=$('#globalSearch'), results=$('#searchResults');
     if(input && results){
       let t;
@@ -556,7 +544,7 @@
     }
   }
 
-  /* ---------- Login ---------- */
+  // ---------- Login ----------
   function wireLogin(){
     const doLogin=async ()=>{
       const email=$('#li-email')?.value.trim(), pass=$('#li-pass')?.value.trim();
@@ -584,10 +572,8 @@
     });
   }
 
-  /* ---------- Courses ---------- */
-  function parseOutline(str){
-    try{ const v=JSON.parse(str||'[]'); return Array.isArray(v)? v : []; }catch{return [];}
-  }
+  // ---------- Courses ----------
+  function parseOutline(str){ try{ const v=JSON.parse(str||'[]'); return Array.isArray(v)? v : []; }catch{return [];} }
   function renderCourseBody(c,enrolled){
     const outline=parseOutline(c.outline);
     const chaptersHTML = outline.map((ch,ci)=>`
@@ -599,7 +585,7 @@
               <div style="font-weight:700">${ls.title||''}</div>
               ${ls.video? `<div style="margin:8px 0"><iframe width="100%" height="320" src="https://www.youtube.com/embed/${(ls.video||'').split('v=')[1]||''}" title="Video" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe></div>`:''}
               ${ls.html? `<div style="white-space:pre-wrap">${ls.html}</div>`:''}
-              ${(ls.images||[]).map(src=>`<img src="${src}" style="max-width:100%; border-radius:12px; margin-top:6px">`).join('')}
+              ${(ls.images||[]).map(src=>`<img src="${src}" referrerpolicy="no-referrer" style="border-radius:12px; margin-top:6px">`).join('')}
               ${enrolled? `<div style="margin-top:8px">
                 <input id="note-${c.id}-${ci}-${li}" class="input" placeholder="Sticky note for you…"/>
                 <button class="btn" data-save-note="${c.id}" data-ci="${ci}" data-li="${li}"><i class="ri-sticky-note-line"></i> Save note</button>
@@ -710,7 +696,7 @@
     });
   }
 
-  /* ---------- Finals (Quizzes) ---------- */
+  // ---------- Finals ----------
   function wireAssessments(){
     $('#new-final')?.addEventListener('click', ()=>{
       if(!['instructor','admin'].includes(state.role)) return notify('Instructors/Admins only','warn');
@@ -744,7 +730,6 @@
         const id=take.getAttribute('data-take'); const snap=await doc('quizzes',id).get(); if(!snap.exists) return;
         const q={id:snap.id,...snap.data()};
         if(!canTakeQuiz(q.courseId)) return notify('Enroll first to take','warn');
-        // render quiz in a tall modal (scrollable)
         $('#mm-title').textContent=q.title;
         $('#mm-body').innerHTML = q.items.map((it,idx)=>`
           <div class="card"><div class="card-body">
@@ -755,7 +740,6 @@
                   <input type="${Array.isArray(it.answers)?'checkbox':'radio'}" name="q${idx}" value="${i}"/> <span>${c}</span>
                 </label>`).join('')}
             </div>
-            ${it.feedback? `<div class="muted" style="font-size:12px; margin-top:6px">${it.feedback}</div>`:''}
           </div></div>
         `).join('');
         $('#mm-foot').innerHTML=`<button class="btn" id="q-submit"><i class="ri-checkbox-circle-line"></i> Submit</button>`;
@@ -804,7 +788,7 @@
     });
   }
 
-  /* ---------- Chat ---------- */
+  // ---------- Chat ----------
   function paintChat(msgs){
     const box=$('#chat-box'); if(!box) return;
     box.innerHTML = msgs.map(m=>`
@@ -835,7 +819,7 @@
     });
   }
 
-  /* ---------- Tasks ---------- */
+  // ---------- Tasks ----------
   function wireTasks(){
     const root=$('[data-sec="tasks"]'); if(!root) return;
 
@@ -871,7 +855,7 @@
       }
     });
 
-    // DnD
+    // DnD highlight
     root.querySelectorAll('.task-card').forEach(card=>{
       card.setAttribute('draggable','true'); card.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', card.getAttribute('data-task')); card.classList.add('dragging'); });
       card.addEventListener('dragend', ()=> card.classList.remove('dragging'));
@@ -886,7 +870,7 @@
     });
   }
 
-  /* ---------- Profile ---------- */
+  // ---------- Profile ----------
   function wireProfile(){
     $('#pf-save')?.addEventListener('click', async ()=>{
       const uid=auth.currentUser.uid;
@@ -910,13 +894,15 @@
       notify('Profile saved'); render();
     });
 
-    $('#pf-view')?.addEventListener('click', ()=>{
-      const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {};
+    // Always fetch latest profile before showing "View card"
+    $('#pf-view')?.addEventListener('click', async ()=>{
+      const pSnap = await doc('profiles', auth.currentUser.uid).get();
+      const me = { ...(state.profiles.find(p=>p.uid===auth.currentUser?.uid)||{}), ...(pSnap.data()||{}) };
       $('#mm-title').textContent='My Profile Card';
       $('#mm-body').innerHTML=`
         <div style="display:flex; gap:12px; align-items:center">
           <div style="width:72px;height:72px;border-radius:50%;overflow:hidden;background:#222">
-            ${me.avatar? `<img src="${me.avatar}" style="width:100%;height:100%;object-fit:cover">` : ''}
+            ${me.avatar? `<img src="${me.avatar}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover">` : '<div class="muted" style="font-size:12px;display:grid;place-items:center;height:100%">no avatar</div>'}
           </div>
           <div>
             <div style="font-weight:900;font-size:18px">${me.name||'(no name)'}</div>
@@ -924,54 +910,47 @@
           </div>
         </div>
         <div class="muted" style="margin-top:8px">${me.bio||'—'}</div>
-        ${me.signature? `<div style="margin-top:12px"><img src="${me.signature}" style="height:48px"></div>`:''}
+        ${me.signature? `<div style="margin-top:12px"><img src="${me.signature}" referrerpolicy="no-referrer" style="height:48px"></div>`:''}
       `;
       $('#mm-foot').innerHTML=`<button class="btn ghost" id="mm-ok">Close</button>`;
       openModal('m-modal');
       $('#mm-ok').onclick=()=> closeModal('m-modal');
     });
 
-    // certificate download button
+    // certificate download
     $('#main').addEventListener('click', async (e)=>{
       const b=e.target.closest('button[data-cert]'); if(!b) return;
       const courseId=b.getAttribute('data-cert');
       const course=state.courses.find(c=>c.id===courseId)||{};
       const p=state.profiles.find(x=>x.uid===auth.currentUser?.uid)||{name:auth.currentUser.email};
-      // certificate PNG
       const canvas=document.createElement('canvas'); canvas.width=1400; canvas.height=900;
       const ctx=canvas.getContext('2d');
-      // background and border
       ctx.fillStyle='#0b0d10'; ctx.fillRect(0,0,1400,900);
       ctx.strokeStyle='#7ad3ff'; ctx.lineWidth=8; ctx.strokeRect(40,40,1320,820);
       ctx.strokeStyle='#153654'; ctx.lineWidth=2; ctx.strokeRect(60,60,1280,780);
-      // title
       ctx.fillStyle='#fff';
-      ctx.font='bold 56px Inter';
-      ctx.fillText('Certificate of Completion', 360, 200);
-      // body
-      ctx.font='28px Inter';
-      ctx.fillText(`Awarded to: ${p.name||p.email}`, 260, 280);
+      ctx.font='bold 56px Inter'; ctx.fillText('Certificate of Completion', 360, 200);
+      ctx.font='28px Inter'; ctx.fillText(`Awarded to: ${p.name||p.email}`, 260, 280);
       ctx.fillText(`Course: ${course.title||courseId}`, 260, 330);
       ctx.fillText(`Date: ${new Date().toLocaleDateString()}`, 260, 380);
-      // signature line
       ctx.beginPath(); ctx.moveTo(260, 560); ctx.lineTo(620,560); ctx.strokeStyle='#7ad3ff'; ctx.lineWidth=2; ctx.stroke();
       ctx.font='20px Inter'; ctx.fillText('Authorized Signature', 360, 590);
-      // logo mark
       ctx.fillStyle='#7ad3ff'; ctx.font='bold 32px Inter'; ctx.fillText('LearnHub', 1080, 760);
       const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`certificate_${course.title||courseId}.png`; a.click();
     });
   }
 
-  /* ---------- Admin ---------- */
+  // ---------- Admin ----------
   function wireAdmin(){
     $('#rm-save')?.addEventListener('click', async ()=>{
       const uid=$('#rm-uid')?.value.trim(); const role=$('#rm-role')?.value||'student';
       if(!uid || !VALID_ROLES.includes(role)) return notify('Enter UID + valid role','warn');
       await doc('roles',uid).set({ uid, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
-      await doc('profiles',uid).set({ role },{merge:true}); // mirror role
+      await doc('profiles',uid).set({ role },{merge:true}); // mirror
       notify('Role saved');
     });
 
+    // delegate edit/delete
     $('#main')?.addEventListener('click', async (e)=>{
       const btn = e.target.closest('button[data-edit-user]'); if(!btn) return;
       const uid = btn.getAttribute('data-edit-user');
@@ -987,7 +966,9 @@
             ${VALID_ROLES.map(r=>`<option value="${r}" ${curRole===r?'selected':''}>${r}</option>`).join('')}
           </select>
         </div>`;
-      $('#mm-foot').innerHTML = `<button class="btn" id="eu-save">Save</button>`;
+      $('#mm-foot').innerHTML = `
+        <button class="btn danger" id="eu-del"><i class="ri-delete-bin-6-line"></i> Delete</button>
+        <button class="btn" id="eu-save"><i class="ri-save-3-line"></i> Save</button>`;
       openModal('m-modal');
 
       $('#eu-save')?.addEventListener('click', async ()=>{
@@ -998,12 +979,17 @@
         await doc('roles',uid).set({ uid, email, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
         notify('User updated'); closeModal('m-modal');
       });
+
+      $('#eu-del')?.addEventListener('click', async ()=>{
+        await Promise.allSettled([ doc('profiles',uid).delete(), doc('roles',uid).delete() ]);
+        notify('Profile & role removed (Auth user not deleted)');
+        closeModal('m-modal');
+      });
     });
   }
 
-  /* ---------- Settings ---------- */
+  // ---------- Settings ----------
   function applyTheme(){
-    // simple palettes
     const p = state.theme.palette;
     const root = document.documentElement;
     const sets = {
@@ -1017,9 +1003,11 @@
     root.style.setProperty('--bg', s.bg);
     root.style.setProperty('--card', s.card);
     root.style.setProperty('--brand', s.brand);
-    // font size
+
+    // Font size via CSS var -> html { font-size: var(--base-font-size) }
     const f=state.theme.font;
-    root.style.setProperty('font-size', f==='small'?'14px':(f==='large'?'17px':'16px'));
+    const size = f==='small' ? '14px' : (f==='large' ? '17px' : '16px');
+    root.style.setProperty('--base-font-size', size);
   }
   function wireSettings(){
     $('#theme-palette')?.addEventListener('change', e=>{ state.theme.palette=e.target.value; applyTheme(); });
@@ -1035,7 +1023,7 @@
     });
   }
 
-  /* ---------- Transcript ---------- */
+  // ---------- Transcript ----------
   function buildTranscript(uid){
     const byCourse = {};
     (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
@@ -1049,69 +1037,51 @@
     return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
   }
 
-  /* ---------- Firestore sync ---------- */
+  // ---------- Firestore sync ----------
   function clearUnsubs(){ state.unsub.forEach(u=>{try{u()}catch{}}); state.unsub=[]; }
   function sync(){
     clearUnsubs();
     const uid=auth.currentUser.uid;
 
-    // profiles
-    state.unsub.push(
-      col('profiles').onSnapshot(
-        s => { state.profiles = s.docs.map(d=>({id:d.id, ...d.data()})); if(['profile','admin'].includes(state.route)) render(); },
-        err => console.warn('profiles listener error:', err)
-      )
-    );
+    state.unsub.push(col('profiles').onSnapshot(
+      s => { state.profiles = s.docs.map(d=>({id:d.id, ...d.data()})); if(['profile','admin'].includes(state.route)) render(); },
+      err => console.warn('profiles listener error:', err)
+    ));
 
-    // my enrollments
     state.unsub.push(col('enrollments').where('uid','==',uid).onSnapshot(s=>{
       state.enrollments=s.docs.map(d=>({id:d.id,...d.data()}));
       state.myEnrolledIds = new Set(state.enrollments.map(e=>e.courseId));
       if(['dashboard','learning','assessments','chat'].includes(state.route)) render();
     }));
 
-    // courses (no where+order combo)
-    state.unsub.push(
-      col('courses').orderBy('createdAt','desc').onSnapshot(
-        s => { state.courses = s.docs.map(d=>({id:d.id, ...d.data()})); if(['dashboard','courses','learning','assessments','chat'].includes(state.route)) render(); },
-        err => console.warn('courses listener error:', err)
-      )
-    );
+    state.unsub.push(col('courses').orderBy('createdAt','desc').onSnapshot(
+      s => { state.courses = s.docs.map(d=>({id:d.id, ...d.data()})); if(['dashboard','courses','learning','assessments','chat'].includes(state.route)) render(); },
+      err => console.warn('courses listener error:', err)
+    ));
 
-    // finals only (filter client side)
-    state.unsub.push(
-      col('quizzes').orderBy('createdAt','desc').onSnapshot(
-        s => { state.quizzes = s.docs.map(d=>({id:d.id, ...d.data()})); if(['assessments','dashboard','profile'].includes(state.route)) render(); },
-        err => console.warn('quizzes listener error:', err)
-      )
-    );
+    state.unsub.push(col('quizzes').orderBy('createdAt','desc').onSnapshot(
+      s => { state.quizzes = s.docs.map(d=>({id:d.id, ...d.data()})); if(['assessments','dashboard','profile'].includes(state.route)) render(); },
+      err => console.warn('quizzes listener error:', err)
+    ));
 
-    // attempts — sort on client
-    state.unsub.push(
-      col('attempts').where('uid','==',uid).onSnapshot(
-        s => {
-          state.attempts = s.docs.map(d=>({id:d.id, ...d.data()}))
-            .sort((a,b)=>safeTS(b.createdAt)-safeTS(a.createdAt));
-          if(['assessments','profile','dashboard'].includes(state.route)) render();
-        },
-        err => console.warn('attempts listener error:', err)
-      )
-    );
+    state.unsub.push(col('attempts').where('uid','==',uid).onSnapshot(
+      s => {
+        state.attempts = s.docs.map(d=>({id:d.id, ...d.data()}))
+          .sort((a,b)=>safeTS(b.createdAt)-safeTS(a.createdAt));
+        if(['assessments','profile','dashboard'].includes(state.route)) render();
+      },
+      err => console.warn('attempts listener error:', err)
+    ));
 
-    // tasks
-    state.unsub.push(
-      col('tasks').where('uid','==',uid).onSnapshot(
-        s => { state.tasks = s.docs.map(d=>({id:d.id, ...d.data()})); if(['tasks','dashboard'].includes(state.route)) render(); },
-        err => console.warn('tasks listener error:', err)
-      )
-    );
+    state.unsub.push(col('tasks').where('uid','==',uid).onSnapshot(
+      s => { state.tasks = s.docs.map(d=>({id:d.id, ...d.data()})); if(['tasks','dashboard'].includes(state.route)) render(); },
+      err => console.warn('tasks listener error:', err)
+    ));
 
-    // notes (silent)
     state.unsub.push(col('notes').where('uid','==',uid).onSnapshot(s=>{
       state.notes=s.docs.map(d=>({id:d.id,...d.data()}));
     }));
 
-    // announcements (optional)
     state.unsub.push(col('announcements').orderBy('createdAt','desc').limit(25).onSnapshot(s=>{
       state.announcements=s.docs.map(d=>({id:d.id,...d.data()})); if(['dashboard'].includes(state.route)) render();
     }));
@@ -1125,7 +1095,7 @@
     }catch{return 'student';}
   }
 
-  /* ---------- Auth ---------- */
+  // ---------- Auth ----------
   auth.onAuthStateChanged(async (user)=>{
     state.user = user || null;
     if (!user) { clearUnsubs(); render(); return; }
@@ -1138,12 +1108,8 @@
       const pRef = doc('profiles', user.uid);
       const pSnap = await pRef.get();
       const fallbackName = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
-
       if (!pSnap.exists) {
-        await pRef.set({
-          uid: user.uid, email: user.email||'', name: fallbackName, bio:'', portfolio:'', avatar:'', signature:'',
-          role: state.role, createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        await pRef.set({ uid:user.uid, email:user.email||'', name:fallbackName, bio:'', portfolio:'', avatar:'', signature:'', role:state.role, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
       } else {
         const cur = pSnap.data() || {};
         const patch = { role: state.role };
@@ -1151,7 +1117,7 @@
         if (!cur.name) patch.name = fallbackName;
         if (Object.keys(patch).length) await pRef.set(patch, { merge: true });
       }
-      // if someone put name/email in roles by mistake, pull once
+      // pull name/email if they were mistakenly stored in roles doc
       try {
         const rSnap = await doc('roles', user.uid).get();
         const r = rSnap.data()||{};
@@ -1165,7 +1131,10 @@
     sync(); applyTheme(); render();
   });
 
-  /* ---------- Dev helpers ---------- */
+  // ---------- Theme apply on first paint for logged-out users too ----------
+  applyTheme();
+
+  // ---------- Dev helper ----------
   window.seedSampleData = async function(){
     const u=auth.currentUser; if(!u) return alert('Sign in first');
     const outline=[{title:"Chapter 1: Basics",lessons:[
@@ -1181,6 +1150,7 @@
     alert('Seeded sample course & final');
   };
 
-  /* ---------- Boot ---------- */
+  // ---------- Boot ----------
+  function vSearch(){} // placeholder removed above to avoid hoist confusion (kept earlier)
   render();
 })();
