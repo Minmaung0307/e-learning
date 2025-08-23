@@ -1,9 +1,66 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
-    // Allow reads/writes only for signed-in users everywhere (tighten later)
+  match /databases/{db}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin(uid) {
+      return exists(/databases/$(db)/documents/roles/$(uid)) &&
+             get(/databases/$(db)/documents/roles/$(uid)).data.role == "admin";
+    }
+
+    // Open read/write to signed-in users by default (tighten per-collection below)
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if signedIn();
+    }
+
+    // Profiles: users can read all, write their own. Admin can write all.
+    match /profiles/{uid} {
+      allow read: if signedIn();
+      allow write: if signedIn() && (request.auth.uid == uid || isAdmin(request.auth.uid));
+    }
+
+    // Roles: only admin can write; everyone signed-in can read (or restrict if you prefer)
+    match /roles/{uid} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isAdmin(request.auth.uid);
+    }
+
+    // Courses/quizzes/announcements: instructors/admin can create/update; signed-in can read
+    match /courses/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && (isAdmin(request.auth.uid) || request.resource.data.ownerUid == request.auth.uid);
+      allow update, delete: if signedIn() && (isAdmin(request.auth.uid) || resource.data.ownerUid == request.auth.uid);
+    }
+    match /quizzes/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isAdmin(request.auth.uid);
+    }
+    match /announcements/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isAdmin(request.auth.uid);
+    }
+
+    // Enrollments/attempts/notes/tasks/messages: users write their own items, read if owner
+    match /enrollments/{id} {
+      allow read, create: if signedIn();
+      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+    match /attempts/{id} {
+      allow read, create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+    match /tasks/{id} {
+      allow read, create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+    match /notes/{id} {
+      allow read, create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+    match /messages/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
   }
 }
