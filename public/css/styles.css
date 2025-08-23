@@ -102,3 +102,6 @@ img{max-width:100%;display:block}
 /* Search highlight & tasks */
 .highlight{outline:2px solid var(--brand); background:linear-gradient(0deg, rgba(122,211,255,.12), transparent)}
 .lane-row.drop{outline:2px dashed #0ea5e9; background:rgba(14,165,233,.08); border-radius:12px}
+
+/* Pretty Guide chips */
+.chip{display:inline-flex; align-items:center; gap:6px; background:#0b1220; border:1px solid var(--border); padding:6px 10px; border-radius:999px; font-size:.8rem}

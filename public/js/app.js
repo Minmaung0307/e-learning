@@ -1,4 +1,4 @@
-/* LearnHub v1.5 */
+/* LearnHub v1.6 */
 (() => {
   'use strict';
 
@@ -9,7 +9,7 @@
   const stg  = firebase.storage();
 
   // Constants
-  const ADMIN_EMAILS = ['admin@learnhub.com']; // add your admin email here
+  const ADMIN_EMAILS = ['admin@learnhub.com']; // add your admin email(s)
   const VALID_ROLES  = ['student','instructor','admin'];
 
   // State
@@ -36,7 +36,16 @@
   const canPostMessage = cid => isEnrolled(cid) || state.role!=='student';
   const canTakeQuiz = cid => isEnrolled(cid) || state.role!=='student';
 
-  // Layout / views (unchanged structure; updated where needed)
+  const ytid = (url='')=>{
+    try{
+      const u=new URL(url);
+      if(u.hostname.includes('youtu.be')) return u.pathname.replace('/','');
+      if(u.hostname.includes('youtube.com')) return u.searchParams.get('v')||'';
+    }catch{}
+    return '';
+  };
+
+  // Layout
   function layout(content){ return `
     <div class="app">
       <aside class="sidebar" id="sidebar">
@@ -93,6 +102,7 @@
     <div class="modal-backdrop" id="mb-modal"></div>
   `;}
 
+  // Views
   const vLogin=()=>`
     <div class="login-page">
       <div class="card login-card"><div class="card-body">
@@ -141,7 +151,7 @@
   }
 
   function vCourses(){
-    const canCreate = true; // everyone can create their own courses (rules enforce ownership)
+    const canCreate = true;
     return `
       <div class="card"><div class="card-body">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
@@ -274,10 +284,15 @@
             <label>Portfolio URL</label><input id="pf-portfolio" class="input" value="${me.portfolio||''}" placeholder="https://…"/>
             <label>Short bio</label><textarea id="pf-bio" class="input" placeholder="Tell us about you…">${me.bio||''}</textarea>
             <div class="grid cols-2">
-              <div><label>Avatar</label><input id="pf-avatar" type="file" accept="image/*"/></div>
-              <div><label>Signature (PNG)</label><input id="pf-sign" type="file" accept="image/png,image/webp"/></div>
+              <div><label>Avatar (PNG/JPG/WEBP)</label><input id="pf-avatar" type="file" accept="image/*"/></div>
+              <div><label>Signature (PNG/WEBP)</label><input id="pf-sign" type="file" accept="image/png,image/webp,image/jpeg"/></div>
             </div>
-            <div style="display:flex; gap:8px"><button class="btn" id="pf-save"><i class="ri-save-3-line"></i> Save</button><button class="btn ghost" id="pf-view"><i class="ri-id-card-line"></i> View card</button></div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap">
+              <button class="btn" id="pf-save"><i class="ri-save-3-line"></i> Save</button>
+              <button class="btn ghost" id="pf-view"><i class="ri-id-card-line"></i> View card</button>
+              <button class="btn danger" id="pf-delete"><i class="ri-delete-bin-6-line"></i> Delete profile</button>
+            </div>
+            <div class="muted" style="font-size:12px">Note: deleting removes the profile document (not your Auth account). It will be recreated at next login.</div>
           </div>
         </div></div>
 
@@ -323,7 +338,10 @@
                 <td>${p.name||'—'}</td>
                 <td>${p.email||'—'}</td>
                 <td>${p.role||'student'}</td>
-                <td><button class="btn ghost" data-edit-user="${p.uid||p.id}"><i class="ri-edit-line"></i></button></td>
+                <td>
+                  <button class="btn ghost" data-edit-user="${p.uid||p.id}"><i class="ri-edit-line"></i></button>
+                  <button class="btn danger" data-del-user="${p.uid||p.id}"><i class="ri-delete-bin-6-line"></i></button>
+                </td>
               </tr>`).join('')}
             </tbody></table>
           </div>
@@ -358,26 +376,31 @@
   function vGuide(){
     return `
       <div class="card"><div class="card-body">
-        <h3 style="margin:0 0 8px 0">Quick “How to use”</h3>
-        <div class="grid">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+          <h3 style="margin:0">Quick Guide</h3>
+          <span class="chip"><i class="ri-sparkling-2-line"></i> Beautiful UI · Practical steps</span>
+        </div>
+        <div class="grid cols-2">
           <div class="card"><div class="card-body">
-            <strong>Students</strong>
-            <ul>
-              <li>Courses → pick a course → Enroll.</li>
-              <li>Study outline (video/text/images). Save private notes.</li>
-              <li>Use Course Chat to talk to peers/instructor.</li>
-              <li>Finals → take final → pass → download certificate.</li>
-              <li>Profile → Transcript shows scores/certificates.</li>
-              <li>Tasks → drag cards to track progress.</li>
-            </ul>
+            <h4 style="margin:0 0 6px 0"><i class="ri-user-3-line"></i> Students</h4>
+            <ol style="margin:0; padding-left:18px; line-height:1.6">
+              <li><b>Enroll:</b> Go to <i>Courses</i> → open a course → <b>Enroll</b>.</li>
+              <li><b>Learn:</b> Watch the video, read text, view images. Add private <b>Notes</b> under each lesson.</li>
+              <li><b>Chat:</b> Use <i>Course Chat</i> to ask the instructor.</li>
+              <li><b>Finals:</b> Take the final exam. You’ll see your score immediately.</li>
+              <li><b>Certificate:</b> If pass ≥ threshold, go to <i>Profile → Transcript</i> and <b>Download</b>.</li>
+              <li><b>Tasks:</b> Track your own work in <i>Tasks</i> (drag to lanes).</li>
+            </ol>
           </div></div>
           <div class="card"><div class="card-body">
-            <strong>Instructors/Admin</strong>
-            <ul>
-              <li>Create courses and finals. Authors can edit their own items.</li>
-              <li>Admin can promote via Admin → Role Manager.</li>
-              <li>Admin can edit/delete any profile (Auth deletion requires Admin SDK).</li>
-            </ul>
+            <h4 style="margin:0 0 6px 0"><i class="ri-shield-star-line"></i> Instructors & Admin</h4>
+            <ol style="margin:0; padding-left:18px; line-height:1.6">
+              <li><b>Create course:</b> <i>Courses → New Course</i>. Paste <b>Outline JSON</b> (video, text, images).</li>
+              <li><b>Final exam:</b> <i>Finals → New Final</i>. Add questions (single choice or multi-select).</li>
+              <li><b>Promote roles:</b> <i>Admin</i> → set role to <b>instructor/admin</b>.</li>
+              <li><b>Announcements:</b> (Admin) create messages to notify everyone.</li>
+            </ol>
+            <div class="muted" style="margin-top:6px; font-size:12px">Tip: If an image URL is invalid, it’s hidden automatically — the course still opens.</div>
           </div></div>
         </div>
       </div></div>
@@ -428,7 +451,6 @@
 
     $('#copyright')?.replaceChildren(document.createTextNode(`Powered by MM, ${nowYear()}`));
 
-    // Dashboard cards quick nav
     $('#main')?.addEventListener('click', e=>{
       const c=e.target.closest('[data-go]'); if(c){ go(c.getAttribute('data-go')); }
     });
@@ -451,7 +473,7 @@
     };
     if(input && results){
       input.addEventListener('keydown', e=>{
-        if(e.key==='Enter'){ state.searchQ=input.value.trim(); results.classList.remove('active'); go('guide'); } // keep simple
+        if(e.key==='Enter'){ state.searchQ=input.value.trim(); results.classList.remove('active'); go('guide'); }
       });
       input.addEventListener('input', ()=>{
         clearTimeout(t);
@@ -480,7 +502,6 @@
       case 'profile': wireProfile(); break;
       case 'admin': wireAdmin(); break;
       case 'settings': wireSettings(); break;
-      case 'guide': /* none */ break;
     }
   }
 
@@ -514,6 +535,13 @@
 
   // Courses
   function parseOutline(str){ try{ const v=JSON.parse(str||'[]'); return Array.isArray(v)? v : []; }catch{return [];} }
+  function imgTag(src){
+    if(!/^https?:\/\//i.test(src||'')) return `<div class="muted" style="font-size:12px">Image URL invalid. Skipped.</div>`;
+    const esc = src.replace(/"/g,'&quot;');
+    return `<img src="${esc}" referrerpolicy="no-referrer"
+      onerror="this.style.display='none'; const m=document.createElement('div'); m.className='muted'; m.style.fontSize='12px'; m.textContent='(image unavailable)'; this.parentNode.appendChild(m)"
+      style="border-radius:12px; margin-top:6px">`;
+  }
   function renderCourseBody(c,enrolled){
     const outline=parseOutline(c.outline);
     const chaptersHTML = outline.map((ch,ci)=>`
@@ -523,9 +551,9 @@
           ${(ch.lessons||[]).map((ls,li)=>`
             <div class="card"><div class="card-body">
               <div style="font-weight:700">${ls.title||''}</div>
-              ${ls.video? `<div style="margin:8px 0"><iframe width="100%" height="320" src="https://www.youtube.com/embed/${(ls.video||'').split('v=')[1]||''}" title="Video" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe></div>`:''}
+              ${ls.video && ytid(ls.video)? `<div style="margin:8px 0"><iframe width="100%" height="320" src="https://www.youtube.com/embed/${ytid(ls.video)}" title="Video" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe></div>`:''}
               ${ls.html? `<div style="white-space:pre-wrap">${ls.html}</div>`:''}
-              ${(ls.images||[]).map(src=>`<img src="${src}" referrerpolicy="no-referrer" style="border-radius:12px; margin-top:6px">`).join('')}
+              ${(ls.images||[]).map(src=> imgTag(src)).join('')}
               ${enrolled? `<div style="margin-top:8px">
                 <input id="note-${c.id}-${ci}-${li}" class="input" placeholder="Sticky note…"/>
                 <button class="btn" data-save-note="${c.id}" data-ci="${ci}" data-li="${li}"><i class="ri-sticky-note-line"></i> Save note</button>
@@ -549,7 +577,7 @@
           <input id="c-credits" class="input" type="number" value="3" placeholder="Credits"/>
           <input id="c-short" class="input" placeholder="Short description"/>
           <label>Outline JSON</label>
-          <textarea id="c-outline" class="input" placeholder='[{"title":"Chapter 1","lessons":[{"title":"Intro","video":"https://www.youtube.com/watch?v=...","html":"Welcome","images":[]}]}]'></textarea>
+          <textarea id="c-outline" class="input" placeholder='[{"title":"Chapter 1","lessons":[{"title":"Intro","video":"https://youtu.be/...","html":"Welcome","images":["https://…"]}]}]'></textarea>
         </div>`;
       $('#mm-foot').innerHTML=`<button class="btn" id="c-save">Save</button>`;
       openModal('m-modal');
@@ -563,7 +591,7 @@
           closeModal('m-modal'); notify('Course saved');
         }catch(e){
           console.warn(e);
-          notify('Save blocked by rules. Updating rules now will fix it (see below).', 'danger');
+          notify('Save blocked by rules. Please copy the Firestore rules I provided.', 'danger');
         }
       };
     });
@@ -600,7 +628,7 @@
       }
       if(editBtn){
         const id=editBtn.getAttribute('data-edit'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
-        const c={id:snap.id, ...snap.data()}; if(!canEditCourse(c)) return notify('No permission','warn');
+        const c={id:snap.id, ...snap.data()}; if(!canEditCourse(c)) return notify('No permission (only author/admin)', 'warn');
         $('#mm-title').textContent='Edit Course';
         $('#mm-body').innerHTML=`
           <div class="grid">
@@ -611,12 +639,15 @@
             <label>Outline JSON</label>
             <textarea id="c-outline" class="input">${c.outline||''}</textarea>
           </div>`;
-        $('#mm-foot').innerHTML=`<button class="btn" id="c-save">Save</button>`;
+        $('#mm-foot').innerHTML=`
+          <button class="btn danger" id="c-del"><i class="ri-delete-bin-6-line"></i> Delete</button>
+          <button class="btn" id="c-save">Save</button>`;
         openModal('m-modal');
         $('#c-save').onclick=async ()=>{
           await doc('courses', id).set({ title:$('#c-title')?.value.trim(), category:$('#c-category')?.value.trim(), credits:+($('#c-credits')?.value||0), short:$('#c-short')?.value.trim(), outline:$('#c-outline')?.value.trim(), updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
           closeModal('m-modal'); notify('Saved');
         };
+        $('#c-del').onclick=async ()=>{ await doc('courses',id).delete(); closeModal('m-modal'); notify('Deleted'); };
       }
     });
   }
@@ -657,7 +688,7 @@
         try{
           await col('quizzes').add({ title:t, courseId, courseTitle:course.title, passScore:pass, isFinal:!!isFinal, items, ownerUid:auth.currentUser.uid, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
           closeModal('m-modal'); notify('Final saved');
-        }catch(e){ console.warn(e); notify('Save blocked by rules. See rules update below.', 'danger'); }
+        }catch(e){ console.warn(e); notify('Save blocked by rules.', 'danger'); }
       };
     });
 
@@ -715,13 +746,16 @@
             <label><input type="checkbox" id="q-final" ${q.isFinal?'checked':''}/> This is final exam</label>
             <textarea id="q-json" class="input">${JSON.stringify(q.items||[],null,2)}</textarea>
           </div>`;
-        $('#mm-foot').innerHTML=`<button class="btn" id="q-save">Save</button>`;
+        $('#mm-foot').innerHTML=`
+          <button class="btn danger" id="q-del"><i class="ri-delete-bin-6-line"></i> Delete</button>
+          <button class="btn" id="q-save">Save</button>`;
         openModal('m-modal');
         $('#q-save').onclick=async ()=>{
           let items=[]; try{ items=JSON.parse($('#q-json')?.value||'[]'); }catch{ return notify('Invalid JSON','danger'); }
           await doc('quizzes',id).set({ title:$('#q-title')?.value.trim(), passScore:+($('#q-pass')?.value||70), isFinal:$('#q-final')?.checked, items, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
           closeModal('m-modal'); notify('Saved');
         };
+        $('#q-del').onclick=async ()=>{ await doc('quizzes',id).delete(); closeModal('m-modal'); notify('Deleted'); };
       }
     });
   }
@@ -768,8 +802,10 @@
       $('#mm-foot').innerHTML=`<button class="btn" id="t-save">Save</button>`; openModal('m-modal');
       $('#t-save').onclick=async ()=>{
         const t=$('#t-title')?.value.trim(); if(!t) return notify('Title required','warn');
-        await col('tasks').add({ uid:auth.currentUser.uid, title:t, status:'todo', createdAt:firebase.firestore.FieldValue.serverTimestamp() });
-        closeModal('m-modal'); notify('Saved');
+        try{
+          await col('tasks').add({ uid:auth.currentUser.uid, title:t, status:'todo', createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+          closeModal('m-modal'); notify('Saved');
+        }catch(e){ notify('Permission denied (check Firestore rules for /tasks)', 'danger'); }
       };
     });
 
@@ -786,11 +822,13 @@
         </div>`;
         $('#mm-foot').innerHTML=`<button class="btn" id="t-save">Save</button>`; openModal('m-modal');
         $('#t-save').onclick=async ()=>{
-          await doc('tasks',id).set({ title:$('#t-title')?.value.trim(), status:$('#t-status')?.value||'todo', updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
-          closeModal('m-modal'); notify('Saved');
+          try{
+            await doc('tasks',id).set({ title:$('#t-title')?.value.trim(), status:$('#t-status')?.value||'todo', updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
+            closeModal('m-modal'); notify('Saved');
+          }catch(e){ notify('Permission denied (check Firestore rules for /tasks)', 'danger'); }
         };
       } else {
-        await doc('tasks',id).delete(); notify('Deleted');
+        try{ await doc('tasks',id).delete(); notify('Deleted'); }catch(e){ notify('Permission denied (check Firestore rules for /tasks)', 'danger'); }
       }
     });
 
@@ -804,12 +842,14 @@
       const show=e=>{ e.preventDefault(); row?.classList.add('drop'); }; const hide=()=> row?.classList.remove('drop');
       grid.addEventListener('dragenter', show); grid.addEventListener('dragover', show); grid.addEventListener('dragleave', hide);
       grid.addEventListener('drop', async (e)=>{ e.preventDefault(); hide(); const id=e.dataTransfer.getData('text/plain'); if(!id) return;
-        await doc('tasks',id).set({ status:lane, updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+        try{
+          await doc('tasks',id).set({ status:lane, updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+        }catch(ex){ notify('Permission denied (check Firestore rules for /tasks)', 'danger'); }
       });
     });
   }
 
-  // Profile (images fixed)
+  // Profile (better “View card”, delete button)
   function buildTranscript(uid){
     const byCourse={};
     (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
@@ -825,33 +865,42 @@
 
   function wireProfile(){
     $('#pf-save')?.addEventListener('click', async ()=>{
-      const uid=auth.currentUser.uid;
-      await doc('profiles',uid).set({
-        name:$('#pf-name')?.value.trim(),
-        email:$('#pf-email')?.value.trim(),
-        portfolio:$('#pf-portfolio')?.value.trim(),
-        bio:$('#pf-bio')?.value.trim(),
-        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-      },{merge:true});
+      try{
+        const uid=auth.currentUser.uid;
+        await doc('profiles',uid).set({
+          name:$('#pf-name')?.value.trim(),
+          email:$('#pf-email')?.value.trim(),
+          portfolio:$('#pf-portfolio')?.value.trim(),
+          bio:$('#pf-bio')?.value.trim(),
+          updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+        },{merge:true});
 
-      const up = async (inputSel, folder, field)=>{
-        const f=$(inputSel)?.files?.[0]; if(!f) return null;
-        const ref=stg.ref().child(`${folder}/${uid}/${Date.now()}_${f.name}`);
-        await ref.put(f); const url=await ref.getDownloadURL();
-        await doc('profiles',uid).set({ [field]: url },{merge:true}); return url;
-      };
-      const avatarUrl = await up('#pf-avatar','avatars','avatar');
-      const signUrl   = await up('#pf-sign','signatures','signature');
+        const up = async (inputSel, folder, field)=>{
+          const f=$(inputSel)?.files?.[0]; if(!f) return null;
+          const ref=stg.ref().child(`${folder}/${uid}/${Date.now()}_${f.name}`);
+          await ref.put(f); const url=await ref.getDownloadURL();
+          await doc('profiles',uid).set({ [field]: url },{merge:true}); return url;
+        };
+        const avatarUrl = await up('#pf-avatar','avatars','avatar');
+        const signUrl   = await up('#pf-sign','signatures','signature');
 
-      // update local cache so "View card" shows immediately even before realtime snapshot arrives
-      const idx = state.profiles.findIndex(p=> (p.uid||p.id)===uid);
-      if(idx>=0){
-        state.profiles[idx] = { ...state.profiles[idx], name:$('#pf-name').value.trim(), email:$('#pf-email').value.trim(), portfolio:$('#pf-portfolio').value.trim(), bio:$('#pf-bio').value.trim(), ...(avatarUrl?{avatar:avatarUrl}:{}) , ...(signUrl?{signature:signUrl}:{}) };
+        // keep local state fresh
+        const idx = state.profiles.findIndex(p=> (p.uid||p.id)===uid);
+        if(idx>=0){
+          state.profiles[idx] = { ...state.profiles[idx], name:$('#pf-name').value.trim(), email:$('#pf-email').value.trim(), portfolio:$('#pf-portfolio').value.trim(), bio:$('#pf-bio').value.trim(), ...(avatarUrl?{avatar:avatarUrl}:{}) , ...(signUrl?{signature:signUrl}:{}) };
+        }
+        if ($('#pf-avatar')) $('#pf-avatar').value='';
+        if ($('#pf-sign')) $('#pf-sign').value='';
+        notify('Profile saved');
+      }catch(e){
+        notify('Permission denied: you can only edit your own profile. Use Admin to edit others.', 'danger');
       }
+    });
 
-      if ($('#pf-avatar')) $('#pf-avatar').value='';
-      if ($('#pf-sign')) $('#pf-sign').value='';
-      notify('Profile saved');
+    $('#pf-delete')?.addEventListener('click', async ()=>{
+      if(!confirm('Delete your profile doc? (Auth account NOT deleted)')) return;
+      try{ await doc('profiles', auth.currentUser.uid).delete(); notify('Profile doc deleted'); render(); }
+      catch(e){ notify('Permission denied. (Admins or self can delete)', 'danger'); }
     });
 
     $('#pf-view')?.addEventListener('click', async ()=>{
@@ -859,17 +908,21 @@
       const me = pSnap.data() || state.profiles.find(p=> (p.uid||p.id)===auth.currentUser?.uid) || {};
       $('#mm-title').textContent='My Profile Card';
       $('#mm-body').innerHTML=`
-        <div style="display:flex; gap:12px; align-items:center">
-          <div style="width:72px;height:72px;border-radius:50%;overflow:hidden;background:#222">
-            ${me.avatar? `<img src="${me.avatar}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover">` : '<div class="muted" style="font-size:12px;display:grid;place-items:center;height:100%">no avatar</div>'}
+        <div class="card"><div class="card-body">
+          <div style="display:flex; gap:12px; align-items:center">
+            <div style="width:84px;height:84px;border-radius:50%;overflow:hidden;background:#222">
+              ${me.avatar? `<img src="${me.avatar}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover">`
+                : '<div class="muted" style="font-size:12px;display:grid;place-items:center;height:100%">no avatar</div>'}
+            </div>
+            <div>
+              <div style="font-weight:900;font-size:20px">${me.name||'(no name)'}</div>
+              <div class="muted" style="font-size:12px">${me.email||''}</div>
+              ${me.portfolio? `<a href="${me.portfolio}" target="_blank" rel="noopener" class="chip" style="margin-top:6px"><i class="ri-link-m"/></i> Portfolio</a>`:''}
+            </div>
           </div>
-          <div>
-            <div style="font-weight:900;font-size:18px">${me.name||'(no name)'}</div>
-            <div class="muted" style="font-size:12px">${me.email||''}</div>
-          </div>
-        </div>
-        <div class="muted" style="margin-top:8px">${me.bio||'—'}</div>
-        ${me.signature? `<div style="margin-top:12px"><img src="${me.signature}" referrerpolicy="no-referrer" style="height:48px"></div>`:''}
+          ${me.bio? `<div class="muted" style="margin-top:8px">${me.bio}</div>`:''}
+          ${me.signature? `<div style="margin-top:12px"><div class="muted" style="font-size:12px">Signature</div><img src="${me.signature}" referrerpolicy="no-referrer" style="height:52px"></div>`:''}
+        </div></div>
       `;
       $('#mm-foot').innerHTML=`<button class="btn ghost" id="mm-ok">Close</button>`;
       openModal('m-modal');
@@ -900,7 +953,7 @@
     });
   }
 
-  // Admin (edit fixed)
+  // Admin (edit + delete buttons; permission messages)
   function wireAdmin(){
     $('#rm-save')?.addEventListener('click', async ()=>{
       const uid=$('#rm-uid')?.value.trim(); const role=$('#rm-role')?.value||'student';
@@ -911,39 +964,55 @@
     });
 
     $('#main')?.addEventListener('click', async (e)=>{
-      const btn = e.target.closest('button[data-edit-user]'); if(!btn) return;
-      const uid = btn.getAttribute('data-edit-user');
-      const pSnap = await doc('profiles',uid).get(); const p = {uid, ...(pSnap.data()||{})};
-      const rSnap = await doc('roles',uid).get(); const curRole = (rSnap.data()?.role)|| (p.role||'student');
+      const editBtn = e.target.closest('button[data-edit-user]');
+      const delBtn  = e.target.closest('button[data-del-user]');
+      if(editBtn){
+        const uid = editBtn.getAttribute('data-edit-user');
+        try{
+          const pSnap = await doc('profiles',uid).get(); const p = {uid, ...(pSnap.data()||{})};
+          const rSnap = await doc('roles',uid).get(); const curRole = (rSnap.data()?.role)|| (p.role||'student');
+          $('#mm-title').textContent = 'Edit User';
+          $('#mm-body').innerHTML = `
+            <div class="grid">
+              <input id="eu-name" class="input" placeholder="Name" value="${p.name||''}"/>
+              <input id="eu-email" class="input" placeholder="Email" value="${p.email||''}"/>
+              <select id="eu-role" class="input">
+                ${VALID_ROLES.map(r=>`<option value="${r}" ${curRole===r?'selected':''}>${r}</option>`).join('')}
+              </select>
+            </div>`;
+          $('#mm-foot').innerHTML = `
+            <button class="btn danger" id="eu-del"><i class="ri-delete-bin-6-line"></i> Delete</button>
+            <button class="btn" id="eu-save"><i class="ri-save-3-line"></i> Save</button>`;
+          openModal('m-modal');
 
-      $('#mm-title').textContent = 'Edit User';
-      $('#mm-body').innerHTML = `
-        <div class="grid">
-          <input id="eu-name" class="input" placeholder="Name" value="${p.name||''}"/>
-          <input id="eu-email" class="input" placeholder="Email" value="${p.email||''}"/>
-          <select id="eu-role" class="input">
-            ${VALID_ROLES.map(r=>`<option value="${r}" ${curRole===r?'selected':''}>${r}</option>`).join('')}
-          </select>
-        </div>`;
-      $('#mm-foot').innerHTML = `
-        <button class="btn danger" id="eu-del"><i class="ri-delete-bin-6-line"></i> Delete</button>
-        <button class="btn" id="eu-save"><i class="ri-save-3-line"></i> Save</button>`;
-      openModal('m-modal');
+          $('#eu-save')?.addEventListener('click', async ()=>{
+            const name = $('#eu-name')?.value.trim();
+            const email = $('#eu-email')?.value.trim();
+            const role = $('#eu-role')?.value;
+            try{
+              await doc('profiles',uid).set({ name, email, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
+              await doc('roles',uid).set({ uid, email, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
+              notify('User updated'); closeModal('m-modal');
+            }catch(ex){ notify('Permission denied: only admins can edit others', 'danger'); }
+          });
 
-      $('#eu-save')?.addEventListener('click', async ()=>{
-        const name = $('#eu-name')?.value.trim();
-        const email = $('#eu-email')?.value.trim();
-        const role = $('#eu-role')?.value;
-        await doc('profiles',uid).set({ name, email, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
-        await doc('roles',uid).set({ uid, email, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
-        notify('User updated'); closeModal('m-modal');
-      });
-
-      $('#eu-del')?.addEventListener('click', async ()=>{
-        await Promise.allSettled([ doc('profiles',uid).delete(), doc('roles',uid).delete() ]);
-        notify('Profile & role removed (Auth user not deleted)');
-        closeModal('m-modal');
-      });
+          $('#eu-del')?.addEventListener('click', async ()=>{
+            if(!confirm('Delete this user’s profile & role? (Auth user not deleted)')) return;
+            try{
+              await Promise.allSettled([ doc('profiles',uid).delete(), doc('roles',uid).delete() ]);
+              notify('Profile & role removed'); closeModal('m-modal');
+            }catch(ex){ notify('Permission denied: only admins can delete', 'danger'); }
+          });
+        }catch(ex){ notify('Permission denied: only admins can edit others', 'danger'); }
+      }
+      if(delBtn){
+        const uid = delBtn.getAttribute('data-del-user');
+        if(!confirm('Delete this user’s profile & role?')) return;
+        try{
+          await Promise.allSettled([ doc('profiles',uid).delete(), doc('roles',uid).delete() ]);
+          notify('Profile & role removed');
+        }catch(ex){ notify('Permission denied: only admins can delete', 'danger'); }
+      }
     });
   }
 

@@ -19,10 +19,10 @@ service cloud.firestore {
 
     match /profiles/{uid} {
       allow read: if isSignedIn();
+      // self or admin can create/update/delete profile docs
       allow write: if isSelf(uid) || isAdmin();
     }
 
-    // Authors can create/update/delete their own courses
     match /courses/{id} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
@@ -35,7 +35,6 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && resource.data.uid == request.auth.uid || isAdmin();
     }
 
-    // Authors can manage their own quizzes (finals)
     match /quizzes/{id} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
@@ -55,7 +54,7 @@ service cloud.firestore {
 
     match /messages/{id} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn(); // basic course chat
+      allow create: if isSignedIn();
       allow update, delete: if false;
     }
 
