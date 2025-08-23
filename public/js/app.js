@@ -1,5 +1,6 @@
-/* LearnHub — E-Learning & Community Platform (v1.3)
-   Fixes: themes, admin edits, profile view/delete, course reader with media & notes, finals, scroll, chat, dashboard cards, guide
+/* LearnHub — E-Learning & Community Platform (v1.4)
+   Adds: Announcements on Dashboard (admin CRUD), smaller centered login logo.
+   Existing: themes, admin edits, profile w/ avatar/signature, course reader w/ media & notes, finals w/ feedback, chat, tasks, guide.
 */
 (() => {
   'use strict';
@@ -12,7 +13,7 @@
   const stg  = firebase.storage();
 
   // ---------- Constants ----------
-  const ADMIN_EMAILS = ['admin@learnhub.com']; // add more emails as needed
+  const ADMIN_EMAILS = ['admin@learnhub.com']; // add more admin emails here
   const VALID_ROLES  = ['student','instructor','admin'];
   const YT_EDU = [
     'wX78iKhInsc','8mAITcNt710','HxaD_trXwRE','Qqx_wzMmFeA',
@@ -32,7 +33,7 @@
     courses:[], enrollments:[], quizzes:[], attempts:[], messages:[], tasks:[], profiles:[], notes:[], announcements:[],
     myEnrolledIds: new Set(),
     unsub:[], _unsubChat:null,
-    reading:{ course:null, chapIdx:0, lesIdx:0 } // course reader pointer
+    reading:{ course:null, chapIdx:0, lesIdx:0 }
   };
 
   // ---------- Utils ----------
@@ -47,7 +48,6 @@
   const doc = (name,id)=> db.collection(name).doc(id);
   const byId = (arr,id)=> arr.find(x=>x.id===id);
 
-  // Theme apply
   function applyTheme(){
     document.documentElement.setAttribute('data-pal', state.theme.palette);
     const fsz = state.theme.font==='small'? '14px' : state.theme.font==='large'? '18px' : '16px';
@@ -55,17 +55,14 @@
   }
   applyTheme();
 
-  // Permissions helpers
   const canCreateCourse = ()=> ['instructor','admin'].includes(state.role);
   const canManageUsers  = ()=> state.role==='admin';
   const canEditCourse   = (c)=> state.role==='admin' || c.ownerUid===auth.currentUser?.uid;
   const isEnrolled = (courseId)=> state.myEnrolledIds.has(courseId);
 
-  // Sidebar (mobile-ready, edge opener)
   const openSidebar=()=>{ document.body.classList.add('sidebar-open'); $('#backdrop')?.classList.add('active'); };
   const closeSidebar=()=>{ document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
 
-  // Search index
   function buildIndex(){
     const ix=[];
     state.courses.forEach(c=> ix.push({label:c.title, section:'Courses', route:'courses', id:c.id, text:`${c.title} ${c.category||''} ${c.ownerEmail||''}`}));
@@ -83,7 +80,6 @@
     }).filter(Boolean).sort((a,b)=>b.score-a.score).map(x=>x.item).slice(0,20);
   }
 
-  // ---------- Views ----------
   const routes=['dashboard','courses','learning','assessments','chat','tasks','profile','admin','settings','search','guide'];
   function go(route){ state.route = routes.includes(route)?route:'dashboard'; closeSidebar(); render(); }
 
@@ -154,11 +150,13 @@
         <i class="${icon}" style="font-size:28px;opacity:.8"></i>
       </div>
     </div>`;
+
   function vDashboard(){
     const my=auth.currentUser?.uid;
     const myEnroll = state.enrollments.filter(e=>e.uid===my).length;
     const myAttempts = state.attempts.filter(a=>a.uid===my).length;
     const picks = [...YT_EDU].sort(()=>Math.random()-0.5).slice(0,3);
+    const anns = state.announcements || [];
     return `
       <div class="grid cols-4">
         ${dashCard('Courses', state.courses.length,'courses','ri-book-2-line')}
@@ -166,6 +164,31 @@
         ${dashCard('Finals', state.quizzes.filter(q=>q.isFinal).length,'assessments','ri-file-list-3-line')}
         ${dashCard('My Attempts', myAttempts,'assessments','ri-trophy-line')}
       </div>
+
+      <div class="card" style="margin-top:12px"><div class="card-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <h3 style="margin:0">Announcements</h3>
+          ${canManageUsers()? `<button class="btn" id="ann-new"><i class="ri-megaphone-line"></i> New</button>`:''}
+        </div>
+        <div data-sec="ann-list">
+          ${anns.length? anns.map(a=>`
+            <div class="card" id="ann-${a.id}">
+              <div class="card-body" style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+                <div style="flex:1">
+                  <div style="font-weight:800">${a.title||'(Untitled)'}</div>
+                  <div class="muted" style="font-size:12px">${new Date(a.createdAt?.toDate?.()||a.createdAt||Date.now()).toLocaleString()} • ${a.ownerEmail||''}</div>
+                  <div style="margin-top:6px;white-space:pre-wrap">${a.text||''}</div>
+                </div>
+                ${canManageUsers()? `
+                  <div style="display:flex;gap:6px">
+                    <button class="btn ghost" data-ann-edit="${a.id}"><i class="ri-edit-2-line"></i></button>
+                    <button class="btn danger" data-ann-del="${a.id}"><i class="ri-delete-bin-6-line"></i></button>
+                  </div>`:''}
+              </div>
+            </div>
+          `).join('') : `<div class="muted">No announcements yet.</div>`}
+        </div>
+      </div></div>
 
       <div class="grid cols-3" style="margin-top:12px">
         ${picks.map(id=>`
@@ -437,6 +460,7 @@
         <div class="section"><h2>4) Finals</h2><div>Finals page → New Final (Admin/Instructor). Students take the exam, get instant feedback, score saved and certificate available when passing.</div></div>
         <div class="section"><h2>5) Profile & Certificates</h2><div>Upload avatar/signature, save. Transcript and certificate downloads are on the Profile page.</div></div>
         <div class="section"><h2>6) Chat</h2><div>Course chat (enrolled users). Admin can also send a DM to a specific user via the optional DM dropdown.</div></div>
+        <div class="section"><h2>7) Announcements</h2><div>Dashboard → Announcements. Admins can post, edit, delete. Everyone sees them on Dashboard.</div></div>
       </div></div>
     `;
   }
@@ -458,7 +482,6 @@
     }
   }
 
-  // ---------- Render ----------
   function render(){
     const root=$('#root');
     if(!auth.currentUser){ root.innerHTML=vLogin(); wireLogin(); return; }
@@ -468,7 +491,6 @@
     if(state.highlightId){ const el=document.getElementById(state.highlightId); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'});} }
   }
 
-  // ---------- Wiring ----------
   function openModal(id){ $('#'+id)?.classList.add('active'); $('.modal-backdrop')?.classList.add('active'); }
   function closeModal(id){ $('#'+id)?.classList.remove('active'); $('.modal-backdrop')?.classList.remove('active'); }
 
@@ -481,7 +503,6 @@
       const it=e.target.closest('.item[data-route]'); if(it){ go(it.getAttribute('data-route')); }
     });
 
-    // search bar
     const input=$('#globalSearch'), results=$('#searchResults');
     if(input && results){
       let t;
@@ -507,6 +528,7 @@
 
   function wireRoute(){
     switch(state.route){
+      case 'dashboard': wireDashboard(); break;
       case 'courses': wireCourses(); break;
       case 'learning': wireLearning(); break;
       case 'assessments': wireAssessments(); break;
@@ -517,18 +539,20 @@
       case 'settings': wireSettings(); break;
       case 'search': wireSearch(); break;
     }
-    // dashboard card navigation
     $$('.card.clickable[data-go]')?.forEach(c=> c.addEventListener('click', ()=> go(c.getAttribute('data-go'))));
   }
 
-  // Login
+  // ---------- Login ----------
   const vLogin=()=>`
     <div class="centered">
       <div class="card" style="width:min(420px,96vw)">
         <div class="card-body">
-          <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
-            <div class="logo"><img src="/icons/learnhub-192.png" alt="LearnHub"/></div>
-            <div><div style="font-size:20px;font-weight:800">LearnHub</div><div class="muted">Sign in to continue</div></div>
+          <div class="login-header">
+            <div class="login-logo"><img src="/icons/learnhub-192.png" alt="LearnHub"/></div>
+            <div style="margin-top:8px">
+              <div style="font-size:20px;font-weight:800">LearnHub</div>
+              <div class="muted">Sign in to continue</div>
+            </div>
           </div>
           <div class="grid">
             <label>Email</label><input id="li-email" class="input" type="email" placeholder="you@example.com" autocomplete="username"/>
@@ -711,7 +735,6 @@
   }
 
   function wireCourseReader(course){
-    // goto navigation
     $('#mm-body')?.querySelectorAll('[data-goto]')?.forEach(btn=>{
       btn.onclick=()=>{
         const [ci,li] = btn.getAttribute('data-goto').split(':').map(n=>+n||0);
@@ -720,7 +743,6 @@
         wireCourseReader(course);
       };
     });
-    // notes
     $('#note-save')?.addEventListener('click', async ()=>{
       const text=$('#note-text')?.value||'';
       const uid=auth.currentUser.uid;
@@ -739,7 +761,6 @@
     });
   }
 
-  // Learning
   function wireLearning(){
     $('#main')?.addEventListener('click', async (e)=>{
       const btn=e.target.closest('button[data-open-course]'); if(!btn) return;
@@ -754,7 +775,7 @@
     });
   }
 
-  // Finals (Assessments)
+  // ---------- Assessments ----------
   function renderQuizBody(q){
     return `
       <div style="max-height:60vh;overflow:auto;padding-right:6px">
@@ -862,7 +883,7 @@
     });
   }
 
-  // Chat
+  // ---------- Chat ----------
   function paintChat(msgs){
     const box=$('#chat-box'); if(!box) return;
     box.innerHTML = msgs.map(m=>`
@@ -899,7 +920,7 @@
     });
   }
 
-  // Tasks
+  // ---------- Tasks ----------
   function wireTasks(){
     const root=$('[data-sec="tasks"]'); if(!root) return;
 
@@ -950,7 +971,18 @@
     });
   }
 
-  // Profile
+  // ---------- Profile ----------
+  function buildTranscript(uid){
+    const byCourse = {};
+    (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
+      byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId, best:0, completed:false};
+      byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score||0);
+      const q = state.quizzes.find(q=>q.courseId===a.courseId && q.isFinal);
+      byCourse[a.courseId].completed = q ? (byCourse[a.courseId].best >= (q.passScore||70)) : false;
+    });
+    return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
+  }
+
   function wireProfile(){
     $('#pf-pick')?.addEventListener('click', ()=> $('#pf-avatar')?.click());
     $('#pf-pick-sign')?.addEventListener('click', ()=> $('#pf-signature')?.click());
@@ -963,7 +995,6 @@
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
       },{merge:true});
 
-      // upload files if any
       const avatar=$('#pf-avatar')?.files?.[0];
       if(avatar){
         const ref=stg.ref().child(`avatars/${uid}/${Date.now()}_${avatar.name}`);
@@ -977,7 +1008,7 @@
         await doc('profiles',uid).set({ signature:url },{merge:true});
       }
       notify('Profile saved');
-      render(); // refresh so placeholders clear
+      render();
     });
 
     $('#pf-view')?.addEventListener('click', ()=>{
@@ -1006,7 +1037,6 @@
       notify('Profile deleted'); render();
     });
 
-    // certificate
     $('#main').addEventListener('click', async (e)=>{
       const b=e.target.closest('button[data-cert]'); if(!b) return;
       const courseId=b.getAttribute('data-cert');
@@ -1014,40 +1044,25 @@
       const p=state.profiles.find(x=>x.uid===auth.currentUser?.uid)||{name:auth.currentUser.email, signature:'', signatureName:''};
       const canvas=document.createElement('canvas'); canvas.width=1400; canvas.height=900;
       const ctx=canvas.getContext('2d');
-      // background
       ctx.fillStyle='#0b0d10'; ctx.fillRect(0,0,1400,900);
-      // border
       ctx.strokeStyle='#a78bfa'; ctx.lineWidth=10; ctx.strokeRect(40,40,1320,820);
-      // ornate corners
       ctx.strokeStyle='#6ea8ff'; ctx.lineWidth=2;
       for(let i=0;i<12;i++){ ctx.beginPath(); ctx.arc(80+i*8,80,40-i*3,Math.PI,1.5*Math.PI); ctx.stroke(); }
-      // title
       ctx.fillStyle='#fff'; ctx.font='bold 64px Times New Roman'; ctx.fillText('Certificate of Completion', 300, 230);
-      // recipient
       ctx.font='28px Garamond'; ctx.fillText(`Awarded to`, 300, 300);
       ctx.font='bold 44px Garamond'; ctx.fillStyle='#ffd36c'; ctx.fillText(`${p.name||p.email}`, 300, 360);
-      // body
-      ctx.fillStyle='#e7edf5'; ctx.font='26px Helvetica';
-      ctx.fillText(`for successfully completing`, 300, 410);
+      ctx.fillStyle='#e7edf5'; ctx.font='26px Helvetica'; ctx.fillText(`for successfully completing`, 300, 410);
       ctx.font='bold 30px Helvetica'; ctx.fillText(`${course.title||courseId}`, 300, 450);
-      ctx.font='24px Helvetica'; ctx.fillStyle='#e7edf5';
-      ctx.fillText(`Date: ${new Date().toLocaleDateString()}   Credits: ${course.credits||0}`, 300, 490);
-      // signature
+      ctx.font='24px Helvetica'; ctx.fillStyle='#e7edf5'; ctx.fillText(`Date: ${new Date().toLocaleDateString()}   Credits: ${course.credits||0}`, 300, 490);
       if(p.signature){
-        const img=new Image(); img.crossOrigin='anonymous'; img.onload=()=>{
-          ctx.drawImage(img, 300, 560, 260, 90);
-          ctx.fillStyle='#e7edf5'; ctx.font='18px Helvetica'; ctx.fillText(p.signatureName||'', 300, 665);
-          triggerDownload();
-        }; img.src=p.signature;
+        const img=new Image(); img.crossOrigin='anonymous'; img.onload=()=>{ ctx.drawImage(img, 300, 560, 260, 90); ctx.fillStyle='#e7edf5'; ctx.font='18px Helvetica'; ctx.fillText(p.signatureName||'', 300, 665); triggerDownload(); };
+        img.src=p.signature;
       } else { triggerDownload(); }
-
-      function triggerDownload(){
-        const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`certificate_${course.title||courseId}.png`; a.click();
-      }
+      function triggerDownload(){ const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`certificate_${course.title||courseId}.png`; a.click(); }
     });
   }
 
-  // Admin
+  // ---------- Admin ----------
   function wireAdmin(){
     const table=$('#main')?.querySelector('table');
     if(!table) return;
@@ -1086,6 +1101,62 @@
     });
   }
 
+  // ---------- Dashboard (Announcements wiring) ----------
+  function wireDashboard(){
+    // New announcement
+    $('#ann-new')?.addEventListener('click', ()=>{
+      if(!canManageUsers()) return notify('Admins only','warn');
+      $('#mm-title').textContent='New Announcement';
+      $('#mm-body').innerHTML=`
+        <div class="grid">
+          <input id="ann-title" class="input" placeholder="Title"/>
+          <textarea id="ann-text" class="input" placeholder="Message..."></textarea>
+        </div>`;
+      $('#mm-foot').innerHTML=`<button class="btn" id="ann-save">Save</button>`;
+      openModal('m-modal');
+      $('#ann-save').onclick=async ()=>{
+        const t=$('#ann-title')?.value.trim(); const x=$('#ann-text')?.value.trim();
+        if(!t||!x) return notify('Title & message required','warn');
+        await col('announcements').add({
+          title:t, text:x, ownerUid:auth.currentUser.uid, ownerEmail:auth.currentUser.email,
+          createdAt:firebase.firestore.FieldValue.serverTimestamp()
+        });
+        closeModal('m-modal'); notify('Announcement posted');
+      };
+    });
+
+    // Edit / Delete announcement
+    const list=$('[data-sec="ann-list"]'); if(!list || list.__wired) return; list.__wired=true;
+    list.addEventListener('click', async (e)=>{
+      const edit=e.target.closest('button[data-ann-edit]'); const del=e.target.closest('button[data-ann-del]');
+      if(edit){
+        const id=edit.getAttribute('data-ann-edit');
+        const snap=await doc('announcements',id).get(); if(!snap.exists) return;
+        const a={id:snap.id, ...snap.data()};
+        $('#mm-title').textContent='Edit Announcement';
+        $('#mm-body').innerHTML=`
+          <div class="grid">
+            <input id="ann-title" class="input" value="${a.title||''}"/>
+            <textarea id="ann-text" class="input">${a.text||''}</textarea>
+          </div>`;
+        $('#mm-foot').innerHTML=`<button class="btn" id="ann-save">Save</button>`;
+        openModal('m-modal');
+        $('#ann-save').onclick=async ()=>{
+          await doc('announcements',id).set({
+            title:$('#ann-title')?.value.trim(), text:$('#ann-text')?.value.trim(),
+            updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+          },{merge:true});
+          closeModal('m-modal'); notify('Announcement updated');
+        };
+      }
+      if(del){
+        const id=del.getAttribute('data-ann-del');
+        if(!confirm('Delete this announcement?')) return;
+        await doc('announcements',id).delete(); notify('Deleted');
+      }
+    });
+  }
+
   function wireSettings(){
     const pal=$('#theme-palette'), fnt=$('#theme-font');
     $('#preview-theme')?.addEventListener('click', ()=>{
@@ -1105,25 +1176,12 @@
     });
   }
 
-  // Transcript
-  function buildTranscript(uid){
-    const byCourse = {};
-    (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
-      byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId, best:0, completed:false};
-      byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score||0);
-      const q = state.quizzes.find(q=>q.courseId===a.courseId && q.isFinal);
-      byCourse[a.courseId].completed = q ? (byCourse[a.courseId].best >= (q.passScore||70)) : false;
-    });
-    return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
-  }
-
-  // ---------- Firestore sync (index-friendly) ----------
+  // ---------- Firestore sync ----------
   function clearUnsubs(){ state.unsub.forEach(u=>{try{u()}catch{}}); state.unsub=[]; }
   function sync(){
     clearUnsubs();
     const uid=auth.currentUser.uid;
 
-    // profiles
     state.unsub.push(
       col('profiles').onSnapshot(
         s => { state.profiles = s.docs.map(d=>({id:d.id, uid:d.id, ...d.data()})); if(['profile','admin'].includes(state.route)) render(); },
@@ -1131,14 +1189,12 @@
       )
     );
 
-    // my enrollments
     state.unsub.push(col('enrollments').where('uid','==',uid).onSnapshot(s=>{
       state.enrollments=s.docs.map(d=>({id:d.id,...d.data()}));
       state.myEnrolledIds = new Set(state.enrollments.map(e=>e.courseId));
       if(['dashboard','learning','assessments','chat'].includes(state.route)) render();
     }));
 
-    // courses (single orderBy)
     state.unsub.push(
       col('courses').orderBy('createdAt','desc').onSnapshot(
         s => { state.courses = s.docs.map(d=>({id:d.id, ...d.data()})); if(['dashboard','courses','learning','assessments','chat'].includes(state.route)) render(); },
@@ -1146,7 +1202,6 @@
       )
     );
 
-    // finals/quizzes (filter client side)
     state.unsub.push(
       col('quizzes').orderBy('createdAt','desc').onSnapshot(
         s => { state.quizzes = s.docs.map(d=>({id:d.id, ...d.data()})); if(['assessments','dashboard','profile'].includes(state.route)) render(); },
@@ -1154,7 +1209,6 @@
       )
     );
 
-    // attempts (only mine; sort client-side)
     state.unsub.push(
       col('attempts').where('uid','==',auth.currentUser.uid).onSnapshot(
         s => {
@@ -1166,7 +1220,6 @@
       )
     );
 
-    // tasks
     state.unsub.push(
       col('tasks').where('uid','==',auth.currentUser.uid).onSnapshot(
         s => { state.tasks = s.docs.map(d=>({id:d.id, ...d.data()})); if(['tasks','dashboard'].includes(state.route)) render(); },
@@ -1174,14 +1227,16 @@
       )
     );
 
-    // my notes
+    // announcements
+    state.unsub.push(
+      col('announcements').orderBy('createdAt','desc').limit(25).onSnapshot(
+        s => { state.announcements = s.docs.map(d=>({id:d.id, ...d.data()})); if(['dashboard'].includes(state.route)) render(); },
+        err => console.warn('announcements listener error:', err)
+      )
+    );
+
     state.unsub.push(col('notes').where('uid','==',uid).onSnapshot(s=>{
       state.notes=s.docs.map(d=>({id:d.id,...d.data()}));
-    }));
-
-    // announcements (not shown in UI right now; placeholder)
-    state.unsub.push(col('announcements').orderBy('createdAt','desc').limit(25).onSnapshot(s=>{
-      state.announcements=s.docs.map(d=>({id:d.id,...d.data()}));
     }));
   }
 
@@ -1193,7 +1248,6 @@
     }catch{return 'student';}
   }
 
-  // ---------- Auth ----------
   auth.onAuthStateChanged(async (user)=>{
     state.user=user||null;
     if(!user){ clearUnsubs(); render(); return; }
@@ -1206,13 +1260,11 @@
     sync(); render();
   });
 
-  // ---------- Boot ----------
   render();
 
-  // ---------- Demo Seeder ----------
+  // Seeder
   window.seedDemoEverything = async function(){
     const u=auth.currentUser; if(!u) return alert('Sign in first');
-    // Course with rich outline
     const outline=[{
       title:"Chapter 1: Basics",
       lessons:[
@@ -1228,7 +1280,6 @@
       ownerUid:u.uid,ownerEmail:u.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     await col('enrollments').add({uid:u.uid,courseId:c1.id,createdAt:firebase.firestore.FieldValue.serverTimestamp(),course:{id:c1.id,title:'Algebra Basics',category:'Math',credits:3}});
-    // Final
     await col('quizzes').add({
       title:'Algebra Final',courseId:c1.id,courseTitle:'Algebra Basics',passScore:70,isFinal:true,
       items:[
@@ -1237,6 +1288,10 @@
       ],
       ownerUid:u.uid,createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
-    alert('Seeded sample course & final');
+    await col('announcements').add({
+      title:'Welcome to LearnHub', text:'Start with Algebra Basics, then take the final to earn a certificate!',
+      ownerUid:u.uid, ownerEmail:u.email, createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    alert('Seeded course, final, announcement');
   };
 })();

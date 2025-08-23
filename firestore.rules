@@ -4,7 +4,6 @@ service cloud.firestore {
 
     function signedIn() { return request.auth != null; }
 
-    // open reads for signed-in users; writes only by owner or admin where applicable
     match /profiles/{uid} {
       allow read: if signedIn();
       allow write: if signedIn() && (request.auth.uid == uid || get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin');
@@ -36,7 +35,7 @@ service cloud.firestore {
     match /attempts/{id} {
       allow read: if signedIn() && (resource.data.uid == request.auth.uid || get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin');
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if false; // immutable
+      allow update, delete: if false;
     }
 
     match /tasks/{id} {
@@ -45,7 +44,7 @@ service cloud.firestore {
     }
 
     match /messages/{id} {
-      allow read: if signedIn(); // DM filtered in client; tighten if needed
+      allow read: if signedIn();
       allow create: if signedIn();
       allow update, delete: if false;
     }

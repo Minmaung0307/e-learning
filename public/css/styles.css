@@ -94,14 +94,17 @@ textarea.input{min-height:120px;white-space:pre-wrap}
 .lane-row.drop{outline:2px dashed var(--accent);outline-offset:6px}
 .lane-grid{display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:10px}
 
-/* Login view center */
+/* Login view */
 .centered{display:grid;place-items:center;min-height:100vh;padding:20px}
+.login-header{display:grid;place-items:center;text-align:center;margin-bottom:10px}
+.login-logo{width:64px;height:64px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.03);display:grid;place-items:center}
+.login-logo img{width:40px;height:40px;opacity:.95}
 
 /* Media embeds */
 .embed{aspect-ratio:16/9;width:100%;border:0;border-radius:12px}
 img.media{max-width:100%;border-radius:12px;border:1px solid var(--border)}
 
-/* Certificate canvas container when shown */
+/* Certificate canvas container */
 .cert-preview{display:flex;justify-content:center;padding:12px}
 
 /* Guide content */
