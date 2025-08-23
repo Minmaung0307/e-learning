@@ -1,70 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    function isSelf(uid) {
-      return isSignedIn() && request.auth.uid == uid;
-    }
-    function isAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == "admin";
-    }
-
-    match /roles/{uid} {
-      allow read: if isAdmin() || isSelf(uid);
-      allow write: if isAdmin();
-    }
-
-    match /profiles/{uid} {
-      allow read: if isSignedIn();
-      allow write: if isSelf(uid) || isAdmin();
-    }
-
-    match /courses/{id} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update, delete: if (isSignedIn() && resource.data.ownerUid == request.auth.uid) || isAdmin();
-    }
-
-    match /enrollments/{id} {
-      allow read: if isSignedIn() && (request.auth.uid == resource.data.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if (isSignedIn() && resource.data.uid == request.auth.uid) || isAdmin();
-    }
-
-    match /quizzes/{id} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update, delete: if (isSignedIn() && resource.data.ownerUid == request.auth.uid) || isAdmin();
-    }
-
-    match /attempts/{id} {
-      allow read: if isSignedIn() && (request.auth.uid == resource.data.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if false;
-    }
-
-    match /tasks/{id} {
-      allow read, update, delete: if (isSignedIn() && resource.data.uid == request.auth.uid) || isAdmin();
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-    }
-
-    match /messages/{id} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if false;
-    }
-
-    match /notes/{id} {
-      allow read, update, delete: if (isSignedIn() && resource.data.uid == request.auth.uid) || isAdmin();
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-    }
-
-    match /announcements/{id} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+    // Allow reads/writes only for signed-in users everywhere (tighten later)
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
