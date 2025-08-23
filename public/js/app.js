@@ -542,6 +542,11 @@
     $('#burger')?.addEventListener('click', ()=> document.body.classList.contains('sidebar-open')? closeSidebar(): openSidebar());
     $('#backdrop')?.addEventListener('click', closeSidebar);
     $('#brand')?.addEventListener('click', closeSidebar);
+    // ✅ Make sidebar items navigate again
+  $('#side-nav')?.addEventListener('click', e=>{
+    const it = e.target.closest('.item[data-route]');
+    if(it){ go(it.getAttribute('data-route')); }
+  });
     $('#main')?.addEventListener('click', closeSidebar);
     $('#btnLogout')?.addEventListener('click', ()=> auth.signOut());
     $('#mm-close')?.addEventListener('click', closeModal);
@@ -1195,7 +1200,8 @@
       // stitch roles onto profiles for table
       // (lightweight: each profile doc should already include role from auth listener)
       if(['profile','admin'].includes(state.route)) render();
-    }));
+    },
+  err=>console.warn('profiles listener error', err)));
 
     // my enrollments
     state.unsub.push(col('enrollments').where('uid','==',uid).onSnapshot(s=>{
@@ -1211,10 +1217,15 @@
     }));
 
     // finals (quizzes)
-    state.unsub.push(col('quizzes').where('isFinal','==',true).orderBy('createdAt','desc').onSnapshot(s=>{
-      state.quizzes=s.docs.map(d=>({id:d.id,...d.data()}));
+    state.unsub.push(
+  col('quizzes').orderBy('createdAt','desc').onSnapshot(
+    s=>{
+      state.quizzes = s.docs.map(d=>({id:d.id,...d.data()})).filter(q=>q.isFinal);
       if(['assessments','dashboard','profile'].includes(state.route)) render();
-    }));
+    },
+    err=>console.warn('quizzes listener error', err) // ✅ prevent unhandled exceptions
+  )
+);
 
     // my attempts
     state.unsub.push(col('attempts').where('uid','==',uid).orderBy('createdAt','desc').onSnapshot(s=>{
