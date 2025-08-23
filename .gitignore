@@ -88,4 +88,5 @@ precache-manifest.*.js
 *.local
 
 appA.js
+seedA.html
 courseJSONs

@@ -1,77 +1,43 @@
-/* LearnHub — v1.4 (roles/profile/admin fixes, theme font fix, avatar card fix, delete user) */
+/* LearnHub v1.5 */
 (() => {
   'use strict';
 
-  // ---------- Firebase ----------
-  if (!window.firebase || !window.__FIREBASE_CONFIG) console.error('Firebase SDK or config missing.');
+  // Firebase
   firebase.initializeApp(window.__FIREBASE_CONFIG);
   const auth = firebase.auth();
   const db   = firebase.firestore();
   const stg  = firebase.storage();
 
-  // ---------- Constants ----------
-  const ADMIN_EMAILS = ['admin@learnhub.com']; // extend if needed
+  // Constants
+  const ADMIN_EMAILS = ['admin@learnhub.com']; // add your admin email here
   const VALID_ROLES  = ['student','instructor','admin'];
 
-  // ---------- State ----------
+  // State
   const state = {
     user:null, role:'student', route:'dashboard',
-    theme:{ palette:'dark', font:'medium' }, // font: small | medium | large
+    theme:{ palette:'dark', font:'medium' },
     searchQ:'', highlightId:null,
-
     profiles:[], courses:[], enrollments:[], quizzes:[], attempts:[], tasks:[], messages:[], notes:[], announcements:[],
-    myEnrolledIds: new Set(),
-    unsub:[],
-    _unsubChat:null
+    myEnrolledIds:new Set(), unsub:[], _unsubChat:null
   };
 
-  // ---------- Utils ----------
+  // Utils
   const $=(s,r=document)=>r.querySelector(s);
   const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  const col=name=>db.collection(name);
+  const doc=(name,id)=>db.collection(name).doc(id);
+  const notify=(msg,type='ok')=>{ const n=$('#notification'); if(!n) return; n.textContent=msg; n.className=`notification show ${type}`; setTimeout(()=>n.className='notification',2200); };
+  const safeTS = ts => ts && ts.toMillis ? ts.toMillis() : (typeof ts==='number'? ts : 0);
   const nowYear=()=> new Date().getFullYear();
-  const notify=(msg,type='ok')=>{
-    const n=$('#notification'); if(!n) return;
-    n.textContent=msg; n.className=`notification show ${type}`;
-    setTimeout(()=> n.className='notification', 2200);
-  };
-  const col = (name)=> db.collection(name);
-  const doc = (name,id)=> db.collection(name).doc(id);
-  const safeTS = (ts)=> ts && ts.toMillis ? ts.toMillis() : (typeof ts==='number'? ts : 0);
 
-  // ---------- Search ----------
-  function buildIndex(){
-    const ix=[];
-    state.courses.forEach(c=> ix.push({label:c.title, section:'Courses', route:'courses', id:c.id, text:`${c.title} ${c.category||''} ${c.ownerEmail||''} ${c.short||''}`}));
-    state.quizzes.forEach(q=> ix.push({label:q.title, section:'Finals', route:'assessments', id:q.id, text:q.courseTitle||''}));
-    state.profiles.forEach(p=> ix.push({label:p.name||p.email, section:'Profiles', route:'profile', id:p.uid, text:(p.bio||'') + ' ' + (p.portfolio||'') }));
-    return ix;
-  }
-  function doSearch(q){
-    const tokens=(q||'').toLowerCase().split(/\s+/).filter(Boolean);
-    if(!tokens.length) return [];
-    return buildIndex()
-      .map(item=>{
-        const l=item.label.toLowerCase(), t=(item.text||'').toLowerCase();
-        const ok=tokens.every(tok=> l.includes(tok)||t.includes(tok));
-        return ok?{item,score:tokens.length + (l.includes(tokens[0])?1:0)}:null;
-      }).filter(Boolean).sort((a,b)=>b.score-a.score).map(x=>x.item).slice(0,20);
-  }
+  const canManageUsers = ()=> state.role==='admin';
+  const canEditCourse = c => state.role==='admin' || c.ownerUid===auth.currentUser?.uid;
+  const isEnrolled = id => state.myEnrolledIds.has(id);
+  const canPostMessage = cid => isEnrolled(cid) || state.role!=='student';
+  const canTakeQuiz = cid => isEnrolled(cid) || state.role!=='student';
 
-  // ---------- Permissions ----------
-  const canCreateCourse = ()=> ['instructor','admin'].includes(state.role);
-  const canManageUsers  = ()=> state.role==='admin';
-  const canEditCourse   = (c)=> state.role==='admin' || c.ownerUid===auth.currentUser?.uid;
-  const isEnrolled      = (courseId)=> state.myEnrolledIds.has(courseId);
-  const canPostMessage  = (courseId)=> isEnrolled(courseId) || state.role!=='student';
-  const canTakeQuiz     = (courseId)=> isEnrolled(courseId) || state.role!=='student';
-
-  // ---------- Router ----------
-  const routes=['dashboard','courses','learning','assessments','chat','tasks','profile','admin','settings','search','guide'];
-  function go(route){ state.route = routes.includes(route)? route : 'dashboard'; closeSidebar(); render(); }
-
-  // ---------- Layout ----------
-  function layout(content){
-    return `
+  // Layout / views (unchanged structure; updated where needed)
+  function layout(content){ return `
     <div class="app">
       <aside class="sidebar" id="sidebar">
         <div class="brand" id="brand">
@@ -95,15 +61,13 @@
               <i class="${ic}"></i><span>${label}</span>
             </div>`).join('')}
         </div>
-        <div class="footer">
-          <div class="muted" id="copyright" style="font-size:12px">Powered by MM, ${nowYear()}</div>
-        </div>
+        <div class="footer"><div class="muted" id="copyright" style="font-size:12px"></div></div>
       </aside>
 
       <div>
         <div class="topbar">
           <div style="display:flex; align-items:center; gap:10px">
-            <button class="btn ghost" id="burger" title="Menu"><i class="ri-menu-line"></i></button>
+            <button class="btn ghost" id="burger"><i class="ri-menu-line"></i></button>
             <div class="badge"><i class="ri-shield-user-line"></i> ${state.role.toUpperCase()}</div>
           </div>
 
@@ -125,32 +89,30 @@
       <div class="head"><strong id="mm-title">Modal</strong><button class="btn ghost" id="mm-close">Close</button></div>
       <div class="body" id="mm-body"></div>
       <div class="foot" id="mm-foot"></div>
-    </div></div><div class="modal-backdrop" id="mb-modal"></div>
-    `;
-  }
-
-  // ---------- Views ----------
-  const vLogin=()=>`
-  <div class="login-page">
-    <div class="card login-card"><div class="card-body">
-      <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px">
-        <div class="logo" style="width:44px;height:44px;border-radius:12px;background:#0c1626;display:grid;place-items:center;overflow:hidden">
-          <img src="/icons/learnhub-192.png" alt="LearnHub" style="width:100%;height:100%;object-fit:cover">
-        </div>
-        <div><div style="font-size:20px; font-weight:800">LearnHub</div><div class="muted">Sign in to continue</div></div>
-      </div>
-      <div class="grid">
-        <label>Email</label><input id="li-email" class="input" type="email" placeholder="you@example.com" autocomplete="username"/>
-        <label>Password</label><input id="li-pass" class="input" type="password" placeholder="••••••••" autocomplete="current-password"/>
-        <button id="btnLogin" class="btn"><i class="ri-login-box-line"></i> Sign In</button>
-        <div style="display:flex; justify-content:space-between; gap:8px">
-          <button id="link-forgot" class="btn ghost" style="padding:6px 10px; font-size:12px"><i class="ri-key-2-line"></i> Forgot password</button>
-          <button id="link-register" class="btn secondary" style="padding:6px 10px; font-size:12px"><i class="ri-user-add-line"></i> Sign up</button>
-        </div>
-        <div class="muted" style="font-size:12px">Default admin — admin@learnhub.com / admin123</div>
-      </div>
     </div></div>
-  </div>`;
+    <div class="modal-backdrop" id="mb-modal"></div>
+  `;}
+
+  const vLogin=()=>`
+    <div class="login-page">
+      <div class="card login-card"><div class="card-body">
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px">
+          <div class="logo" style="width:44px;height:44px;border-radius:12px;background:#0c1626;display:grid;place-items:center;overflow:hidden">
+            <img src="/icons/learnhub-192.png" alt="LearnHub" style="width:100%;height:100%;object-fit:cover">
+          </div>
+          <div><div style="font-size:20px; font-weight:800">LearnHub</div><div class="muted">Sign in to continue</div></div>
+        </div>
+        <div class="grid">
+          <label>Email</label><input id="li-email" class="input" type="email" placeholder="you@example.com" autocomplete="username"/>
+          <label>Password</label><input id="li-pass" class="input" type="password" placeholder="••••••••" autocomplete="current-password"/>
+          <button id="btnLogin" class="btn"><i class="ri-login-box-line"></i> Sign In</button>
+          <div style="display:flex; justify-content:space-between; gap:8px">
+            <button id="link-forgot" class="btn ghost" style="padding:6px 10px; font-size:12px"><i class="ri-key-2-line"></i> Forgot password</button>
+            <button id="link-register" class="btn secondary" style="padding:6px 10px; font-size:12px"><i class="ri-user-add-line"></i> Sign up</button>
+          </div>
+        </div>
+      </div></div>
+    </div>`;
 
   const dashCard=(label,value,route,icon)=>`
     <div class="card clickable" data-go="${route}">
@@ -165,25 +127,21 @@
 
   function vDashboard(){
     const my=auth.currentUser?.uid;
-    const myEnroll = state.enrollments.filter(e=>e.uid===my).length;
-    const myAttempts = state.attempts.filter(a=>a.uid===my).length;
-    const myTasks = state.tasks.filter(t=>t.uid===my && t.status!=='done').length;
+    const myEnroll=state.enrollments.filter(e=>e.uid===my).length;
+    const myAttempts=state.attempts.filter(a=>a.uid===my).length;
+    const myTasks=state.tasks.filter(t=>t.uid===my && t.status!=='done').length;
     return `
       <div class="grid cols-4">
         ${dashCard('Courses', state.courses.length,'courses','ri-book-2-line')}
         ${dashCard('My Enrollments', myEnroll,'learning','ri-graduation-cap-line')}
-        ${dashCard('Finals', state.quizzes.filter(q=>q.isFinal===true).length,'assessments','ri-award-line')}
+        ${dashCard('Finals', state.quizzes.filter(q=>q.isFinal).length,'assessments','ri-award-line')}
         ${dashCard('Open Tasks', myTasks,'tasks','ri-list-check-2')}
       </div>
-      <div class="card"><div class="card-body">
-        <h3 style="margin:0 0 8px 0">Welcome</h3>
-        <p class="muted">Browse courses, enroll, take finals, chat with peers, manage tasks, and earn certificates.</p>
-      </div></div>
     `;
   }
 
   function vCourses(){
-    const canCreate = canCreateCourse();
+    const canCreate = true; // everyone can create their own courses (rules enforce ownership)
     return `
       <div class="card"><div class="card-body">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
@@ -235,7 +193,7 @@
       <div class="card"><div class="card-body">
         <div style="display:flex; justify-content:space-between; align-items:center">
           <h3 style="margin:0">Final Exams</h3>
-          ${['instructor','admin'].includes(state.role)? `<button class="btn" id="new-final"><i class="ri-add-line"></i> New Final</button>`:''}
+          <button class="btn" id="new-final"><i class="ri-add-line"></i> New Final</button>
         </div>
         <div class="grid" data-sec="quizzes">
           ${finals.map(q=>`
@@ -247,24 +205,11 @@
                 </div>
                 <div class="actions" style="display:flex; gap:6px">
                   <button class="btn" data-take="${q.id}"><i class="ri-play-line"></i> Take</button>
-                  ${(['instructor','admin'].includes(state.role) || q.ownerUid===auth.currentUser?.uid)? `<button class="btn ghost" data-edit="${q.id}"><i class="ri-edit-line"></i></button>`:''}
+                  ${(q.ownerUid===auth.currentUser?.uid || canManageUsers())? `<button class="btn ghost" data-edit="${q.id}"><i class="ri-edit-line"></i></button>`:''}
                 </div>
               </div>
             </div>`).join('')}
           ${!finals.length? `<div class="muted" style="padding:10px">No finals yet.</div>`:''}
-        </div>
-      </div></div>
-
-      <div class="card"><div class="card-body">
-        <h3 style="margin:0 0 8px 0">My Attempts</h3>
-        <div class="table-wrap">
-          <table class="table">
-            <thead><tr><th>Quiz</th><th>Score</th><th>Date</th></tr></thead>
-            <tbody>
-              ${(state.attempts||[]).filter(a=>a.uid===auth.currentUser?.uid).map(a=>`
-                <tr><td>${a.quizTitle}</td><td class="num">${a.score}%</td><td>${new Date(a.createdAt?.toDate?.()||a.createdAt||Date.now()).toLocaleString()}</td></tr>`).join('')}
-            </tbody>
-          </table>
         </div>
       </div></div>
     `;
@@ -284,7 +229,6 @@
         <input id="chat-input" class="input" placeholder="Message…"/>
         <button class="btn" id="chat-send"><i class="ri-send-plane-2-line"></i></button>
       </div>
-      <div class="muted" style="font-size:12px; margin-top:6px">Only enrolled students + instructors can post.</div>
     </div></div>`;
 
   function vTasks(){
@@ -316,7 +260,7 @@
   }
 
   function vProfile(){
-    const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {};
+    const me = state.profiles.find(p=> (p.uid||p.id)===auth.currentUser?.uid) || {};
     return `
       <div class="grid cols-2">
         <div class="card"><div class="card-body">
@@ -367,7 +311,6 @@
             <input id="rm-uid" class="input" placeholder="User UID"/>
             <select id="rm-role" class="input">${VALID_ROLES.map(r=>`<option value="${r}">${r}</option>`).join('')}</select>
             <button class="btn" id="rm-save"><i class="ri-save-3-line"></i> Save Role</button>
-            <div class="muted" style="font-size:12px">Tip: UID is in Authentication → Users.</div>
           </div>
         </div></div>
 
@@ -380,7 +323,7 @@
                 <td>${p.name||'—'}</td>
                 <td>${p.email||'—'}</td>
                 <td>${p.role||'student'}</td>
-                <td><button class="btn ghost" data-edit-user="${p.uid}"><i class="ri-edit-line"></i></button></td>
+                <td><button class="btn ghost" data-edit-user="${p.uid||p.id}"><i class="ri-edit-line"></i></button></td>
               </tr>`).join('')}
             </tbody></table>
           </div>
@@ -420,21 +363,20 @@
           <div class="card"><div class="card-body">
             <strong>Students</strong>
             <ul>
-              <li>Open <em>Courses</em> → pick a course → <em>Enroll</em>.</li>
-              <li>Study the outline (videos, text, images). Save private notes.</li>
-              <li>Use <em>Course Chat</em> to talk with peers/instructor.</li>
-              <li>Take the final in <em>Finals</em>. Pass to earn a certificate.</li>
-              <li>Download certificates under <em>Profile → Transcript</em>.</li>
-              <li>Track tasks in <em>Tasks</em> (drag between lanes).</li>
+              <li>Courses → pick a course → Enroll.</li>
+              <li>Study outline (video/text/images). Save private notes.</li>
+              <li>Use Course Chat to talk to peers/instructor.</li>
+              <li>Finals → take final → pass → download certificate.</li>
+              <li>Profile → Transcript shows scores/certificates.</li>
+              <li>Tasks → drag cards to track progress.</li>
             </ul>
           </div></div>
           <div class="card"><div class="card-body">
             <strong>Instructors/Admin</strong>
             <ul>
-              <li>Create courses (title, category, credits, short, outline JSON).</li>
-              <li>Add a Final under <em>Finals</em> (check “This is final exam”).</li>
-              <li><em>Admin</em> → “Role Manager” to promote users.</li>
-              <li>Admin can edit/delete profile/role docs of any user.</li>
+              <li>Create courses and finals. Authors can edit their own items.</li>
+              <li>Admin can promote via Admin → Role Manager.</li>
+              <li>Admin can edit/delete any profile (Auth deletion requires Admin SDK).</li>
             </ul>
           </div></div>
         </div>
@@ -453,28 +395,11 @@
       case 'profile': return vProfile();
       case 'admin': return vAdmin();
       case 'settings': return vSettings();
-      case 'search': return vSearch();
       case 'guide': return vGuide();
       default: return vDashboard();
     }
   }
-  function vSearch(){
-    const q=state.searchQ||''; const res=q?doSearch(q):[];
-    return `
-      <div class="card"><div class="card-body">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-          <h3 style="margin:0">Search</h3>
-          <div class="muted">Query: <strong>${q||'(empty)'}</strong></div>
-        </div>
-        ${res.length? `<div class="grid">${res.map(r=>`
-          <div class="card"><div class="card-body" style="display:flex; justify-content:space-between; align-items:center">
-            <div><div style="font-weight:700">${r.label}</div><div class="muted" style="font-size:12px">${r.section}</div></div>
-            <button class="btn" data-open-route="${r.route}" data-id="${r.id||''}">Open</button>
-          </div></div>`).join('')}</div>` : `<p class="muted">No results.</p>`}
-      </div></div>`;
-  }
 
-  // ---------- Render & shell ----------
   function render(){
     const root=$('#root');
     if(!auth.currentUser){ root.innerHTML=vLogin(); wireLogin(); return; }
@@ -483,9 +408,9 @@
     if(state.highlightId){ const el=document.getElementById(state.highlightId); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'});} }
   }
 
+  // Shell wiring
   const openSidebar=()=>{ document.body.classList.add('sidebar-open'); $('#backdrop')?.classList.add('active'); };
   const closeSidebar=()=>{ document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
-
   function openModal(id){ $('#'+id)?.classList.add('active'); $('#mb-modal')?.classList.add('active'); }
   function closeModal(id){ $('#'+id)?.classList.remove('active'); $('#mb-modal')?.classList.remove('active'); }
 
@@ -496,40 +421,55 @@
     $('#main')?.addEventListener('click', closeSidebar);
 
     $('#side-nav')?.addEventListener('click', e=>{
-      const it=e.target.closest('.item[data-route]'); if(it){ go(it.getAttribute('data-route')); }
+      const it=e.target.closest('.item[data-route]'); if(it){ state.highlightId=null; go(it.getAttribute('data-route')); }
     });
     $('#btnLogout')?.addEventListener('click', ()=> auth.signOut());
+    $('#mm-close')?.addEventListener('click', ()=> closeModal('m-modal'));
 
-    // dashboard cards
+    $('#copyright')?.replaceChildren(document.createTextNode(`Powered by MM, ${nowYear()}`));
+
+    // Dashboard cards quick nav
     $('#main')?.addEventListener('click', e=>{
       const c=e.target.closest('[data-go]'); if(c){ go(c.getAttribute('data-go')); }
     });
 
-    // search popover
-    const input=$('#globalSearch'), results=$('#searchResults');
+    // Search
+    const input=$('#globalSearch'), results=$('#searchResults'); let t;
+    const doSearch=(q)=>{
+      const tokens=(q||'').toLowerCase().split(/\s+/).filter(Boolean);
+      const ix=[];
+      state.courses.forEach(c=> ix.push({label:c.title, section:'Courses', route:'courses', id:c.id, text:`${c.title} ${c.category||''} ${c.short||''}`}));
+      state.quizzes.forEach(q=> ix.push({label:q.title, section:'Finals', route:'assessments', id:q.id, text:q.courseTitle||''}));
+      state.profiles.forEach(p=> ix.push({label:p.name||p.email||p.id, section:'Profiles', route:'profile', id:p.uid||p.id, text:(p.bio||'') + ' ' + (p.portfolio||'') }));
+      if(!tokens.length) return [];
+      return ix
+        .map(item=>{
+          const l=item.label.toLowerCase(), t=(item.text||'').toLowerCase();
+          const ok=tokens.every(tok=> l.includes(tok)||t.includes(tok));
+          return ok?{item,score:tokens.length + (l.includes(tokens[0])?1:0)}:null;
+        }).filter(Boolean).sort((a,b)=>b.score-a.score).map(x=>x.item).slice(0,12);
+    };
     if(input && results){
-      let t;
       input.addEventListener('keydown', e=>{
-        if(e.key==='Enter'){ state.searchQ=input.value.trim(); go('search'); results.classList.remove('active'); }
+        if(e.key==='Enter'){ state.searchQ=input.value.trim(); results.classList.remove('active'); go('guide'); } // keep simple
       });
       input.addEventListener('input', ()=>{
-        clearTimeout(t); const q=input.value.trim(); if(!q){ results.classList.remove('active'); results.innerHTML=''; return; }
+        clearTimeout(t);
+        const q=input.value.trim();
+        if(!q){ results.classList.remove('active'); results.innerHTML=''; return; }
         t=setTimeout(()=>{
-          const out=doSearch(q).slice(0,12);
+          const out=doSearch(q);
           results.innerHTML=out.map(r=>`<div class="row" data-route="${r.route}" data-id="${r.id||''}"><strong>${r.label}</strong> <span class="muted">— ${r.section}</span></div>`).join('');
           results.classList.add('active');
           results.querySelectorAll('.row').forEach(row=>{
-            row.onclick=()=>{ const r=row.getAttribute('data-route'); const id=row.getAttribute('data-id'); state.searchQ=q; state.highlightId=id; go(r); results.classList.remove('active'); };
+            row.onclick=()=>{ const r=row.getAttribute('data-route'); const id=row.getAttribute('data-id'); state.highlightId=id; results.classList.remove('active'); go(r); };
           });
         },120);
       });
       document.addEventListener('click', e=>{ if(!results.contains(e.target) && e.target!==input) results.classList.remove('active'); });
     }
-
-    $('#mm-close')?.addEventListener('click', ()=> closeModal('m-modal'));
-    $('#copyright')?.replaceChildren(document.createTextNode(`Powered by MM, ${nowYear()}`));
   }
-
+  function go(route){ state.route=route; render(); }
   function wireRoute(){
     switch(state.route){
       case 'courses': wireCourses(); break;
@@ -540,11 +480,11 @@
       case 'profile': wireProfile(); break;
       case 'admin': wireAdmin(); break;
       case 'settings': wireSettings(); break;
-      case 'search': wireSearch(); break;
+      case 'guide': /* none */ break;
     }
   }
 
-  // ---------- Login ----------
+  // Login
   function wireLogin(){
     const doLogin=async ()=>{
       const email=$('#li-email')?.value.trim(), pass=$('#li-pass')?.value.trim();
@@ -554,25 +494,25 @@
     $('#btnLogin')?.addEventListener('click', doLogin);
     $('#li-pass')?.addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
     $('#link-forgot')?.addEventListener('click', async ()=>{
-      const email=$('#li-email')?.value.trim(); if(!email) return notify('Enter your email first','warn');
-      try{ await auth.sendPasswordResetEmail(email); notify('Reset email sent','ok'); }catch(e){ notify(e?.message||'Failed','danger'); }
+      const email=$('#li-email')?.value.trim(); if(!email) return notify('Enter email first','warn');
+      try{ await auth.sendPasswordResetEmail(email); notify('Reset sent'); }catch(e){ notify(e?.message||'Failed','danger'); }
     });
     $('#link-register')?.addEventListener('click', async ()=>{
       const email=$('#li-email')?.value.trim(); const pass=$('#li-pass')?.value.trim()||'admin123';
-      if(!email) return notify('Enter email, then click Sign up again','warn');
+      if(!email) return notify('Enter email, then click again','warn');
       try{
         const cred=await auth.createUserWithEmailAndPassword(email, pass);
         const uid=cred.user.uid;
         await Promise.all([
           doc('roles', uid).set({ uid, email, role: ADMIN_EMAILS.includes(email.toLowerCase())?'admin':'student', createdAt:firebase.firestore.FieldValue.serverTimestamp() }),
-          doc('profiles', uid).set({ uid, email, name: (email.split('@')[0]), bio:'', portfolio:'', avatar:'', signature:'', role: ADMIN_EMAILS.includes(email.toLowerCase())?'admin':'student', createdAt:firebase.firestore.FieldValue.serverTimestamp() })
+          doc('profiles', uid).set({ uid, email, name:(email.split('@')[0]), bio:'', portfolio:'', avatar:'', signature:'', role: ADMIN_EMAILS.includes(email.toLowerCase())?'admin':'student', createdAt:firebase.firestore.FieldValue.serverTimestamp() })
         ]);
-        notify('Account created — you can sign in.');
+        notify('Account created — sign in now.');
       }catch(e){ notify(e?.message||'Signup failed','danger'); }
     });
   }
 
-  // ---------- Courses ----------
+  // Courses
   function parseOutline(str){ try{ const v=JSON.parse(str||'[]'); return Array.isArray(v)? v : []; }catch{return [];} }
   function renderCourseBody(c,enrolled){
     const outline=parseOutline(c.outline);
@@ -587,7 +527,7 @@
               ${ls.html? `<div style="white-space:pre-wrap">${ls.html}</div>`:''}
               ${(ls.images||[]).map(src=>`<img src="${src}" referrerpolicy="no-referrer" style="border-radius:12px; margin-top:6px">`).join('')}
               ${enrolled? `<div style="margin-top:8px">
-                <input id="note-${c.id}-${ci}-${li}" class="input" placeholder="Sticky note for you…"/>
+                <input id="note-${c.id}-${ci}-${li}" class="input" placeholder="Sticky note…"/>
                 <button class="btn" data-save-note="${c.id}" data-ci="${ci}" data-li="${li}"><i class="ri-sticky-note-line"></i> Save note</button>
               </div>`:''}
             </div></div>
@@ -596,17 +536,11 @@
       </div></div>
     `).join('');
 
-    return `
-      <div class="grid">
-        <div class="muted">${c.category||'General'} • ${c.credits||0} credits • by ${c.ownerEmail||'—'}</div>
-        ${c.short? `<p>${c.short}</p>`:''}
-        ${chaptersHTML || '<div class="muted">No outline yet.</div>'}
-      </div>`;
+    return `<div class="grid">${c.short? `<p>${c.short}</p>`:''}${chaptersHTML||'<div class="muted">No outline yet.</div>'}</div>`;
   }
 
   function wireCourses(){
     $('#add-course')?.addEventListener('click', ()=>{
-      if(!canCreateCourse()) return notify('Instructors/Admins only','warn');
       $('#mm-title').textContent='New Course';
       $('#mm-body').innerHTML=`
         <div class="grid">
@@ -619,24 +553,29 @@
         </div>`;
       $('#mm-foot').innerHTML=`<button class="btn" id="c-save">Save</button>`;
       openModal('m-modal');
+
       $('#c-save').onclick=async ()=>{
         const t=$('#c-title')?.value.trim(); if(!t) return notify('Title required','warn');
         const obj={ title:t, category:$('#c-category')?.value.trim(), credits:+($('#c-credits')?.value||0), short:$('#c-short')?.value.trim(), outline:$('#c-outline')?.value.trim(),
           ownerUid:auth.currentUser.uid, ownerEmail:auth.currentUser.email, createdAt:firebase.firestore.FieldValue.serverTimestamp() };
-        await col('courses').add(obj); closeModal('m-modal'); notify('Saved');
+        try{
+          await col('courses').add(obj);
+          closeModal('m-modal'); notify('Course saved');
+        }catch(e){
+          console.warn(e);
+          notify('Save blocked by rules. Updating rules now will fix it (see below).', 'danger');
+        }
       };
     });
 
     const sec=$('[data-sec="courses"]'); if(!sec||sec.__wired) return; sec.__wired=true;
-
     sec.addEventListener('click', async (e)=>{
       const openBtn=e.target.closest('button[data-open]'); const editBtn=e.target.closest('button[data-edit]');
       if(openBtn){
         const id=openBtn.getAttribute('data-open'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
-        const c={id:snap.id, ...snap.data()};
-        const enrolled = isEnrolled(c.id);
+        const c={id:snap.id, ...snap.data()}; const enrolled=isEnrolled(c.id);
         $('#mm-title').textContent=c.title;
-        $('#mm-body').innerHTML = renderCourseBody(c,enrolled);
+        $('#mm-body').innerHTML=renderCourseBody(c,enrolled);
         $('#mm-foot').innerHTML=`
           <div style="display:flex; gap:8px">
             ${!enrolled? `<button class="btn" id="enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>` : `<button class="btn ok" disabled>Enrolled</button>`}
@@ -649,9 +588,8 @@
           await col('enrollments').add({ uid, courseId:c.id, createdAt:firebase.firestore.FieldValue.serverTimestamp(), course:{id:c.id, title:c.title, category:c.category, credits:c.credits||0} });
           closeModal('m-modal'); notify('Enrolled');
         });
-        $('#open-final')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
+        $('#open-final')?.addEventListener('click', ()=>{ state.highlightId=c.id; go('assessments'); });
 
-        // save notes
         $('#mm-body')?.addEventListener('click', async (ev)=>{
           const b=ev.target.closest('button[data-save-note]'); if(!b) return;
           const courseId=b.getAttribute('data-save-note'); const ci=+b.getAttribute('data-ci'); const li=+b.getAttribute('data-li');
@@ -696,10 +634,9 @@
     });
   }
 
-  // ---------- Finals ----------
+  // Finals
   function wireAssessments(){
     $('#new-final')?.addEventListener('click', ()=>{
-      if(!['instructor','admin'].includes(state.role)) return notify('Instructors/Admins only','warn');
       $('#mm-title').textContent='New Final';
       $('#mm-body').innerHTML=`
         <div class="grid">
@@ -717,13 +654,14 @@
         if(!t||!courseId) return notify('Fill title & course','warn');
         let items=[]; try{ items=JSON.parse($('#q-json')?.value||'[]'); }catch{ return notify('Invalid JSON','danger'); }
         const course=state.courses.find(c=>c.id===courseId)||{};
-        await col('quizzes').add({ title:t, courseId, courseTitle:course.title, passScore:pass, isFinal:!!isFinal, items, ownerUid:auth.currentUser.uid, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
-        closeModal('m-modal'); notify('Final saved');
+        try{
+          await col('quizzes').add({ title:t, courseId, courseTitle:course.title, passScore:pass, isFinal:!!isFinal, items, ownerUid:auth.currentUser.uid, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+          closeModal('m-modal'); notify('Final saved');
+        }catch(e){ console.warn(e); notify('Save blocked by rules. See rules update below.', 'danger'); }
       };
     });
 
-    const sec=$('[data-sec="quizzes"]'); if(!sec||sec.__wired){return;} sec.__wired=true;
-
+    const sec=$('[data-sec="quizzes"]'); if(!sec||sec.__wired) return; sec.__wired=true;
     sec.addEventListener('click', async (e)=>{
       const take=e.target.closest('button[data-take]'); const edit=e.target.closest('button[data-edit]');
       if(take){
@@ -768,7 +706,7 @@
       }
       if(edit){
         const id=edit.getAttribute('data-edit'); const snap=await doc('quizzes',id).get(); if(!snap.exists) return;
-        const q={id:snap.id,...snap.data()}; if(!(q.ownerUid===auth.currentUser?.uid || state.role==='admin')) return notify('No permission','warn');
+        const q={id:snap.id,...snap.data()}; if(!(q.ownerUid===auth.currentUser?.uid || canManageUsers())) return notify('No permission','warn');
         $('#mm-title').textContent='Edit Final';
         $('#mm-body').innerHTML=`
           <div class="grid">
@@ -788,7 +726,7 @@
     });
   }
 
-  // ---------- Chat ----------
+  // Chat
   function paintChat(msgs){
     const box=$('#chat-box'); if(!box) return;
     box.innerHTML = msgs.map(m=>`
@@ -813,13 +751,14 @@
       const text=input.value.trim(); const cid=courseSel?.value||'';
       if(!text||!cid) return;
       if(!canPostMessage(cid)) return notify('Enroll to chat','warn');
-      const p = state.profiles.find(x=>x.uid===auth.currentUser?.uid) || {};
+      const pSnap = await doc('profiles', auth.currentUser.uid).get();
+      const p=pSnap.data()||{};
       await col('messages').add({ courseId:cid, uid:auth.currentUser.uid, email:auth.currentUser.email, name:p.name||'', text, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
       input.value='';
     });
   }
 
-  // ---------- Tasks ----------
+  // Tasks
   function wireTasks(){
     const root=$('[data-sec="tasks"]'); if(!root) return;
 
@@ -855,7 +794,7 @@
       }
     });
 
-    // DnD highlight
+    // Drag & drop
     root.querySelectorAll('.task-card').forEach(card=>{
       card.setAttribute('draggable','true'); card.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', card.getAttribute('data-task')); card.classList.add('dragging'); });
       card.addEventListener('dragend', ()=> card.classList.remove('dragging'));
@@ -870,7 +809,20 @@
     });
   }
 
-  // ---------- Profile ----------
+  // Profile (images fixed)
+  function buildTranscript(uid){
+    const byCourse={};
+    (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
+      const title=(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId;
+      byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:title, best:0, completed:false};
+      byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score||0);
+      const q = state.quizzes.find(q=>q.courseId===a.courseId && q.isFinal);
+      const pass = q ? (byCourse[a.courseId].best >= (q.passScore||70)) : false;
+      byCourse[a.courseId].completed = pass;
+    });
+    return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
+  }
+
   function wireProfile(){
     $('#pf-save')?.addEventListener('click', async ()=>{
       const uid=auth.currentUser.uid;
@@ -881,23 +833,30 @@
         bio:$('#pf-bio')?.value.trim(),
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
       },{merge:true});
-      const up = async (inputId, folder, field)=>{
-        const f=$(inputId)?.files?.[0]; if(!f) return null;
+
+      const up = async (inputSel, folder, field)=>{
+        const f=$(inputSel)?.files?.[0]; if(!f) return null;
         const ref=stg.ref().child(`${folder}/${uid}/${Date.now()}_${f.name}`);
         await ref.put(f); const url=await ref.getDownloadURL();
         await doc('profiles',uid).set({ [field]: url },{merge:true}); return url;
       };
-      await up('#pf-avatar','avatars','avatar');
-      await up('#pf-sign','signatures','signature');
+      const avatarUrl = await up('#pf-avatar','avatars','avatar');
+      const signUrl   = await up('#pf-sign','signatures','signature');
+
+      // update local cache so "View card" shows immediately even before realtime snapshot arrives
+      const idx = state.profiles.findIndex(p=> (p.uid||p.id)===uid);
+      if(idx>=0){
+        state.profiles[idx] = { ...state.profiles[idx], name:$('#pf-name').value.trim(), email:$('#pf-email').value.trim(), portfolio:$('#pf-portfolio').value.trim(), bio:$('#pf-bio').value.trim(), ...(avatarUrl?{avatar:avatarUrl}:{}) , ...(signUrl?{signature:signUrl}:{}) };
+      }
+
       if ($('#pf-avatar')) $('#pf-avatar').value='';
       if ($('#pf-sign')) $('#pf-sign').value='';
-      notify('Profile saved'); render();
+      notify('Profile saved');
     });
 
-    // Always fetch latest profile before showing "View card"
     $('#pf-view')?.addEventListener('click', async ()=>{
       const pSnap = await doc('profiles', auth.currentUser.uid).get();
-      const me = { ...(state.profiles.find(p=>p.uid===auth.currentUser?.uid)||{}), ...(pSnap.data()||{}) };
+      const me = pSnap.data() || state.profiles.find(p=> (p.uid||p.id)===auth.currentUser?.uid) || {};
       $('#mm-title').textContent='My Profile Card';
       $('#mm-body').innerHTML=`
         <div style="display:flex; gap:12px; align-items:center">
@@ -922,7 +881,8 @@
       const b=e.target.closest('button[data-cert]'); if(!b) return;
       const courseId=b.getAttribute('data-cert');
       const course=state.courses.find(c=>c.id===courseId)||{};
-      const p=state.profiles.find(x=>x.uid===auth.currentUser?.uid)||{name:auth.currentUser.email};
+      const pSnap = await doc('profiles', auth.currentUser.uid).get();
+      const p = pSnap.data()||{name:auth.currentUser.email};
       const canvas=document.createElement('canvas'); canvas.width=1400; canvas.height=900;
       const ctx=canvas.getContext('2d');
       ctx.fillStyle='#0b0d10'; ctx.fillRect(0,0,1400,900);
@@ -935,22 +895,21 @@
       ctx.fillText(`Date: ${new Date().toLocaleDateString()}`, 260, 380);
       ctx.beginPath(); ctx.moveTo(260, 560); ctx.lineTo(620,560); ctx.strokeStyle='#7ad3ff'; ctx.lineWidth=2; ctx.stroke();
       ctx.font='20px Inter'; ctx.fillText('Authorized Signature', 360, 590);
-      ctx.fillStyle='#7ad3ff'; ctx.font='bold 32px Inter'; ctx.fillText('LearnHub', 1080, 760);
-      const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`certificate_${course.title||courseId}.png`; a.click();
+      if (p.signature){ const img=new Image(); img.referrerPolicy='no-referrer'; img.onload=()=>{ ctx.drawImage(img,260,480,240,80); after(); }; img.src=p.signature; } else { after(); }
+      function after(){ ctx.fillStyle='#7ad3ff'; ctx.font='bold 32px Inter'; ctx.fillText('LearnHub', 1080, 760); const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`certificate_${course.title||courseId}.png`; a.click(); }
     });
   }
 
-  // ---------- Admin ----------
+  // Admin (edit fixed)
   function wireAdmin(){
     $('#rm-save')?.addEventListener('click', async ()=>{
       const uid=$('#rm-uid')?.value.trim(); const role=$('#rm-role')?.value||'student';
       if(!uid || !VALID_ROLES.includes(role)) return notify('Enter UID + valid role','warn');
       await doc('roles',uid).set({ uid, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
-      await doc('profiles',uid).set({ role },{merge:true}); // mirror
+      await doc('profiles',uid).set({ role },{merge:true});
       notify('Role saved');
     });
 
-    // delegate edit/delete
     $('#main')?.addEventListener('click', async (e)=>{
       const btn = e.target.closest('button[data-edit-user]'); if(!btn) return;
       const uid = btn.getAttribute('data-edit-user');
@@ -988,7 +947,7 @@
     });
   }
 
-  // ---------- Settings ----------
+  // Settings (font-size live)
   function applyTheme(){
     const p = state.theme.palette;
     const root = document.documentElement;
@@ -1004,9 +963,7 @@
     root.style.setProperty('--card', s.card);
     root.style.setProperty('--brand', s.brand);
 
-    // Font size via CSS var -> html { font-size: var(--base-font-size) }
-    const f=state.theme.font;
-    const size = f==='small' ? '14px' : (f==='large' ? '17px' : '16px');
+    const f=state.theme.font; const size = f==='small' ? '14px' : (f==='large' ? '17px' : '16px');
     root.style.setProperty('--base-font-size', size);
   }
   function wireSettings(){
@@ -1015,29 +972,7 @@
     $('#save-theme')?.addEventListener('click', ()=> notify('Theme saved'));
   }
 
-  function wireSearch(){
-    $('#main')?.querySelectorAll('[data-open-route]').forEach(el=>{
-      el.addEventListener('click', ()=>{
-        const r=el.getAttribute('data-open-route'); const id=el.getAttribute('data-id'); state.highlightId=id; go(r);
-      });
-    });
-  }
-
-  // ---------- Transcript ----------
-  function buildTranscript(uid){
-    const byCourse = {};
-    (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
-      const title=(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId;
-      byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:title, best:0, completed:false};
-      byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score||0);
-      const q = state.quizzes.find(q=>q.courseId===a.courseId && q.isFinal===true);
-      const pass = q ? (byCourse[a.courseId].best >= (q.passScore||70)) : false;
-      byCourse[a.courseId].completed = pass;
-    });
-    return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
-  }
-
-  // ---------- Firestore sync ----------
+  // Sync
   function clearUnsubs(){ state.unsub.forEach(u=>{try{u()}catch{}}); state.unsub=[]; }
   function sync(){
     clearUnsubs();
@@ -1066,8 +1001,7 @@
 
     state.unsub.push(col('attempts').where('uid','==',uid).onSnapshot(
       s => {
-        state.attempts = s.docs.map(d=>({id:d.id, ...d.data()}))
-          .sort((a,b)=>safeTS(b.createdAt)-safeTS(a.createdAt));
+        state.attempts = s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>safeTS(b.createdAt)-safeTS(a.createdAt));
         if(['assessments','profile','dashboard'].includes(state.route)) render();
       },
       err => console.warn('attempts listener error:', err)
@@ -1090,67 +1024,34 @@
   async function resolveRole(uid,email){
     if(ADMIN_EMAILS.includes((email||'').toLowerCase())) return 'admin';
     try{
-      const r=await doc('roles',uid).get(); const role=(r.data() && r.data().role ? (r.data().role+'').toLowerCase() : 'student');
+      const r=await doc('roles',uid).get(); const role=(r.data()?.role||'student').toLowerCase();
       return VALID_ROLES.includes(role)?role:'student';
     }catch{return 'student';}
   }
 
-  // ---------- Auth ----------
+  // Auth
   auth.onAuthStateChanged(async (user)=>{
-    state.user = user || null;
-    if (!user) { clearUnsubs(); render(); return; }
-
-    // resolve role
+    state.user=user||null;
+    if(!user){ clearUnsubs(); render(); return; }
     state.role = await resolveRole(user.uid, user.email);
 
-    // ensure profile + mirror role
     try{
-      const pRef = doc('profiles', user.uid);
-      const pSnap = await pRef.get();
+      const pRef=doc('profiles',user.uid);
+      const pSnap=await pRef.get();
       const fallbackName = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
-      if (!pSnap.exists) {
+      if(!pSnap.exists){
         await pRef.set({ uid:user.uid, email:user.email||'', name:fallbackName, bio:'', portfolio:'', avatar:'', signature:'', role:state.role, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-      } else {
-        const cur = pSnap.data() || {};
-        const patch = { role: state.role };
-        if (!cur.email && user.email) patch.email = user.email;
-        if (!cur.name) patch.name = fallbackName;
-        if (Object.keys(patch).length) await pRef.set(patch, { merge: true });
+      }else{
+        const cur=pSnap.data()||{}; const patch={role:state.role};
+        if(!cur.email && user.email) patch.email=user.email;
+        if(!cur.name) patch.name=fallbackName;
+        if(Object.keys(patch).length) await pRef.set(patch,{merge:true});
       }
-      // pull name/email if they were mistakenly stored in roles doc
-      try {
-        const rSnap = await doc('roles', user.uid).get();
-        const r = rSnap.data()||{};
-        const pull = {};
-        if (r.name) pull.name=r.name;
-        if (r.email) pull.email=r.email;
-        if (Object.keys(pull).length) await pRef.set(pull, { merge:true });
-      } catch {}
     }catch{}
 
     sync(); applyTheme(); render();
   });
 
-  // ---------- Theme apply on first paint for logged-out users too ----------
   applyTheme();
-
-  // ---------- Dev helper ----------
-  window.seedSampleData = async function(){
-    const u=auth.currentUser; if(!u) return alert('Sign in first');
-    const outline=[{title:"Chapter 1: Basics",lessons:[
-      {title:"Welcome",video:"https://www.youtube.com/watch?v=dQw4w9WgXcQ",html:"Welcome text here.",images:[]},
-      {title:"Numbers",html:"Understanding numbers…",images:[]}
-    ]}];
-    const c1=await col('courses').add({title:'Algebra Basics',category:'Math',credits:3,short:'Equations, functions, factoring.',outline:JSON.stringify(outline),ownerUid:u.uid,ownerEmail:u.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-    await col('enrollments').add({uid:u.uid,courseId:c1.id,createdAt:firebase.firestore.FieldValue.serverTimestamp(),course:{id:c1.id,title:'Algebra Basics',category:'Math',credits:3}});
-    await col('quizzes').add({title:'Algebra Final',courseId:c1.id,courseTitle:'Algebra Basics',passScore:70,isFinal:true,items:[
-      {q:'2+2?',choices:['3','4','5'],answer:1},
-      {q:'5x=20, x=?',choices:['2','4','5'],answer:2}
-    ],ownerUid:u.uid,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-    alert('Seeded sample course & final');
-  };
-
-  // ---------- Boot ----------
-  function vSearch(){} // placeholder removed above to avoid hoist confusion (kept earlier)
   render();
 })();

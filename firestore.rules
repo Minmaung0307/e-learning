@@ -5,21 +5,15 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
-
     function isSelf(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
-
     function isAdmin() {
       return isSignedIn() && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == "admin";
     }
 
-    function isInstructor() {
-      return isSignedIn() && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == "instructor";
-    }
-
     match /roles/{uid} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow read: if isAdmin() || isSelf(uid);
       allow write: if isAdmin();
     }
 
@@ -28,46 +22,51 @@ service cloud.firestore {
       allow write: if isSelf(uid) || isAdmin();
     }
 
+    // Authors can create/update/delete their own courses
     match /courses/{id} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin() || isInstructor();
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid || isAdmin();
     }
 
     match /enrollments/{id} {
-      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.uid == request.auth.uid || isAdmin();
     }
 
+    // Authors can manage their own quizzes (finals)
     match /quizzes/{id} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin() || isInstructor();
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid || isAdmin();
     }
 
     match /attempts/{id} {
-      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if false;
     }
 
     match /tasks/{id} {
-      allow read, update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow read, update, delete: if isSignedIn() && resource.data.uid == request.auth.uid || isAdmin();
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
     }
 
     match /messages/{id} {
-      allow read, create: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn(); // basic course chat
       allow update, delete: if false;
     }
 
     match /notes/{id} {
-      allow read, update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow read, update, delete: if isSignedIn() && resource.data.uid == request.auth.uid || isAdmin();
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
     }
 
     match /announcements/{id} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin() || isInstructor();
+      allow create, update, delete: if isAdmin();
     }
   }
 }

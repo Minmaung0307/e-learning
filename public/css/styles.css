@@ -8,9 +8,7 @@
   --ok:#10b981;
   --warn:#f59e0b;
   --danger:#ef4444;
-
-  /* live-adjusted via JS */
-  --base-font-size: 16px;
+  --base-font-size: 16px; /* live-updated */
 }
 
 *{box-sizing:border-box}
@@ -22,7 +20,6 @@ body{
   font-size:1rem;
 }
 img{max-width:100%;display:block}
-
 .hidden{display:none}
 .clickable{cursor:pointer}
 
