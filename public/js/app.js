@@ -493,31 +493,295 @@
   }
 
   function vGuide(){
-    return `
-      <div class="card"><div class="card-body">
-        <h3 style="margin:0 0 8px 0">How to use LearnHub (Admin & Instructor)</h3>
-        <ol>
-          <li><strong>Create a course</strong> → Courses → New Course. You can paste:
+  return `
+  <section class="guide">
+    <style>
+      /* ---- scoped styling just for the guide page ---- */
+      .guide { --g-bg: linear-gradient(135deg,#0ea5e9 0%, #22c55e 100%); }
+      .guide .hero {
+        background: var(--g-bg);
+        color: #fff;
+        border-radius: 16px;
+        padding: 26px 20px;
+        display: grid;
+        gap: 6px;
+        box-shadow: 0 6px 24px rgba(0,0,0,.15);
+      }
+      .guide .hero .title { font-size: 22px; font-weight: 800; letter-spacing:.3px; }
+      .guide .hero .subtitle { opacity:.95; font-size: 13px }
+      .guide .nav {
+        display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 6px 0;
+      }
+      .guide .nav a {
+        text-decoration:none; background:#0b0d10; color:#fff;
+        border:1px solid var(--border); padding:8px 10px; border-radius:999px; font-size:12px;
+      }
+      .guide .section { margin-top:14px }
+      .guide .section .h {
+        display:flex; align-items:center; gap:8px; margin:0 0 6px 0; font-size:16px; font-weight:800;
+      }
+      .guide .kpis { display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:8px; }
+      .guide .kpi { border:1px solid var(--border); border-radius:12px; padding:12px; background:#fff }
+      .guide .kpi .lbl { font-size:12px; color:var(--muted); }
+      .guide .kpi .val { font-weight:800; font-size:18px; }
+
+      /* cards */
+      .guide .gcard {
+        border:1px solid var(--border); border-radius:16px; background:#fff;
+        padding:14px; display:grid; gap:10px;
+      }
+      .guide .row { display:grid; gap:10px }
+      .guide .grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px }
+      .guide .grid3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px }
+      .guide .callout {
+        border-left:4px solid #22c55e; background:#f8fef9; padding:10px; border-radius:10px;
+        font-size:13px;
+      }
+      .guide .warn {
+        border-left:4px solid #f59e0b; background:#fff8eb;
+      }
+      .guide .danger {
+        border-left:4px solid #ef4444; background:#fff5f5;
+      }
+      .guide .step {
+        display:flex; gap:10px; align-items:flex-start; padding:10px; border-radius:12px;
+        border:1px dashed var(--border); background:#fafafa;
+      }
+      .guide .step i { font-size:18px; opacity:.7; margin-top:2px }
+      .guide code, .guide pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace }
+      .guide pre {
+        background:#0b0d10; color:#e5e7eb; padding:12px; border-radius:12px; overflow:auto; border:1px solid #222;
+      }
+      .guide .code-card { position:relative }
+      .guide .copy-btn {
+        position:absolute; right:10px; top:10px; border:1px solid #1f2937; background:#111827; color:#e5e7eb;
+        font-size:12px; border-radius:8px; padding:6px 8px; cursor:pointer;
+      }
+      .guide .badge {
+        display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border-radius:999px; font-size:12px;
+        background:#f1f5f9; border:1px solid var(--border);
+      }
+      .guide .mini {
+        font-size:12px; color:var(--muted);
+      }
+      /* details / summary accordion */
+      .guide details {
+        border:1px solid var(--border); border-radius:12px; background:#fff; padding:8px 10px;
+      }
+      .guide details + details { margin-top:8px }
+      .guide summary { cursor:pointer; font-weight:700; display:flex; align-items:center; gap:8px }
+      .guide summary::-webkit-details-marker { display:none }
+      .guide .pill { background:#eef2ff; color:#3730a3; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid #c7d2fe }
+      /* responsive tweaks */
+      @media (max-width: 840px){
+        .guide .grid2, .guide .grid3 { grid-template-columns: 1fr; }
+      }
+    </style>
+
+    <div class="hero">
+      <div class="title"><i class="ri-compass-3-line"></i> LearnHub — Quick Start Guide</div>
+      <div class="subtitle">Everything you need to run Admin / Instructor / Student flows, chat channels, rosters, and hosted JSON content.</div>
+      <div class="nav">
+        <a href="#roster"><i class="ri-team-line"></i> Roster Tools</a>
+        <a href="#chat"><i class="ri-chat-3-line"></i> Course Chat</a>
+        <a href="#roles"><i class="ri-shield-user-line"></i> Roles & Users</a>
+        <a href="#datajson"><i class="ri-file-json-line"></i> Public JSON</a>
+        <a href="#troubleshoot"><i class="ri-tools-line"></i> Troubleshooting</a>
+      </div>
+    </div>
+
+    <!-- KPIs / quick facts -->
+    <div class="kpis" style="margin-top:10px">
+      <div class="kpi"><div class="lbl">Roles</div><div class="val">student • instructor • admin</div></div>
+      <div class="kpi"><div class="lbl">Chat Channels</div><div class="val">course_* • dm_*_* • group_*</div></div>
+      <div class="kpi"><div class="lbl">Content Hosting</div><div class="val">/public/data/*.json</div></div>
+    </div>
+
+    <!-- Roster Tools -->
+    <div id="roster" class="section">
+      <div class="h"><i class="ri-team-line"></i> Course Roster Tools (Admin)</div>
+      <div class="gcard row">
+        <div class="callout">Use this to build a course’s <code>participants</code> array from existing <code>enrollments</code> — the roster powers smarter DM lists in Chat.</div>
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-checkbox-circle-line"></i><div><b>Pre-req:</b> You already have enrollment docs like <code>{ uid, courseId, createdAt }</code>.</div></div>
+            <div class="step"><i class="ri-settings-2-line"></i><div>Go to <b>Admin → Course Roster Tools</b> and pick a course.</div></div>
+            <div class="step"><i class="ri-refresh-line"></i><div>Click <b>Sync from Enrollments</b>. The app gathers all <code>uid</code>s enrolled + <code>ownerUid</code> and writes <code>participants</code> on the course.</div></div>
+            <div class="step"><i class="ri-eye-line"></i><div>Click <b>View Roster</b> to confirm the <code>participants</code> list.</div></div>
+          </div>
+          <div class="row">
+            <details open>
+              <summary><span class="pill">Troubleshooting</span></summary>
+              <ul class="mini">
+                <li>Empty list? Ensure <code>enrollments</code> exist for that <code>courseId</code>.</li>
+                <li>Don’t see the tool? Your user isn’t <b>admin</b> (set role via Role Manager).</li>
+                <li>Write denied? Check your Firestore rules for updating <code>courses/{id}</code>.</li>
+              </ul>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div id="chat" class="section">
+      <div class="h"><i class="ri-chat-3-line"></i> Course Chat (Course-wide, Direct, Group/Batch)</div>
+      <div class="gcard row">
+        <div class="grid3">
+          <div class="gcard" style="gap:8px">
+            <div class="badge"><i class="ri-megaphone-line"></i> Course-wide</div>
+            <div class="mini">Mode = <b>Course</b> → pick a course. Channel key becomes <code>course_{courseId}</code>.</div>
+          </div>
+          <div class="gcard" style="gap:8px">
+            <div class="badge"><i class="ri-user-3-line"></i> Direct (DM)</div>
+            <div class="mini">Mode = <b>Direct</b> → pick a user (roster-aware). Channel key <code>dm_{minUid}_{maxUid}</code>.</div>
+          </div>
+          <div class="gcard" style="gap:8px">
+            <div class="badge"><i class="ri-group-line"></i> Group/Batch</div>
+            <div class="mini">Mode = <b>Group</b> → type ID (e.g., <code>Diploma-2025</code>). Channel key <code>group_{id}</code>.</div>
+          </div>
+        </div>
+
+        <div class="callout warn">
+          <b>Pick a channel:</b> If you see “Pick a channel…”, complete the Course/User/Group selection so a concrete channel key is formed.
+        </div>
+
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-arrow-right-s-line"></i><div>Open <b>Chat</b>, choose a <b>Mode</b>.</div></div>
+            <div class="step"><i class="ri-hashtag"></i><div>Course: select course • DM: select user • Group: type group id.</div></div>
+            <div class="step"><i class="ri-send-plane-2-line"></i><div>Type a message and <b>Send</b>. Messages are saved to <code>messages</code> with: <code>channel</code>, <code>type</code>, <code>uid</code>, <code>email</code>, <code>name</code>, <code>text</code>, <code>createdAt</code> + a helper field (<code>courseId</code>, <code>peerUid</code>, or <code>groupId</code>).</div></div>
+          </div>
+          <div class="row">
+            <details open>
+              <summary><span class="pill">How the DM user list is built</span></summary>
+              <div class="mini">If a course is selected, the DM dropdown lists its <b>participants</b> (synced from enrollments). If no roster is set, it falls back to <b>all profiles</b> except you.</div>
+            </details>
+            <details>
+              <summary><span class="pill">Who can chat?</span></summary>
+              <div class="mini">Students, Instructors, and Admins can join channels they select. For broadcast-style messages, use <b>Announcements</b> on the dashboard (Admins).</div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Roles -->
+    <div id="roles" class="section">
+      <div class="h"><i class="ri-shield-user-line"></i> Roles & User Lists</div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-admin-line"></i><div><b>Change a role:</b> Admin → <b>Role Manager</b> → paste UID → pick <code>student</code>/<code>instructor</code>/<code>admin</code> → Save.</div></div>
+            <div class="step"><i class="ri-pages-line"></i><div><b>View users:</b> Admin → <b>Users (profiles)</b> table shows name, email, and role.</div></div>
+          </div>
+          <div class="row">
+            <div class="callout">
+              <b>Where do I find a UID?</b> Firebase Console → Authentication → copy the user’s UID.
+            </div>
+            <div class="code-card">
+              <button class="copy-btn" data-copy="role-snippet">Copy</button>
+              <pre id="role-snippet"><code>firebase.firestore().collection('profiles').get().then(s => {
+  const arr = s.docs.map(d => d.data());
+  console.log('Admins'); console.table(arr.filter(p => p.role === 'admin'));
+  console.log('Instructors'); console.table(arr.filter(p => p.role === 'instructor'));
+  console.log('Students'); console.table(arr.filter(p => p.role === 'student'));
+});</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Public JSON -->
+    <div id="datajson" class="section">
+      <div class="h"><i class="ri-file-json-line"></i> Hosting course JSON in <code>/public/data</code></div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-folder-2-line"></i><div>Place files under your hosting root (e.g. Firebase Hosting) in <code>public/data</code>.</div></div>
+            <div class="step"><i class="ri-upload-2-line"></i><div>Deploy, then use URLs like <code>/data/outlines/marketing-101.json</code> and <code>/data/lesson-quizzes/marketing-101.json</code>.</div></div>
+            <div class="step"><i class="ri-edit-2-line"></i><div>When creating/editing a Course, paste the URLs into <b>Outline JSON URL</b> and <b>Lesson Quizzes JSON URL</b>.</div></div>
+            <div class="callout warn">Open the URL in a browser: you should see raw JSON. If you see HTML, the path is wrong (common cause of “Unexpected token &lt;”).</div>
+          </div>
+          <div class="row">
+            <div class="badge"><i class="ri-layout-2-line"></i> Outline JSON — example</div>
+            <div class="code-card">
+              <button class="copy-btn" data-copy="outline-json">Copy</button>
+              <pre id="outline-json"><code>{
+  "title": "Advanced Digital Marketing",
+  "category": "Marketing",
+  "credits": 4,
+  "short": "Master SEO, social media, content strategy.",
+  "coverImage": "/images/marketing-cover.jpg",
+  "chapters": [
+    {
+      "title": "SEO Foundations",
+      "lessons": [
+        { "title": "How Search Works", "duration": 12 },
+        { "title": "Keyword Research", "duration": 16 }
+      ]
+    },
+    {
+      "title": "Social Media Strategy",
+      "lessons": [
+        { "title": "Content Planning", "duration": 18 },
+        { "title": "Analytics Basics", "duration": 20 }
+      ]
+    }
+  ]
+}</code></pre>
+            </div>
+
+            <div class="badge"><i class="ri-question-answer-line"></i> Lesson Quizzes JSON — example</div>
+            <div class="code-card">
+              <button class="copy-btn" data-copy="lesson-json">Copy</button>
+              <pre id="lesson-json"><code>{
+  "seo-foundations-how-search-works": [
+    {
+      "q": "What does SERP stand for?",
+      "choices": ["Search Engine Result Page", "Search Engine Ranking Position", "Search Entry Result Place"],
+      "answer": 1,
+      "feedbackOk": "Correct! It’s the ranking position.",
+      "feedbackNo": "SERP is the ranking position number."
+    }
+  ],
+  "seo-foundations-keyword-research": [
+    { "q": "Which metric indicates how often a term is searched?",
+      "choices": ["CPC", "Search Volume", "CTR"],
+      "answer": 1
+    }
+  ]
+}</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Troubleshooting -->
+    <div id="troubleshoot" class="section">
+      <div class="h"><i class="ri-tools-line"></i> Troubleshooting</div>
+      <div class="gcard row">
+        <details>
+          <summary><i class="ri-error-warning-line"></i> “Unexpected token &lt;” when loading <code>app.js</code> or JSON</summary>
+          <div class="row mini" style="margin-top:8px">
+            <div>It means the browser fetched an <b>HTML document</b> instead of JavaScript/JSON (often a 404 page). Fix the path:</div>
             <ul>
-              <li><em>Outline JSON URL</em> (host on Hosting: <code>/data/...json</code>)</li>
-              <li><em>Lesson Quizzes JSON URL</em> (keys = "<code>chapter-title-lesson-title</code>" in lowercase hyphen)</li>
+              <li>Confirm your script tag is <code>&lt;script src="/app.js" defer&gt;&lt;/script&gt;</code> and the file exists on Hosting.</li>
+              <li>Open your JSON URL directly: it must show raw JSON, not an HTML error page.</li>
             </ul>
-          </li>
-          <li><strong>Paid course</strong>: set <em>price</em> &gt; 0. On enroll, a demo checkout runs then auto-enrolls.</li>
-          <li><strong>Finals</strong>: Assessments → New Final. Define <em>items</em> as JSON (supports feedback) and <em>passScore</em>.</li>
-          <li><strong>Chat</strong>:
-            <ul>
-              <li>Course-wide: select a course and chat with enrolled students.</li>
-              <li>Direct (DM): switch mode to “Direct”; list shows course participants or all users.</li>
-              <li>Group/Batch: set a batch id (e.g., <code>Diploma-2025</code>) and chat with that group.</li>
-            </ul>
-          </li>
-          <li><strong>Profiles</strong>: Users update their own details and upload Avatar/Signature. Admin sees them in Admin → Users.</li>
-          <li><strong>Outline / lesson quizzes hosting</strong>: Put JSON under <code>public/data</code> and deploy. Paste the URLs in the course form.</li>
-        </ol>
-      </div></div>
-    `;
-  }
+          </div>
+        </details>
+        <details>
+          <summary><i class="ri-lock-2-line"></i> Permission / rules errors</summary>
+          <div class="mini">Check Firestore rules for writes to <code>courses</code>, <code>messages</code>, <code>announcements</code>, etc. Admin actions require rules that authorize admins.</div>
+        </details>
+      </div>
+    </div>
+
+  </section>`;
+}
 
   function vSettings(){
     return `
@@ -663,18 +927,19 @@
   }
 
   function wireRoute(){
-    switch(state.route){
-      case 'courses': wireCourses(); break;
-      case 'learning': wireLearning(); break;
-      case 'assessments': wireAssessments(); break;
-      case 'chat': wireChat(); break;
-      case 'tasks': wireTasks(); break;
-      case 'profile': wireProfile(); break;
-      case 'admin': wireAdmin(); break;
-      case 'settings': break;
-      case 'dashboard': wireAnnouncements(); break;
-    }
+  switch(state.route){
+    case 'courses': wireCourses(); break;
+    case 'learning': wireLearning(); break;
+    case 'assessments': wireAssessments(); break;
+    case 'chat': wireChat(); break;
+    case 'tasks': wireTasks(); break;
+    case 'profile': wireProfile(); break;
+    case 'admin': wireAdmin(); break;
+    case 'guide': wireGuide(); break;     // ← add this line
+    case 'settings': break;
+    case 'dashboard': wireAnnouncements(); break;
   }
+}
 
   // ---- Login
   function wireLogin(){
@@ -1253,6 +1518,40 @@
       }
     });
   }
+
+  // ---- Guide
+function wireGuide(){
+  const root = document.querySelector('.guide');
+  if (!root || root.__wired) return;
+  root.__wired = true;
+
+  // smooth-scroll for in-page anchors
+  root.querySelectorAll('.nav a[href^="#"]').forEach(a=>{
+    a.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const id = a.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+    });
+  });
+
+  // copy buttons for code samples
+  root.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.copy-btn');
+    if(!btn) return;
+    const target = btn.getAttribute('data-copy');
+    const pre = target ? document.getElementById(target) : btn.closest('.code-card')?.querySelector('pre');
+    const text = pre ? pre.innerText : '';
+    if(!text) return;
+    (navigator.clipboard?.writeText(text) || Promise.reject()).then(()=>{
+      const old = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(()=> btn.textContent = old || 'Copy', 1200);
+      // optional toast if you have #notification in your HTML
+      try { notify('Copied to clipboard'); } catch {}
+    }).catch(()=>{ /* ignore */ });
+  });
+}
 
   // ---- Transcript
   function buildTranscript(uid){
