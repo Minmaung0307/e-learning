@@ -2,87 +2,87 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() { return request.auth != null; }
-    function myUid() { return request.auth.uid; }
-    function myRole() {
-      return get(/databases/$(database)/documents/roles/$(myUid())).data.role;
+    function isSignedIn() {
+      return request.auth != null;
     }
-    function isAdmin() { return signedIn() && myRole() == "admin"; }
-    function isInstructor() { return signedIn() && myRole() == "instructor"; }
-    function canTeach() { return isAdmin() || isInstructor(); }
+    function roleOf(uid) {
+      return get(/databases/$(database)/documents/roles/$(uid)).data.role;
+    }
+    function isAdmin() {
+      return isSignedIn() && roleOf(request.auth.uid) == 'admin';
+    }
+    function isInstructor() {
+      return isSignedIn() && (roleOf(request.auth.uid) == 'instructor' || roleOf(request.auth.uid) == 'admin');
+    }
+    function isOwner(resourceData) {
+      return isSignedIn() && resourceData.ownerUid == request.auth.uid;
+    }
 
-    /* ROLES (doc id = uid) */
+    // roles — only admins can write; anyone signed in can read (optional)
     match /roles/{uid} {
-      allow read: if signedIn();
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
-    /* PROFILES (doc id = uid) */
+    // profiles — user can read all; write only own; admins can write all
     match /profiles/{uid} {
-      allow read: if signedIn();
-      allow create: if signedIn() && uid == myUid();
-      allow update, delete: if (signedIn() && uid == myUid()) || isAdmin();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update, delete: if (isSignedIn() && request.auth.uid == uid) || isAdmin();
     }
 
-    /* COURSES */
-    match /courses/{courseId} {
-      allow read: if true;
-      allow create: if canTeach();
-      allow update, delete: if canTeach();
+    // courses — read for all signed-in; create by instructor/admin; update by owner or instructor/admin
+    match /courses/{id} {
+      allow read: if isSignedIn();
+      allow create: if isInstructor();
+      allow update: if isInstructor() || isOwner(resource.data);
+      allow delete: if isInstructor() || isOwner(resource.data);
     }
 
-    /* ENROLLMENTS */
-    match /enrollments/{enrollId} {
-      allow read: if signedIn() && (resource.data.uid == myUid() || canTeach());
-      allow create: if signedIn() && (request.resource.data.uid == myUid() || canTeach());
-      allow delete: if signedIn() && (resource.data.uid == myUid() || isAdmin());
+    // enrollments — user creates/reads own; admin/instructor can read all
+    match /enrollments/{id} {
+      allow read: if isSignedIn() && (isInstructor() || request.resource == null || resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    /* QUIZZES (finals too) */
-    match /quizzes/{quizId} {
-      allow read: if signedIn();
-      allow create, update, delete: if canTeach();
+    // quizzes — instructors/admins manage; everyone can read to take
+    match /quizzes/{id} {
+      allow read: if isSignedIn();
+      allow create: if isInstructor();
+      allow update, delete: if isInstructor() || isOwner(resource.data);
     }
 
-    /* ATTEMPTS */
-    match /attempts/{attemptId} {
-      allow read: if signedIn() && (resource.data.uid == myUid() || canTeach());
-      allow create: if signedIn() && request.resource.data.uid == myUid();
-      allow update: if false;          // immutable
-      allow delete: if isAdmin();
+    // attempts — user writes own attempt; reads own; admin/instructor can read
+    match /attempts/{id} {
+      allow read: if isSignedIn() && (isInstructor() || resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    /* MESSAGES (chat + announcements separated below) */
+    // tasks — private per user
+    match /tasks/{id} {
+      allow read, update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // messages — chat
     match /messages/{id} {
-      allow read: if signedIn();
-      allow create: if signedIn();
-      allow update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    /* TASKS  ✅ FIXED read rule */
-    match /tasks/{taskId} {
-      allow read: if signedIn() && resource.data.uid == myUid();
-      allow create: if signedIn() && request.resource.data.uid == myUid();
-      allow update, delete: if signedIn() && resource.data.uid == myUid();
-    }
-
-    /* NOTES  ✅ FIXED read rule */
-    match /notes/{noteId} {
-      allow read: if signedIn() && resource.data.uid == myUid();
-      allow create: if signedIn() && request.resource.data.uid == myUid();
-      allow update, delete: if signedIn() && resource.data.uid == myUid();
-    }
-
-    /* ANNOUNCEMENTS */
-    match /announcements/{aid} {
-      allow read: if true;
+    // announcements — admins only write, all signed-in can read
+    match /announcements/{id} {
+      allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }
 
-    /* PAYMENTS (demo) */
-    match /payments/{pid} {
-      allow read: if signedIn() && (resource.data.uid == myUid() || isAdmin());
-      allow create: if signedIn() && request.resource.data.uid == myUid();
+    // payments (demo)
+    match /payments/{id} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if isAdmin();
     }
   }

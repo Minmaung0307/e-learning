@@ -1,0 +1,9 @@
+{
+  "seo-basics-on-page-seo": [
+    {"q":"What does SEO stand for?","choices":["Search Easy Operation","Search Engine Optimization","Site Engine Optimization"],"answer":1},
+    {"q":"Ideal meta title length?","choices":["10-20 chars","50-60 chars","100+ chars"],"answer":1}
+  ],
+  "social-media-paid-ads": [
+    {"q":"Which platform supports lookalike audiences?","choices":["MySpace","Facebook","None"],"answer":1}
+  ]
+}

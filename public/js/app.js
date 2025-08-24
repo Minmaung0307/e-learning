@@ -2,8 +2,20 @@
 (() => {
   'use strict';
 
+  // ---- DOM ready helper (ensures #root/body exist before rendering) ----
+  function onReady(fn){
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', fn, { once: true });
+    } else {
+      fn();
+    }
+  }
+
   // ---- Firebase ----
-  if (!window.firebase || !window.__FIREBASE_CONFIG) console.error('Firebase SDK or config missing');
+  if (!window.firebase || !window.__FIREBASE_CONFIG) {
+    console.error('Firebase SDK or config missing');
+    return; // hard stop so we don't throw later
+  }
   firebase.initializeApp(window.__FIREBASE_CONFIG);
   const auth = firebase.auth();
   const db   = firebase.firestore();
@@ -21,6 +33,9 @@
     myEnrolledIds:new Set(), unsub:[], _unsubChat:null
   };
 
+  // track if we've attached a global click handler already (prevents duplicates across re-renders)
+  let _docClickBound = false;
+
   // ---- Utils ----
   const $=(s,r=document)=>r.querySelector(s);
   const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
@@ -34,16 +49,62 @@
 
   const money = x => (x===0 ? 'Free' : `$${Number(x).toFixed(2)}`);
 
+  // ---- Chat helpers (DM roster)
+  function profileKey(p){ return p.uid || p.id; }
+
+  function getCourseRecipients(cid){
+    const me = auth.currentUser?.uid;
+    const course = state.courses?.find(c => c.id === cid);
+    const byId = new Map((state.profiles||[]).map(p => [profileKey(p), p]));
+
+    let ids = Array.isArray(course?.participants) && course.participants.length
+      ? course.participants
+      : (state.profiles||[]).map(profileKey);
+
+    const list = ids
+      .filter(id => id && id !== me)
+      .map(id => byId.get(id))
+      .filter(Boolean)
+      .sort((a,b) => (a.name||a.email||'').localeCompare(b.name||b.email||''));
+
+    return list;
+  }
+
+  function populateDmUserSelect(){
+    const sel = document.getElementById('chat-dm');
+    if (!sel) return;
+    const cid = document.getElementById('chat-course')?.value || '';
+    const users = getCourseRecipients(cid);
+
+    sel.innerHTML = '<option value="">Select user…</option>' +
+      users.map(p => `<option value="${profileKey(p)}">${p.name || p.email}</option>`).join('');
+  }
+
   // ---- Theme (instant) ----
   function applyTheme(){
+    if (!document.body) return; // guard when script runs before body exists
     document.body.classList.remove('theme-sunrise','theme-dark','theme-light','font-small','font-medium','font-large');
     document.body.classList.add(`theme-${state.theme.palette}`, `font-${state.theme.font}`);
   }
-  applyTheme();
+  onReady(applyTheme);
+
+  // ---- Modal + Sidebar helpers (placed early to avoid any hoist/init surprises) ----
+  function openModal(id){ $('#'+id)?.classList.add('active'); }
+  function closeModal(id){ $('#'+id)?.classList.remove('active'); }
+  const closeSidebar=()=>{ document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
 
   // ---- Router / Layout ----
   const routes=['dashboard','courses','learning','assessments','chat','tasks','profile','admin','guide','settings','search'];
-  function go(route){ state.route = routes.includes(route)?route:'dashboard'; closeSidebar(); render(); }
+  function go(route){
+    const prev = state.route;
+    state.route = routes.includes(route)?route:'dashboard';
+
+    // cleanup chat listener when leaving chat (prevents leaks/duplicates)
+    if (prev === 'chat' && state._unsubChat) { try{ state._unsubChat(); }catch{} state._unsubChat = null; }
+
+    closeSidebar();
+    render();
+  }
 
   function layout(content){
     return `
@@ -406,6 +467,27 @@
             </tbody></table>
           </div>
         </div></div>
+
+        <div class="card" style="grid-column:1/-1"><div class="card-body">
+          <h3 style="margin:0 0 8px 0">Course Roster Tools</h3>
+          <div class="grid cols-3">
+            <div>
+              <label class="muted">Course</label>
+              <select id="roster-course" class="input">
+                <option value="">Select course…</option>
+                ${state.courses.map(c=>`<option value="${c.id}">${c.title}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="muted">Actions</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn" id="btn-roster-sync"><i class="ri-user-add-line"></i> Sync from Enrollments</button>
+                <button class="btn ghost" id="btn-roster-view"><i class="ri-team-line"></i> View Roster</button>
+              </div>
+            </div>
+          </div>
+          <div id="roster-out" class="muted" style="margin-top:8px"></div>
+        </div></div>
       </div>
     `;
   }
@@ -423,10 +505,11 @@
           </li>
           <li><strong>Paid course</strong>: set <em>price</em> &gt; 0. On enroll, a demo checkout runs then auto-enrolls.</li>
           <li><strong>Finals</strong>: Assessments → New Final. Define <em>items</em> as JSON (supports feedback) and <em>passScore</em>.</li>
-          <li><strong>Contact students</strong>:
+          <li><strong>Chat</strong>:
             <ul>
-              <li>Course-wide chat: Chat → select course</li>
-              <li>Announcements (all users): Dashboard → New Announcement (Admins)</li>
+              <li>Course-wide: select a course and chat with enrolled students.</li>
+              <li>Direct (DM): switch mode to “Direct”; list shows course participants or all users.</li>
+              <li>Group/Batch: set a batch id (e.g., <code>Diploma-2025</code>) and chat with that group.</li>
             </ul>
           </li>
           <li><strong>Profiles</strong>: Users update their own details and upload Avatar/Signature. Admin sees them in Admin → Users.</li>
@@ -482,16 +565,32 @@
 
   // ---- Render / Shell ----
   function render(){
-    const root=$('#root');
-    if(!auth.currentUser){ root.innerHTML=vLogin(); wireLogin(); return; }
+    // If <body> isn’t ready yet, try again when DOM is ready
+    if (!document.body) { onReady(render); return; }
+
+    // Ensure #root exists even if the page forgot to include it
+    let root = document.getElementById('root');
+    if (!root) {
+      root = document.createElement('div');
+      root.id = 'root';
+      document.body.appendChild(root);
+    }
+
+    if(!auth.currentUser){
+      root.innerHTML=vLogin();
+      wireLogin();
+      return;
+    }
+
     root.innerHTML = layout( safeView(state.route) );
     wireShell(); wireRoute();
-    if(state.highlightId){ const el=document.getElementById(state.highlightId); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'});} }
+    if (state.route === 'chat') populateDmUserSelect();   // ensure DM list filled
+    if(state.highlightId){
+      const el=document.getElementById(state.highlightId);
+      if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); }
+      state.highlightId = null; // avoid re-highlighting after navigation
+    }
   }
-
-  function openModal(id){ $('#'+id)?.classList.add('active'); }
-  function closeModal(id){ $('#'+id)?.classList.remove('active'); }
-  const closeSidebar=()=>{ document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
 
   function wireShell(){
     $('#burger')?.addEventListener('click', ()=> {
@@ -500,10 +599,16 @@
     });
     $('#backdrop')?.addEventListener('click', closeSidebar);
     $('#brand')?.addEventListener('click', closeSidebar);
-    $('#main')?.addEventListener('click', closeSidebar);
+
+    // make dashboard "clickable cards" actually navigate
+    $('#main')?.addEventListener('click', (e)=>{
+      const goEl = e.target.closest?.('[data-go]');
+      if (goEl) { go(goEl.getAttribute('data-go')); return; }
+      closeSidebar();
+    });
 
     $('#side-nav')?.addEventListener('click', e=>{
-      const it=e.target.closest('.item[data-route]'); if(it){ go(it.getAttribute('data-route')); }
+      const it=e.target.closest?.('.item[data-route]'); if(it){ go(it.getAttribute('data-route')); }
     });
 
     $('#btnLogout')?.addEventListener('click', ()=> auth.signOut());
@@ -536,7 +641,18 @@
           });
         },120);
       });
-      document.addEventListener('click', e=>{ if(!results.contains(e.target) && e.target!==input) results.classList.remove('active'); });
+
+      // bind exactly once to avoid piling listeners across renders
+      if(!_docClickBound){
+        document.addEventListener('click', e=>{
+          try{
+            if(results && typeof results.contains==='function' && e.target!==input && !results.contains(e.target)){
+              results.classList.remove('active');
+            }
+          }catch(_e){}
+        });
+        _docClickBound = true;
+      }
     }
 
     // theme instant
@@ -616,7 +732,9 @@
           title:t, category:$('#c-category')?.value.trim(), credits:+($('#c-credits')?.value||0), price:+($('#c-price')?.value||0),
           short:$('#c-short')?.value.trim(), goals, coverImage:$('#c-cover')?.value.trim(),
           outlineUrl:$('#c-outlineUrl')?.value.trim(), quizzesUrl:$('#c-quizzesUrl')?.value.trim(),
-          ownerUid:auth.currentUser.uid, ownerEmail:auth.currentUser.email, createdAt:firebase.firestore.FieldValue.serverTimestamp()
+          ownerUid:auth.currentUser.uid, ownerEmail:auth.currentUser.email,
+          participants:[auth.currentUser.uid],
+          createdAt:firebase.firestore.FieldValue.serverTimestamp()
         };
         try{ await col('courses').add(obj); closeModal('m-modal'); notify('Saved'); }catch(e){ notify(e.message,'danger'); }
       };
@@ -625,9 +743,9 @@
     const sec=$('[data-sec="courses"]'); if(!sec||sec.__wired) return; sec.__wired=true;
 
     sec.addEventListener('click', async (e)=>{
-      const openBtn=e.target.closest('button[data-open]');
-      const editBtn=e.target.closest('button[data-edit]');
-      const delBtn =e.target.closest('button[data-del]');
+      const openBtn=e.target.closest?.('button[data-open]');
+      const editBtn=e.target.closest?.('button[data-edit]');
+      const delBtn =e.target.closest?.('button[data-del]');
       if(openBtn){
         const id=openBtn.getAttribute('data-open'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
         const c={id:snap.id, ...snap.data()};
@@ -650,11 +768,13 @@
 
         $('#enroll')?.addEventListener('click', async ()=>{
           if(c.price>0){
-            // demo checkout
             await col('payments').add({ uid:auth.currentUser.uid, courseId:c.id, amount:c.price, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
             notify('Demo payment successful');
           }
           await col('enrollments').add({ uid:auth.currentUser.uid, courseId:c.id, createdAt:firebase.firestore.FieldValue.serverTimestamp(), course:{id:c.id,title:c.title,category:c.category,credits:c.credits,coverImage:c.coverImage} });
+          try{
+            await doc('courses', c.id).set({ participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) }, { merge:true });
+          }catch(_e){ /* ignore permission errors */ }
           closeModal('m-modal'); notify('Enrolled');
         });
         $('#open-quiz')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
@@ -702,7 +822,7 @@
   // ---- Learning
   function wireLearning(){
     $('#main')?.addEventListener('click', async (e)=>{
-      const btn=e.target.closest('button[data-open-course]'); if(!btn) return;
+      const btn=e.target.closest?.('button[data-open-course]'); if(!btn) return;
       const id=btn.getAttribute('data-open-course'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
       const c={id:snap.id, ...snap.data()};
       $('#mm-title').textContent=c.title;
@@ -744,18 +864,17 @@
     const sec=$('[data-sec="quizzes"]'); if(!sec||sec.__wired){return;} sec.__wired=true;
 
     sec.addEventListener('click', async (e)=>{
-      const take=e.target.closest('button[data-take]'); const edit=e.target.closest('button[data-edit]');
+      const take=e.target.closest?.('button[data-take]'); const edit=e.target.closest?.('button[data-edit]');
       if(take){
         const id=take.getAttribute('data-take'); const snap=await doc('quizzes',id).get(); if(!snap.exists) return;
         const q={id:snap.id,...snap.data()};
         if(!isEnrolled(q.courseId) && state.role==='student') return notify('Enroll first','warn');
-        // render quiz with scrollable modal
         $('#mm-title').textContent=q.title;
-        $('#mm-body').innerHTML = q.items.map((it,idx)=>`
+        $('#mm-body').innerHTML = (q.items||[]).map((it,idx)=>`
           <div class="card"><div class="card-body">
             <div style="font-weight:700">Q${idx+1}. ${it.q}</div>
             <div style="margin-top:6px;display:grid;gap:6px">
-              ${it.choices.map((c,i)=>`
+              ${(it.choices||[]).map((c,i)=>`
                 <label style="display:flex;gap:8px;align-items:center">
                   <input type="radio" name="q${idx}" value="${i}"/> <span>${c}</span>
                 </label>`).join('')}
@@ -764,29 +883,32 @@
           </div></div>`).join('');
         $('#mm-foot').innerHTML=`<button class="btn" id="q-submit"><i class="ri-checkbox-circle-line"></i> Submit</button>`;
         openModal('m-modal');
-        // allow full scroll
-        $('#mm-body').scrollTop = 0;
+        const bodyEl = $('#mm-body');
 
-        // instant feedback on change
-        q.items.forEach((it,idx)=>{
-          $('#mm-body').addEventListener('change', (ev)=>{
-            const t = ev.target;
-            if(t && t.name===`q${idx}`){
-              const val=+t.value;
-              const fb=$(`#fb-${idx}`);
-              if(val===+it.answer){ fb.textContent = it.feedbackOk||'Correct'; fb.style.color='var(--ok)'; }
-              else { fb.textContent = it.feedbackNo||'Incorrect'; fb.style.color='var(--danger)'; }
-            }
-          });
-        });
+        // Single delegated change handler (prevents stacking multiple listeners)
+        bodyEl.onchange = (ev)=>{
+          const t = ev.target;
+          if(!t?.name?.startsWith('q')) return;
+          const idx = Number(t.name.slice(1));
+          const it = (q.items||[])[idx];
+          if(!it) return;
+          const val = +t.value;
+          const fb = $(`#fb-${idx}`);
+          if(!fb) return;
+          if(val===+it.answer){ fb.textContent = it.feedbackOk||'Correct'; fb.style.color='var(--ok)'; }
+          else { fb.textContent = it.feedbackNo||'Incorrect'; fb.style.color='var(--danger)'; }
+        };
+
+        bodyEl.scrollTop = 0;
 
         $('#q-submit').onclick=async ()=>{
           let correct=0;
-          q.items.forEach((it,idx)=>{
+          (q.items||[]).forEach((it,idx)=>{
             const v=(document.querySelector(`input[name="q${idx}"]:checked`)?.value)||'-1';
             if(+v===+it.answer) correct++;
           });
-          const score = Math.round((correct/q.items.length)*100);
+          const total = (q.items||[]).length || 1;
+          const score = Math.round((correct/total)*100);
           await col('attempts').add({
             uid:auth.currentUser.uid, email:auth.currentUser.email, quizId:q.id, quizTitle:q.title, courseId:q.courseId, score,
             createdAt:firebase.firestore.FieldValue.serverTimestamp()
@@ -817,82 +939,88 @@
 
   // ---- Chat
   function wireChat(){
-  const box=$('#chat-box');
-  const modeSel=$('#chat-mode');
-  const courseSel=$('#chat-course');
-  const dmSel=$('#chat-dm');
-  const groupInp=$('#chat-group');
-  const input=$('#chat-input');
-  const send=$('#chat-send');
+    const box=$('#chat-box');
+    const modeSel=$('#chat-mode');
+    const courseSel=$('#chat-course');
+    const dmSel=$('#chat-dm');
+    const groupInp=$('#chat-group');
+    const input=$('#chat-input');
+    const send=$('#chat-send');
 
-  let unsub=null;
+    populateDmUserSelect();
 
-  const uiByMode=()=>{
-    const m=modeSel.value;
-    courseSel.classList.toggle('hidden', m!=='course');
-    dmSel.classList.toggle('hidden', m!=='dm');
-    groupInp.classList.toggle('hidden', m!=='group');
-  };
-  uiByMode();
-  modeSel?.addEventListener('change', ()=>{ uiByMode(); sub(); });
+    let unsub=null;
 
-  function channelKey(){
-    const m=modeSel.value;
-    if(m==='course'){
-      const c=courseSel.value; return c?`course_${c}`:'';
-    } else if(m==='dm'){
-      const peer=dmSel.value; if(!peer) return '';
-      const pair=[auth.currentUser.uid, peer].sort(); return `dm_${pair[0]}_${pair[1]}`;
-    } else {
-      const gid=(groupInp.value||'').trim(); return gid?`group_${gid}`:'';
-    }
-  }
-
-  function paint(msgs){
-    box.innerHTML = msgs.sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0))
-      .map(m=>`
-        <div style="margin-bottom:8px">
-          <div style="font-weight:600">${m.name||m.email||'User'} <span class="muted" style="font-size:12px">• ${new Date(m.createdAt?.toDate?.()||m.createdAt||Date.now()).toLocaleTimeString()}</span></div>
-          <div>${(m.text||'').replace(/</g,'&lt;')}</div>
-        </div>`).join('');
-    box.scrollTop=box.scrollHeight;
-  }
-
-  function sub(){
-    if(unsub){ try{unsub()}catch{} unsub=null; }
-    const ch = channelKey(); if(!ch){ box.innerHTML='<div class="muted">Pick a channel…</div>'; return; }
-    unsub = col('messages').where('channel','==',ch).onSnapshot(
-      s=> paint(s.docs.map(d=>({id:d.id,...d.data()}))),
-      err=> console.warn('chat listener error:', err)
-    );
-  }
-
-  courseSel?.addEventListener('change', sub);
-  dmSel?.addEventListener('change', sub);
-  groupInp?.addEventListener('input', ()=>{ /* debounce not needed */ });
-
-  send?.addEventListener('click', async ()=>{
-    const ch=channelKey(); const text=input.value.trim(); if(!ch||!text) return;
-    const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {};
-    const payload = {
-      channel: ch,
-      type: modeSel.value,          // 'course' | 'dm' | 'group'
-      uid: auth.currentUser.uid,
-      email: auth.currentUser.email,
-      name: me.name||'',
-      text,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    const uiByMode=()=>{
+      const m=modeSel.value;
+      courseSel.classList.toggle('hidden', m!=='course');
+      dmSel.classList.toggle('hidden', m!=='dm');
+      groupInp.classList.toggle('hidden', m!=='group');
+      if (m==='dm') populateDmUserSelect();
     };
-    if(modeSel.value==='course') payload.courseId = courseSel.value;
-    if(modeSel.value==='dm') payload.peerUid = dmSel.value;
-    if(modeSel.value==='group') payload.groupId = groupInp.value.trim();
+    uiByMode();
+    modeSel?.addEventListener('change', ()=>{ uiByMode(); sub(); });
 
-    await col('messages').add(payload);
-    input.value='';
-  });
+    function channelKey(){
+      const m=modeSel.value;
+      if(m==='course'){
+        const c=courseSel.value; return c?`course_${c}`:'';
+      } else if(m==='dm'){
+        const peer=dmSel.value; if(!peer) return '';
+        const pair=[auth.currentUser.uid, peer].sort(); return `dm_${pair[0]}_${pair[1]}`;
+      } else {
+        const gid=(groupInp.value||'').trim(); return gid?`group_${gid}`:'';
+      }
+    }
 
-  sub();
-}
+    function paint(msgs){
+      box.innerHTML = msgs.sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0))
+        .map(m=>`
+          <div style="margin-bottom:8px">
+            <div style="font-weight:600">${m.name||m.email||'User'} <span class="muted" style="font-size:12px">• ${new Date(m.createdAt?.toDate?.()||m.createdAt||Date.now()).toLocaleTimeString()}</span></div>
+            <div>${(m.text||'').replace(/</g,'&lt;')}</div>
+          </div>`).join('');
+      box.scrollTop=box.scrollHeight;
+    }
+
+    function sub(){
+      if(unsub){ try{unsub()}catch{} unsub=null; }
+      if(state._unsubChat){ try{ state._unsubChat(); }catch{} state._unsubChat=null; }
+      const ch = channelKey(); if(!ch){ box.innerHTML='<div class="muted">Pick a channel…</div>'; return; }
+      unsub = col('messages').where('channel','==',ch).onSnapshot(
+        s=> paint(s.docs.map(d=>({id:d.id,...d.data()}))),
+        err=> console.warn('chat listener error:', err)
+      );
+      state._unsubChat = unsub;
+    }
+
+    courseSel?.addEventListener('change', ()=>{ populateDmUserSelect(); sub(); });
+    dmSel?.addEventListener('change', sub);
+    groupInp?.addEventListener('input', sub);          // refresh on group id typing
+    groupInp?.addEventListener('keydown', (e)=>{ if(e.key==='Enter') sub(); });
+
+    send?.addEventListener('click', async ()=>{
+      const ch=channelKey(); const text=input.value.trim(); if(!ch||!text) return;
+      const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {};
+      const payload = {
+        channel: ch,
+        type: modeSel.value,
+        uid: auth.currentUser.uid,
+        email: auth.currentUser.email,
+        name: me.name||'',
+        text,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      if(modeSel.value==='course') payload.courseId = courseSel.value;
+      if(modeSel.value==='dm') payload.peerUid = dmSel.value;
+      if(modeSel.value==='group') payload.groupId = groupInp.value.trim();
+
+      await col('messages').add(payload);
+      input.value='';
+    });
+
+    sub();
+  }
 
   // ---- Tasks
   function wireTasks(){
@@ -910,7 +1038,7 @@
     });
 
     root.addEventListener('click', async (e)=>{
-      const btn=e.target.closest('button'); if(!btn) return;
+      const btn=e.target.closest?.('button'); if(!btn) return;
       const id=btn.getAttribute('data-edit')||btn.getAttribute('data-del'); if(!id) return;
       if(btn.hasAttribute('data-edit')){
         const snap=await doc('tasks',id).get(); if(!snap.exists) return;
@@ -1000,14 +1128,13 @@
 
     // certificate
     $('#main').addEventListener('click', async (e)=>{
-      const b=e.target.closest('button[data-cert]'); if(!b) return;
+      const b=e.target.closest?.('button[data-cert]'); if(!b) return;
       const courseId=b.getAttribute('data-cert');
       const course=state.courses.find(c=>c.id===courseId)||{};
       const p=state.profiles.find(x=>x.uid===auth.currentUser?.uid)||{name:auth.currentUser.email};
 
       const canvas=document.createElement('canvas'); canvas.width=1400; canvas.height=1000;
       const ctx=canvas.getContext('2d');
-      // background + border
       ctx.fillStyle='#0b0d10'; ctx.fillRect(0,0,1400,1000);
       ctx.strokeStyle='#7ad3ff'; ctx.lineWidth=8; ctx.strokeRect(60,60,1280,880);
       ctx.fillStyle='#fff'; ctx.font='bold 60px Inter'; ctx.fillText('Certificate of Completion', 340, 240);
@@ -1018,14 +1145,10 @@
       const id = 'LH-' + (courseId||'xxxx').slice(0,6).toUpperCase() + '-' + (auth.currentUser.uid||'user').slice(0,6).toUpperCase();
       ctx.fillText(`Certificate ID: ${id}`, 340, 470);
       ctx.fillText(`Date: ${new Date().toLocaleDateString()}`, 340, 520);
-      // signature
       if(p.signature){
-        const img=new Image(); img.crossOrigin='anonymous'; img.onload=()=>{
-          ctx.drawImage(img, 980, 540, 260, 80);
-          finish(); };
+        const img=new Image(); img.crossOrigin='anonymous'; img.onload=()=>{ ctx.drawImage(img, 980, 540, 260, 80); finish(); };
         img.src=p.signature;
       } else { finish(); }
-
       function finish(){
         ctx.fillStyle='#fff'; ctx.font='20px Inter'; ctx.fillText('Authorized Signature', 1000, 640);
         const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`certificate_${course.title||courseId}.png`; a.click();
@@ -1042,8 +1165,9 @@
       notify('Role saved');
     });
 
+    // Admin edit/del profile
     $('#main')?.addEventListener('click', async (e)=>{
-      const ed=e.target.closest('button[data-admin-edit]'); const del=e.target.closest('button[data-admin-del]');
+      const ed=e.target.closest?.('button[data-admin-edit]'); const del=e.target.closest?.('button[data-admin-del]');
       if(ed){
         const uid=ed.getAttribute('data-admin-edit'); const snap=await doc('profiles',uid).get(); if(!snap.exists) return;
         const p={id:snap.id,...snap.data()};
@@ -1065,6 +1189,34 @@
         notify('Profile deleted');
       }
     });
+
+    // ---- Roster tools
+    $('#btn-roster-sync')?.addEventListener('click', async ()=>{
+      const cid=$('#roster-course')?.value;
+      if(!cid) return notify('Pick a course','warn');
+      try{
+        const [enrSnap, cSnap] = await Promise.all([
+          col('enrollments').where('courseId','==',cid).get(),
+          doc('courses',cid).get()
+        ]);
+        const uids = new Set(enrSnap.docs.map(d=>d.data().uid));
+        const c = cSnap.data()||{};
+        if(c.ownerUid) uids.add(c.ownerUid);
+        await doc('courses',cid).set({ participants: Array.from(uids) }, { merge:true });
+        notify('Roster synced');
+        $('#roster-out').textContent = `Participants: ${Array.from(uids).join(', ')}`;
+      }catch(e){
+        notify(e?.message||'Sync failed','danger');
+      }
+    });
+
+    $('#btn-roster-view')?.addEventListener('click', async ()=>{
+      const cid=$('#roster-course')?.value;
+      if(!cid) return notify('Pick a course','warn');
+      const s=await doc('courses',cid).get();
+      const arr = s.data()?.participants||[];
+      $('#roster-out').textContent = `Participants: ${arr.join(', ') || '—'}`;
+    });
   }
 
   // ---- Announcements (Dashboard)
@@ -1084,7 +1236,7 @@
     });
 
     $('#ann-list')?.addEventListener('click', async (e)=>{
-      const ed=e.target.closest('button[data-edit-ann]'); const del=e.target.closest('button[data-del-ann]');
+      const ed=e.target.closest?.('button[data-edit-ann]'); const del=e.target.closest?.('button[data-del-ann]');
       if(ed){
         const id=ed.getAttribute('data-edit-ann'); const s=await doc('announcements',id).get(); if(!s.exists) return;
         const a={id:s.id,...s.data()};
@@ -1120,9 +1272,14 @@
     clearUnsubs();
     const uid=auth.currentUser.uid;
 
+    // PROFILES — refresh Chat route too
     state.unsub.push(
       col('profiles').onSnapshot(
-        s => { state.profiles = s.docs.map(d=>({id:d.id, ...d.data()})); if(['profile','admin'].includes(state.route)) render(); },
+        s => {
+          state.profiles = s.docs.map(d=>({id:d.id, ...d.data()}));
+          if (state.route === 'chat') populateDmUserSelect();
+          if (['profile','admin','chat'].includes(state.route)) render();
+        },
         err => console.warn('profiles listener error:', err)
       )
     );
@@ -1137,7 +1294,11 @@
 
     state.unsub.push(
       col('courses').orderBy('createdAt','desc').onSnapshot(
-        s => { state.courses = s.docs.map(d=>({id:d.id, ...d.data()})); if(['dashboard','courses','learning','assessments','chat'].includes(state.route)) render(); },
+        s => {
+          state.courses = s.docs.map(d=>({id:d.id, ...d.data()}));
+          if (state.route === 'chat') populateDmUserSelect();
+          if (['dashboard','courses','learning','assessments','chat'].includes(state.route)) render();
+        },
         err => console.warn('courses listener error:', err)
       )
     );
@@ -1184,19 +1345,25 @@
   // ---- Auth
   auth.onAuthStateChanged(async (user)=>{
     state.user=user||null;
-    if(!user){ clearUnsubs(); render(); return; }
+    if(!user){
+      clearUnsubs();
+      if(state._unsubChat){ try{state._unsubChat();}catch{} state._unsubChat=null; }
+      onReady(render);
+      return;
+    }
     state.role = await resolveRole(user.uid);
     try{
       const p=await doc('profiles',user.uid).get();
       if(!p.exists) await doc('profiles',user.uid).set({ uid:user.uid, email:user.email, name:'', bio:'', portfolio:'', role:state.role, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
       else await doc('profiles',user.uid).set({ role: state.role },{merge:true});
     }catch{}
-    applyTheme();
-    sync(); render();
+    onReady(applyTheme);
+    sync();
+    onReady(render);
   });
 
   // ---- Boot
-  render();
+  onReady(render);
 
   // ---- Seed paid/free sample courses (admin could run in console) ----
   window.seedDemoCourses = async function(){
@@ -1206,7 +1373,7 @@
       {title:'Modern Web Bootcamp',category:'CS',credits:5,price:0,short:'HTML, CSS, JS, and tooling.',goals:['Responsive sites','Deploy to Hosting','APIs basics'],coverImage:'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&q=80'}
     ];
     for(const c of list){
-      await col('courses').add({...c, ownerUid:u.uid, ownerEmail:u.email, createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+      await col('courses').add({...c, ownerUid:u.uid, ownerEmail:u.email, participants:[u.uid], createdAt:firebase.firestore.FieldValue.serverTimestamp()});
     }
     alert('Demo courses added');
   };

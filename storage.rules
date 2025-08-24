@@ -1,24 +1,23 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function isSignedIn() { return request.auth != null; }
-    function myUid() { return request.auth.uid; }
+    function isSignedIn(){ return request.auth != null; }
 
+    // Avatars: users can read all (public profile), write only their own path
     match /avatars/{uid}/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn() && uid == myUid() && request.resource.contentType.matches('image/.*');
+      allow write: if isSignedIn() && request.auth.uid == uid;
     }
 
+    // Signatures: readable by signed-in users; write only own path
     match /signatures/{uid}/{fileName} {
-      allow read: if true;
-      allow write: if isSignedIn() && uid == myUid() && request.resource.contentType.matches('image/.*');
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == uid;
     }
 
-    match /courseImages/{courseId}/{fileName} {
-      allow read: if true;
-      allow write: if isSignedIn() && request.resource.contentType.matches('image/.*');
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
-
-    match /{allPaths=**} { allow read, write: if false; }
   }
 }

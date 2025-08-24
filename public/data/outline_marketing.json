@@ -1,0 +1,13 @@
+{
+  "title": "Advanced Digital Marketing",
+  "chapters": [
+    { "title": "SEO Basics", "lessons": [
+      {"title": "On-page SEO", "content": "…"},
+      {"title": "Off-page SEO", "content": "…"}
+    ]},
+    { "title": "Social Media", "lessons": [
+      {"title": "Organic Growth", "content": "…"},
+      {"title": "Paid Ads", "content": "…"}
+    ]}
+  ]
+}
