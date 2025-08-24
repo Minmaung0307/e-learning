@@ -2,19 +2,34 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() { return request.auth != null; }
+    function isSelf(uid){ return signedIn() && request.auth.uid == uid; }
+    function isAdmin(){
+      return signedIn() &&
+        get(/databases/(default)/documents/roles/$(request.auth.uid)).data.role == "admin";
+    }
 
+    // avatars/{uid}/filename
     match /avatars/{uid}/{file} {
-      allow read: if signedIn();
-      allow write: if signedIn() && request.auth.uid == uid;
+      allow read: if true;
+      allow write: if isSelf(uid) || isAdmin();
     }
 
+    // signatures/{uid}/filename
     match /signatures/{uid}/{file} {
-      allow read: if signedIn();
-      allow write: if signedIn() && request.auth.uid == uid;
+      allow read: if true;
+      allow write: if isSelf(uid) || isAdmin();
     }
 
+    // org/signature_*.png
+    match /org/{file} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Default deny
     match /{allPaths=**} {
-      allow read, write: if signedIn();
+      allow read: if false;
+      allow write: if false;
     }
   }
 }
