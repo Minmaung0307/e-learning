@@ -2,99 +2,84 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function myUid() {
-      return request.auth.uid;
-    }
-
+    function signedIn() { return request.auth != null; }
+    function myUid() { return request.auth.uid; }
     function myRole() {
       return get(/databases/$(database)/documents/roles/$(myUid())).data.role;
     }
+    function isAdmin() { return signedIn() && myRole() == "admin"; }
+    function isInstructor() { return signedIn() && myRole() == "instructor"; }
+    function canTeach() { return isAdmin() || isInstructor(); }
 
-    function isAdmin() {
-      return signedIn() && myRole() == "admin";
-    }
-
-    function isInstructor() {
-      return signedIn() && myRole() == "instructor";
-    }
-
-    function canTeach() {
-      return isAdmin() || isInstructor();
-    }
-
-    /* -------- ROLES (doc id = uid) -------- */
+    /* ROLES (doc id = uid) */
     match /roles/{uid} {
       allow read: if signedIn();
-      // Only admins can create/update/delete any roles.
       allow create, update, delete: if isAdmin();
     }
 
-    /* -------- PROFILES (doc id = uid) -------- */
+    /* PROFILES (doc id = uid) */
     match /profiles/{uid} {
       allow read: if signedIn();
       allow create: if signedIn() && uid == myUid();
       allow update, delete: if (signedIn() && uid == myUid()) || isAdmin();
     }
 
-    /* -------- COURSES -------- */
+    /* COURSES */
     match /courses/{courseId} {
       allow read: if true;
       allow create: if canTeach();
       allow update, delete: if canTeach();
     }
 
-    /* -------- ENROLLMENTS -------- */
+    /* ENROLLMENTS */
     match /enrollments/{enrollId} {
       allow read: if signedIn() && (resource.data.uid == myUid() || canTeach());
       allow create: if signedIn() && (request.resource.data.uid == myUid() || canTeach());
       allow delete: if signedIn() && (resource.data.uid == myUid() || isAdmin());
     }
 
-    /* -------- QUIZZES (finals too) -------- */
+    /* QUIZZES (finals too) */
     match /quizzes/{quizId} {
       allow read: if signedIn();
       allow create, update, delete: if canTeach();
     }
 
-    /* -------- ATTEMPTS -------- */
+    /* ATTEMPTS */
     match /attempts/{attemptId} {
       allow read: if signedIn() && (resource.data.uid == myUid() || canTeach());
       allow create: if signedIn() && request.resource.data.uid == myUid();
+      allow update: if false;          // immutable
       allow delete: if isAdmin();
-      // Immutable: no update
-      allow update: if false;
     }
 
-    /* -------- MESSAGES (chat / announcements separated) -------- */
+    /* MESSAGES (chat + announcements separated below) */
     match /messages/{id} {
       allow read: if signedIn();
       allow create: if signedIn();
       allow update, delete: if isAdmin();
     }
 
-    /* -------- TASKS -------- */
+    /* TASKS  ✅ FIXED read rule */
     match /tasks/{taskId} {
-      allow read, create: if signedIn() && request.resource.data.uid == myUid();
+      allow read: if signedIn() && resource.data.uid == myUid();
+      allow create: if signedIn() && request.resource.data.uid == myUid();
       allow update, delete: if signedIn() && resource.data.uid == myUid();
     }
 
-    /* -------- NOTES -------- */
+    /* NOTES  ✅ FIXED read rule */
     match /notes/{noteId} {
-      allow read, create: if signedIn() && request.resource.data.uid == myUid();
+      allow read: if signedIn() && resource.data.uid == myUid();
+      allow create: if signedIn() && request.resource.data.uid == myUid();
       allow update, delete: if signedIn() && resource.data.uid == myUid();
     }
 
-    /* -------- ANNOUNCEMENTS -------- */
+    /* ANNOUNCEMENTS */
     match /announcements/{aid} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 
-    /* -------- PAYMENTS (demo) -------- */
+    /* PAYMENTS (demo) */
     match /payments/{pid} {
       allow read: if signedIn() && (resource.data.uid == myUid() || isAdmin());
       allow create: if signedIn() && request.resource.data.uid == myUid();

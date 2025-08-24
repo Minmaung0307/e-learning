@@ -278,21 +278,36 @@
   }
 
   const vChat=()=>`
-    <div class="card"><div class="card-body">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h3 style="margin:0">Course Chat</h3>
-        <select id="chat-course" class="input" style="max-width:320px">
+  <div class="card"><div class="card-body">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+      <h3 style="margin:0">Chat</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="chat-mode" class="input">
+          <option value="course">Course-wide</option>
+          <option value="dm">Direct</option>
+          <option value="group">Group/Batch</option>
+        </select>
+        <select id="chat-course" class="input">
           <option value="">Select course…</option>
           ${state.courses.map(c=>`<option value="${c.id}">${c.title}</option>`).join('')}
         </select>
+        <select id="chat-dm" class="input hidden">
+          <option value="">Select user…</option>
+          ${state.profiles.filter(p=>p.uid!==auth.currentUser?.uid).map(p=>`<option value="${p.uid}">${p.name||p.email}</option>`).join('')}
+        </select>
+        <input id="chat-group" class="input hidden" placeholder="Batch/Group id e.g. Diploma-2025"/>
       </div>
-      <div id="chat-box" style="margin-top:10px;max-height:55vh;overflow:auto;border:1px solid var(--border);border-radius:12px;padding:10px"></div>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <input id="chat-input" class="input" placeholder="Message…"/>
-        <button class="btn" id="chat-send"><i class="ri-send-plane-2-line"></i></button>
-      </div>
-      <div class="muted" style="font-size:12px;margin-top:6px">Only signed-in users can post. Instructors/Admins can broadcast via Announcements.</div>
-    </div></div>`;
+    </div>
+
+    <div id="chat-box" style="margin-top:10px;max-height:55vh;overflow:auto;border:1px solid var(--border);border-radius:12px;padding:10px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <input id="chat-input" class="input" placeholder="Message…"/>
+      <button class="btn" id="chat-send"><i class="ri-send-plane-2-line"></i></button>
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:6px">
+      Modes: Course-wide, Direct (1:1), Group/Batch (e.g., “Diploma-2025”). Admins may still use Announcements for broadcast.
+    </div>
+  </div></div>`;
 
   function vTasks(){
     const my=auth.currentUser?.uid;
@@ -802,35 +817,82 @@
 
   // ---- Chat
   function wireChat(){
-    const box=$('#chat-box'); const courseSel=$('#chat-course'); const input=$('#chat-input'); const send=$('#chat-send');
-    const paint=(msgs)=>{
-      box.innerHTML = msgs.map(m=>`
+  const box=$('#chat-box');
+  const modeSel=$('#chat-mode');
+  const courseSel=$('#chat-course');
+  const dmSel=$('#chat-dm');
+  const groupInp=$('#chat-group');
+  const input=$('#chat-input');
+  const send=$('#chat-send');
+
+  let unsub=null;
+
+  const uiByMode=()=>{
+    const m=modeSel.value;
+    courseSel.classList.toggle('hidden', m!=='course');
+    dmSel.classList.toggle('hidden', m!=='dm');
+    groupInp.classList.toggle('hidden', m!=='group');
+  };
+  uiByMode();
+  modeSel?.addEventListener('change', ()=>{ uiByMode(); sub(); });
+
+  function channelKey(){
+    const m=modeSel.value;
+    if(m==='course'){
+      const c=courseSel.value; return c?`course_${c}`:'';
+    } else if(m==='dm'){
+      const peer=dmSel.value; if(!peer) return '';
+      const pair=[auth.currentUser.uid, peer].sort(); return `dm_${pair[0]}_${pair[1]}`;
+    } else {
+      const gid=(groupInp.value||'').trim(); return gid?`group_${gid}`:'';
+    }
+  }
+
+  function paint(msgs){
+    box.innerHTML = msgs.sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0))
+      .map(m=>`
         <div style="margin-bottom:8px">
           <div style="font-weight:600">${m.name||m.email||'User'} <span class="muted" style="font-size:12px">• ${new Date(m.createdAt?.toDate?.()||m.createdAt||Date.now()).toLocaleTimeString()}</span></div>
           <div>${(m.text||'').replace(/</g,'&lt;')}</div>
         </div>`).join('');
-      box.scrollTop=box.scrollHeight;
-    };
-    const sub=(cid)=>{
-      if(state._unsubChat){ try{state._unsubChat()}catch{} state._unsubChat=null; }
-      if(!cid){ box.innerHTML=''; return; }
-      state._unsubChat = col('messages').where('courseId','==',cid).onSnapshot(
-        s => {
-          state.messages = s.docs.map(d=>({id:d.id, ...d.data()}))
-            .sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0));
-          paint(state.messages);
-        },
-        err => console.warn('chat listener error:', err)
-      );
-    };
-    courseSel?.addEventListener('change', e=> sub(e.target.value));
-    send?.addEventListener('click', async ()=>{
-      const cid=courseSel.value; const text=input.value.trim(); if(!text||!cid) return;
-      const p = state.profiles.find(x=>x.uid===auth.currentUser?.uid) || {};
-      await col('messages').add({ courseId:cid, uid:auth.currentUser.uid, email:auth.currentUser.email, name:p.name||'', text, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
-      input.value='';
-    });
+    box.scrollTop=box.scrollHeight;
   }
+
+  function sub(){
+    if(unsub){ try{unsub()}catch{} unsub=null; }
+    const ch = channelKey(); if(!ch){ box.innerHTML='<div class="muted">Pick a channel…</div>'; return; }
+    unsub = col('messages').where('channel','==',ch).onSnapshot(
+      s=> paint(s.docs.map(d=>({id:d.id,...d.data()}))),
+      err=> console.warn('chat listener error:', err)
+    );
+  }
+
+  courseSel?.addEventListener('change', sub);
+  dmSel?.addEventListener('change', sub);
+  groupInp?.addEventListener('input', ()=>{ /* debounce not needed */ });
+
+  send?.addEventListener('click', async ()=>{
+    const ch=channelKey(); const text=input.value.trim(); if(!ch||!text) return;
+    const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {};
+    const payload = {
+      channel: ch,
+      type: modeSel.value,          // 'course' | 'dm' | 'group'
+      uid: auth.currentUser.uid,
+      email: auth.currentUser.email,
+      name: me.name||'',
+      text,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    if(modeSel.value==='course') payload.courseId = courseSel.value;
+    if(modeSel.value==='dm') payload.peerUid = dmSel.value;
+    if(modeSel.value==='group') payload.groupId = groupInp.value.trim();
+
+    await col('messages').add(payload);
+    input.value='';
+  });
+
+  sub();
+}
 
   // ---- Tasks
   function wireTasks(){
