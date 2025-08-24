@@ -2,29 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
     <title>LearnHub</title>
 
     <link rel="manifest" href="/manifest.webmanifest" />
-    <!-- Restored logo & favicon -->
-    <link rel="icon" href="/icons/learnhub-192.png" sizes="192x192" />
-    <link rel="apple-touch-icon" href="/icons/learnhub-512.png" />
+    <link rel="icon" href="/icons/learnhub-cap.svg" type="image/svg+xml" />
 
     <link rel="stylesheet" href="/css/styles.css" />
 
+    <!-- Remix Icon (icons used in UI) -->
     <link
-      href="https://cdn.jsdelivr.net/npm/remixicon@3.6.0/fonts/remixicon.css"
+      href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css"
       rel="stylesheet"
     />
 
-    <!-- Firebase SDK v9 compat -->
+    <!-- Firebase (compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
-    <!-- Put your project config here -->
     <script>
+      /* ==== PASTE YOUR REAL CONFIG HERE ==== */
       window.__FIREBASE_CONFIG = {
         apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
         authDomain: "e-learning-mm.firebaseapp.com",
@@ -39,6 +41,7 @@
   <body class="theme-sunrise font-medium">
     <div id="root"></div>
     <div id="notification" class="notification"></div>
+
     <script src="/js/app.js"></script>
   </body>
 </html>

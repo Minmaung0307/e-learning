@@ -1,3 +1,3 @@
-// very small, optional
-self.addEventListener('install', e => self.skipWaiting());
-self.addEventListener('activate', e => self.clients.claim());
+self.addEventListener('install', ()=> self.skipWaiting());
+self.addEventListener('activate', e=> e.waitUntil(clients.claim()));
+self.addEventListener('fetch', ()=>{ /* network-first */ });

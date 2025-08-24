@@ -1,67 +1,56 @@
+/* LearnHub — E-Learning (compact build, admin/instructor/student) */
 (() => {
   'use strict';
 
-  /* ---------- Firebase ---------- */
+  // ---- Firebase ----
+  if (!window.firebase || !window.__FIREBASE_CONFIG) console.error('Firebase SDK or config missing');
   firebase.initializeApp(window.__FIREBASE_CONFIG);
   const auth = firebase.auth();
   const db   = firebase.firestore();
   const stg  = firebase.storage();
 
-  /* ---------- Constants ---------- */
-  const ADMIN_EMAILS = ['admin@learnhub.com']; // add more emails here
-  const VALID_ROLES  = ['student','instructor','admin'];
+  // ---- Constants ----
+  const VALID_ROLES = ['student','instructor','admin'];
 
-  /* ---------- State ---------- */
+  // ---- State ----
   const state = {
     user:null, role:'student', route:'dashboard',
-    theme:{ palette:'sunrise', font:'medium' },
+    theme:{ palette: localStorage.getItem('lh.palette') || 'sunrise', font: localStorage.getItem('lh.font') || 'medium' },
     searchQ:'', highlightId:null,
-    profiles:[], courses:[], enrollments:[], quizzes:[], attempts:[], tasks:[],
-    announcements:[], messages:[], notes:[],
-    chatTarget:{ type:'course', courseId:'', toUid:'', group:'' },
-    unsub:[], _unsubChat:null
+    courses:[], enrollments:[], quizzes:[], attempts:[], messages:[], tasks:[], profiles:[], notes:[], announcements:[],
+    myEnrolledIds:new Set(), unsub:[], _unsubChat:null
   };
 
-  /* ---------- Utils ---------- */
+  // ---- Utils ----
   const $=(s,r=document)=>r.querySelector(s);
   const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  const notify=(msg,type='ok')=>{ const n=$('#notification'); if(!n) return; n.textContent=msg; n.className=`notification show ${type}`; setTimeout(()=>n.className='notification',2200); };
   const nowYear=()=> new Date().getFullYear();
-  const notify=(msg,type='ok')=>{
-    const n=$('#notification'); if(!n) return;
-    n.textContent=msg; n.className=`notification show ${type}`;
-    setTimeout(()=>n.className='notification',2200);
-  };
-  const currency = (n)=> (n>0? `$${(+n).toFixed(2)}`: 'Free');
+  const col = (name)=> db.collection(name);
+  const doc = (name,id)=> db.collection(name).doc(id);
+  const canTeach = ()=> ['instructor','admin'].includes(state.role);
+  const canManageUsers  = ()=> state.role==='admin';
+  const isEnrolled = (courseId)=> state.myEnrolledIds.has(courseId);
 
-  const col=(name)=> db.collection(name);
-  const doc=(name,id)=> db.collection(name).doc(id);
+  const money = x => (x===0 ? 'Free' : `$${Number(x).toFixed(2)}`);
 
-  const isPaid = (course)=> (+course.price||0) > 0;
-  const isAdmin=()=> state.role==='admin';
-  const isInstructor=()=> state.role==='instructor' || isAdmin();
-  const canCreateCourse = ()=> isInstructor() || isAdmin();
-  const canManageUsers  = ()=> isAdmin();
-  const canEditCourse   = (c)=> isAdmin() || c.ownerUid===auth.currentUser?.uid;
+  // ---- Theme (instant) ----
+  function applyTheme(){
+    document.body.classList.remove('theme-sunrise','theme-dark','theme-light','font-small','font-medium','font-large');
+    document.body.classList.add(`theme-${state.theme.palette}`, `font-${state.theme.font}`);
+  }
+  applyTheme();
 
-  const isEnrolled = (courseId)=>{
-    const uid=auth.currentUser?.uid; if(!uid) return false;
-    return state.enrollments.some(e=> e.courseId===courseId && e.uid===uid);
-  };
-
-  const openSidebar=()=> document.body.classList.add('sidebar-open');
-  const closeSidebar=()=> document.body.classList.remove('sidebar-open');
-
-  /* ---------- Router ---------- */
-  const routes=['dashboard','courses','learning','assessments','chat','tasks','profile','admin','settings','guide','search'];
+  // ---- Router / Layout ----
+  const routes=['dashboard','courses','learning','assessments','chat','tasks','profile','admin','guide','settings','search'];
   function go(route){ state.route = routes.includes(route)?route:'dashboard'; closeSidebar(); render(); }
 
-  /* ---------- Layout ---------- */
   function layout(content){
     return `
     <div class="app">
       <aside class="sidebar" id="sidebar">
         <div class="brand" id="brand">
-          <div class="logo"><img src="/icons/learnhub-192.png" alt="LearnHub"/></div>
+          <div class="logo"><img src="/icons/learnhub-cap.svg" alt="LearnHub"/></div>
           <div class="title">LearnHub</div>
         </div>
         <div class="nav" id="side-nav">
@@ -69,37 +58,36 @@
             ['dashboard','Dashboard','ri-dashboard-line'],
             ['courses','Courses','ri-book-2-line'],
             ['learning','My Learning','ri-graduation-cap-line'],
-            ['assessments','Final Exams','ri-file-list-3-line'],
-            ['chat','Messages','ri-chat-3-line'],
+            ['assessments','Finals','ri-file-list-3-line'],
+            ['chat','Course Chat','ri-chat-3-line'],
             ['tasks','Tasks','ri-list-check-2'],
             ['profile','Profile','ri-user-3-line'],
             ['admin','Admin','ri-shield-star-line'],
-            ['guide','Guide','ri-question-line'],
+            ['guide','Guide','ri-compass-3-line'],
             ['settings','Settings','ri-settings-3-line']
           ].map(([r,label,ic])=>`
             <div class="item ${state.route===r?'active':''} ${r==='admin'&&!canManageUsers()?'hidden':''}" data-route="${r}">
               <i class="${ic}"></i><span>${label}</span>
             </div>`).join('')}
         </div>
-        <div class="footer"><div class="muted" id="copyright" style="font-size:12px">Powered by MM, ${nowYear()}</div></div>
+        <div class="footer"><div class="muted" id="copyright" style="font-size:12px">© ${nowYear()}</div></div>
       </aside>
 
-      <div style="display:flex; flex-direction:column; width:100%">
+      <div>
         <div class="topbar">
           <div style="display:flex;align-items:center;gap:10px">
             <button class="btn ghost" id="burger" title="Menu"><i class="ri-menu-line"></i></button>
             <div class="badge"><i class="ri-shield-user-line"></i> ${state.role.toUpperCase()}</div>
           </div>
           <div class="search-inline">
-            <input id="globalSearch" class="input" placeholder="Search courses, finals, profiles…" autocomplete="off"/>
+            <input id="globalSearch" class="input" placeholder="Search courses, quizzes, profiles…" autocomplete="off"/>
             <div id="searchResults" class="search-results"></div>
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn ghost" id="btnLogout"><i class="ri-logout-box-r-line"></i> Logout</button>
           </div>
         </div>
-
-        <div class="backdrop" id="backdrop"></div>
+        <div id="backdrop"></div>
         <div class="main" id="main">${content}</div>
       </div>
     </div>
@@ -108,36 +96,41 @@
       <div class="head"><strong id="mm-title">Modal</strong><button class="btn ghost" id="mm-close">Close</button></div>
       <div class="body" id="mm-body"></div>
       <div class="foot" id="mm-foot"></div>
-    </div></div><div class="modal-backdrop" id="mb-modal"></div>`;
+    </div></div><div class="modal-backdrop"></div>`;
   }
 
-  /* ---------- Views ---------- */
+  // ---- Views ----
   const vLogin=()=>`
-  <div style="display:grid;place-items:center;min-height:100vh;padding:20px">
-    <div class="card login-box" style="width:min(420px,96vw)">
-      <div class="card-body">
-        <img class="login-logo" src="/icons/learnhub-192.png" alt="LearnHub"/>
-        <p class="title">LearnHub</p>
-        <p class="subtitle">Sign in to continue</p>
-        <div class="grid" style="margin-top:8px">
-          <label>Email</label><input id="li-email" class="input" type="email" placeholder="you@example.com" autocomplete="username"/>
-          <label>Password</label><input id="li-pass" class="input" type="password" placeholder="••••••••" autocomplete="current-password"/>
-          <button id="btnLogin" class="btn"><i class="ri-login-box-line"></i> Sign In</button>
-          <div style="display:flex;justify-content:space-between;gap:8px">
-            <button id="link-forgot" class="btn ghost" style="padding:6px 10px;font-size:12px"><i class="ri-key-2-line"></i> Forgot password</button>
-            <button id="link-register" class="btn secondary" style="padding:6px 10px;font-size:12px"><i class="ri-user-add-line"></i> Sign up</button>
+    <div class="login-wrap">
+      <div class="card login-card">
+        <div class="card-body">
+          <div style="display:grid;place-items:center;margin-bottom:8px">
+            <img src="/icons/learnhub-cap.svg" alt="LearnHub" width="52" height="52"/>
+            <div style="font-size:20px;font-weight:800;margin-top:6px">LearnHub</div>
+            <div class="muted">Sign in to continue</div>
           </div>
-          <div class="muted" style="font-size:12px;margin-top:6px">Default admin — admin@learnhub.com / admin123</div>
+          <div class="grid">
+            <label>Email</label><input id="li-email" class="input" type="email" placeholder="you@example.com" autocomplete="username"/>
+            <label>Password</label><input id="li-pass" class="input" type="password" placeholder="••••••••" autocomplete="current-password"/>
+            <button id="btnLogin" class="btn"><i class="ri-login-box-line"></i> Sign In</button>
+            <div style="display:flex;justify-content:space-between;gap:8px">
+              <button id="link-forgot" class="btn ghost" style="padding:6px 10px;font-size:12px"><i class="ri-key-2-line"></i> Forgot</button>
+              <button id="link-register" class="btn secondary" style="padding:6px 10px;font-size:12px"><i class="ri-user-add-line"></i> Sign up</button>
+            </div>
+            <div class="muted" style="font-size:12px;margin-top:6px">Default admin: create roles/{yourUid}.role="admin"</div>
+          </div>
         </div>
       </div>
-    </div>
-  </div>`;
+    </div>`;
 
   const dashCard=(label,value,route,icon)=>`
     <div class="card clickable" data-go="${route}">
-      <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
-        <div><div class="muted">${label}</div><h2 style="margin:6px 0 0 0">${value}</h2></div>
-        <i class="${icon}" style="font-size:24px;color:var(--brand)"></i>
+      <div class="card-body" style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div class="muted">${label}</div>
+          <div style="font-size:22px;font-weight:800">${value}</div>
+        </div>
+        <i class="${icon}" style="font-size:24px;opacity:.8"></i>
       </div>
     </div>`;
 
@@ -145,99 +138,72 @@
     const my=auth.currentUser?.uid;
     const myEnroll = state.enrollments.filter(e=>e.uid===my).length;
     const myAttempts = state.attempts.filter(a=>a.uid===my).length;
-
-    const vids = [
-      'https://www.youtube.com/embed/8mAITcNt710',
-      'https://www.youtube.com/embed/HcA4p2QW19w',
-      'https://www.youtube.com/embed/Ke90Tje7VS0'
-    ];
-    const vid = vids[Math.floor(Math.random()*vids.length)];
-
-    const annHtml = (state.announcements||[]).map(a=>`
-      <div class="ann">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div><strong>${a.title||'Announcement'}</strong> <span class="muted" style="font-size:12px">• ${new Date(a.createdAt?.toDate?.()||a.createdAt||Date.now()).toLocaleString()}</span></div>
-          ${isAdmin()? `<div style="display:flex;gap:6px">
-              <button class="btn ghost" data-edit-ann="${a.id}"><i class="ri-edit-line"></i></button>
-              <button class="btn danger" data-del-ann="${a.id}"><i class="ri-delete-bin-6-line"></i></button>
-            </div>`:''}
-        </div>
-        <div>${(a.body||'').replace(/</g,'&lt;')}</div>
-      </div>
-    `).join('');
-
     return `
       <div class="grid cols-4">
         ${dashCard('Courses', state.courses.length,'courses','ri-book-2-line')}
-        ${dashCard('My Enrollments', myEnroll,'learning','ri-graduation-cap-line')}
+        ${dashCard('My Learning', myEnroll,'learning','ri-graduation-cap-line')}
         ${dashCard('Finals', state.quizzes.filter(q=>q.isFinal).length,'assessments','ri-file-list-3-line')}
-        ${dashCard('My Attempts', myAttempts,'assessments','ri-bar-chart-2-line')}
+        ${dashCard('My Attempts', myAttempts,'assessments','ri-checkbox-circle-line')}
       </div>
 
-      <div class="grid cols-2" style="margin-top:12px">
-        <div class="card"><div class="card-body">
-          <h3 style="margin:0 0 8px 0">Announcements</h3>
-          ${isAdmin()? `<div style="margin-bottom:8px"><button class="btn" id="ann-add"><i class="ri-megaphone-line"></i> New announcement</button></div>`:''}
-          ${annHtml || `<div class="muted">No announcements.</div>`}
-        </div></div>
-
-        <div class="card"><div class="card-body">
-          <h3 style="margin:0 0 8px 0">Today’s Educational Video</h3>
-          <div style="aspect-ratio:16/9;background:#000;overflow:hidden;border-radius:12px;border:1px solid var(--border)">
-            <iframe width="100%" height="100%" src="${vid}" title="Education" frameborder="0" allowfullscreen></iframe>
-          </div>
-        </div></div>
-      </div>
+      <div class="card"><div class="card-body">
+        <h3 style="margin:0 0 8px 0">Announcements</h3>
+        <div id="ann-list">
+          ${state.announcements.map(a=>`
+            <div class="card"><div class="card-body" style="display:flex;justify-content:space-between;gap:10px">
+              <div>
+                <div style="font-weight:700">${a.title||'—'}</div>
+                <div class="muted" style="font-size:12px">${new Date(a.createdAt?.toDate?.()||a.createdAt||Date.now()).toLocaleString()}</div>
+                <div style="margin-top:6px">${(a.body||'').replace(/</g,'&lt;')}</div>
+              </div>
+              ${canManageUsers()?`<div style="display:flex;gap:6px">
+                <button class="btn ghost" data-edit-ann="${a.id}"><i class="ri-edit-line"></i></button>
+                <button class="btn danger" data-del-ann="${a.id}"><i class="ri-delete-bin-6-line"></i></button>
+              </div>`:''}
+            </div></div>
+          `).join('')}
+          ${!state.announcements.length? `<div class="muted">No announcements.</div>`:''}
+        </div>
+        ${canManageUsers()? `<div style="margin-top:10px"><button class="btn" id="add-ann"><i class="ri-megaphone-line"></i> New Announcement</button></div>`:''}
+      </div></div>
     `;
   }
 
-  /* ---------- Course Cards (VERTICAL spec) ---------- */
-  function courseCard(c, context='catalog'){
-    const priceText = currency(+c.price||0);
-    const priceCls  = (+c.price||0)>0 ? 'paid' : 'free';
-    const action = context==='catalog'
-      ? (isEnrolled(c.id) ? `<button class="btn ok" data-open="${c.id}"><i class="ri-external-link-line"></i> Open</button>`
-                          : `<button class="btn" data-enroll="${c.id}"><i class="ri-checkbox-circle-line"></i> Register Now</button>`)
-      : `<button class="btn" data-open="${c.id}"><i class="ri-external-link-line"></i> Open</button>`;
-
+  function courseCard(c){
+    const img = c.coverImage || '/icons/learnhub-cap.svg';
+    const goals = (c.goals||[]).slice(0,3).map(g=>`<li>${g}</li>`).join('');
     return `
-    <div class="card course-card ${state.highlightId===c.id?'highlight':''}" id="${c.id}">
-      <!-- Top: Image -->
-      <div class="img">
-        <img src="${c.image||'/icons/learnhub-512.png'}" alt="${c.title}"/>
-      </div>
-
-      <!-- Middle: Title, Short Description, Key Benefits -->
-      <div class="info">
-        <div class="title">${c.title}</div>
-        <div class="desc">${c.short||''}</div>
-
-        ${c.goals && c.goals.length ? `
-          <div style="font-weight:700;margin-top:2px">What You’ll Gain</div>
-          <ul class="benefits">
-            ${(c.goals||[]).slice(0,3).map(g=>`
-              <li><i class="ri-check-double-line"></i><span>${g}</span></li>`).join('')}
-          </ul>` : ''}
-
-        <!-- Bottom: Price + CTA -->
-        <div class="bottom">
-          <div class="price ${priceCls}">${priceText}</div>
-          ${action}
+      <div class="card course-card ${state.highlightId===c.id?'highlight':''}" id="${c.id}">
+        <div class="img"><img src="${img}" alt="${c.title}"/></div>
+        <div class="card-body">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-weight:800">${c.title}</div>
+            <span class="badge">${c.category||'General'}</span>
+          </div>
+          <div class="muted" style="margin-top:6px">${c.short||''}</div>
+          ${goals?`<ul style="margin-top:8px">${goals}</ul>`:''}
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+            <div class="muted">Credits: <strong>${c.credits||0}</strong></div>
+            <div style="font-weight:800">${money(c.price||0)}</div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn" data-open="${c.id}"><i class="ri-external-link-line"></i> Details</button>
+            ${canTeach()? `<button class="btn ghost" data-edit="${c.id}"><i class="ri-edit-line"></i></button>
+            <button class="btn danger" data-del="${c.id}"><i class="ri-delete-bin-6-line"></i></button>`:''}
+          </div>
         </div>
-      </div>
-    </div>`;
+      </div>`;
   }
 
   function vCourses(){
-    const canCreate = canCreateCourse();
     return `
       <div class="card"><div class="card-body">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <h3 style="margin:0">Courses</h3>
-          ${canCreate? `<button class="btn" id="add-course"><i class="ri-add-line"></i> New Course</button>`:''}
+          ${canTeach()? `<button class="btn" id="add-course"><i class="ri-add-line"></i> New Course</button>`:''}
         </div>
-        <div class="grid cols-3" data-sec="courses">
-          ${state.courses.map(c=> courseCard(c,'catalog')).join('')}
+        <div class="grid cols-2" data-sec="courses">
+          ${state.courses.map(courseCard).join('')}
           ${!state.courses.length? `<div class="muted" style="padding:10px">No courses yet.</div>`:''}
         </div>
       </div></div>
@@ -245,20 +211,19 @@
   }
 
   function vLearning(){
-    const my=auth.currentUser?.uid;
-    const list=state.enrollments.filter(e=>e.uid===my).map(e=> e.course||{} );
+    const my=auth.currentUser?.uid; const list=state.enrollments.filter(e=>e.uid===my).map(e=> state.courses.find(c=>c.id===e.courseId)||{} );
     return `
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">My Learning</h3>
-        <div class="grid cols-3" data-sec="learning">
+        <div class="grid cols-2">
           ${list.map(c=>`
             <div class="card course-card">
-              <div class="img"><img src="${c.image||'/icons/learnhub-512.png'}" alt="${c.title}"/></div>
-              <div class="info">
-                <div class="title">${c.title}</div>
-                <div class="desc">${c.short||''}</div>
-                <div class="bottom">
-                  <div class="price ${(c.price||0)>0?'paid':'free'}">${currency(+c.price||0)}</div>
+              <div class="img"><img src="${c.coverImage||'/icons/learnhub-cap.svg'}" alt="${c.title||''}"/></div>
+              <div class="card-body">
+                <div style="font-weight:800">${c.title||'(deleted course)'}</div>
+                <div class="muted">${c.short||''}</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+                  <div class="muted">Credits: <strong>${c.credits||0}</strong></div>
                   <button class="btn" data-open-course="${c.id}">Open</button>
                 </div>
               </div>
@@ -273,7 +238,7 @@
       <div class="card"><div class="card-body">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <h3 style="margin:0">Final Exams</h3>
-          ${isInstructor()? `<button class="btn" id="gen-final"><i class="ri-shuffle-line"></i> Generate final from course</button>`:''}
+          ${canTeach()? `<button class="btn" id="new-quiz"><i class="ri-add-line"></i> New Final</button>`:''}
         </div>
         <div class="grid" data-sec="quizzes">
           ${state.quizzes.filter(q=>q.isFinal).map(q=>`
@@ -281,11 +246,11 @@
               <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
                 <div>
                   <div style="font-weight:800">${q.title}</div>
-                  <div class="muted" style="font-size:12px">${q.courseTitle||'—'} • pass ≥ ${q.passScore||70}% • 24 mins</div>
+                  <div class="muted" style="font-size:12px">${q.courseTitle||'—'} • pass ≥ ${q.passScore||70}%</div>
                 </div>
                 <div class="actions" style="display:flex;gap:6px">
                   <button class="btn" data-take="${q.id}"><i class="ri-play-line"></i> Take</button>
-                  ${(q.ownerUid===auth.currentUser?.uid || isAdmin())? `<button class="btn ghost" data-edit="${q.id}"><i class="ri-edit-line"></i></button>`:''}
+                  ${canTeach()||q.ownerUid===auth.currentUser?.uid? `<button class="btn ghost" data-edit="${q.id}"><i class="ri-edit-line"></i></button>`:''}
                 </div>
               </div>
             </div>`).join('')}
@@ -297,12 +262,11 @@
         <h3 style="margin:0 0 8px 0">My Attempts</h3>
         <div class="table-wrap">
           <table class="table">
-            <thead><tr><th>Exam</th><th>Course</th><th>Score</th><th>Date</th></tr></thead>
+            <thead><tr><th>Quiz</th><th>Score</th><th>Date</th></tr></thead>
             <tbody>
               ${(state.attempts||[]).filter(a=>a.uid===auth.currentUser?.uid).map(a=>`
                 <tr>
                   <td>${a.quizTitle}</td>
-                  <td>${(state.courses.find(c=>c.id===a.courseId)||{}).title||'—'}</td>
                   <td class="num">${a.score}%</td>
                   <td>${new Date(a.createdAt?.toDate?.()||a.createdAt||Date.now()).toLocaleString()}</td>
                 </tr>`).join('')}
@@ -315,31 +279,19 @@
 
   const vChat=()=>`
     <div class="card"><div class="card-body">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-        <h3 style="margin:0">Messages</h3>
-        <div style="display:flex;gap:6px;align-items:center">
-          <select id="chat-type" class="input" style="max-width:160px">
-            <option value="course" ${state.chatTarget.type==='course'?'selected':''}>Course-wide</option>
-            <option value="user"   ${state.chatTarget.type==='user'?'selected':''}>Direct</option>
-            <option value="group"  ${state.chatTarget.type==='group'?'selected':''}>Group</option>
-          </select>
-          <select id="chat-course" class="input" style="max-width:260px; ${state.chatTarget.type==='course'?'':'display:none'}">
-            <option value="">Select course…</option>
-            ${state.courses.map(c=>`<option value="${c.id}" ${state.chatTarget.courseId===c.id?'selected':''}>${c.title}</option>`).join('')}
-          </select>
-          <select id="chat-user" class="input" style="max-width:260px; ${state.chatTarget.type==='user'?'':'display:none'}">
-            <option value="">Select user…</option>
-            ${state.profiles.filter(p=>p.uid!==auth.currentUser?.uid).map(p=>`<option value="${p.uid}" ${state.chatTarget.toUid===p.uid?'selected':''}>${p.name||p.email}</option>`).join('')}
-          </select>
-          <input id="chat-group" class="input" style="max-width:220px; ${state.chatTarget.type==='group'?'':'display:none'}" placeholder="Group (e.g., Diploma-2025)"/>
-        </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0">Course Chat</h3>
+        <select id="chat-course" class="input" style="max-width:320px">
+          <option value="">Select course…</option>
+          ${state.courses.map(c=>`<option value="${c.id}">${c.title}</option>`).join('')}
+        </select>
       </div>
       <div id="chat-box" style="margin-top:10px;max-height:55vh;overflow:auto;border:1px solid var(--border);border-radius:12px;padding:10px"></div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <input id="chat-input" class="input" placeholder="Message…"/>
         <button class="btn" id="chat-send"><i class="ri-send-plane-2-line"></i></button>
       </div>
-      <div class="muted" style="font-size:12px;margin-top:6px">Course-wide (enrolled users), Direct (1:1), Group (same cohort like “Diploma-2025”).</div>
+      <div class="muted" style="font-size:12px;margin-top:6px">Only signed-in users can post. Instructors/Admins can broadcast via Announcements.</div>
     </div></div>`;
 
   function vTasks(){
@@ -371,7 +323,7 @@
   }
 
   function vProfile(){
-    const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {name:'',bio:'',portfolio:'', avatar:'', signature:'', org:'LearnHub', location:'', certPrefix:'LH'};
+    const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {name:'',bio:'',portfolio:'',avatar:'',signature:''};
     return `
       <div class="grid cols-2">
         <div class="card"><div class="card-body">
@@ -380,54 +332,32 @@
             <input id="pf-name" class="input" placeholder="Name" value="${me.name||''}"/>
             <input id="pf-portfolio" class="input" placeholder="Portfolio URL" value="${me.portfolio||''}"/>
             <textarea id="pf-bio" class="input" placeholder="Short bio">${me.bio||''}</textarea>
-            <div class="grid cols-2">
-              <input id="pf-org" class="input" placeholder="Organization" value="${me.org||'LearnHub'}"/>
-              <input id="pf-location" class="input" placeholder="Location" value="${me.location||''}"/>
-            </div>
-            <div class="grid cols-2">
-              <input id="pf-certprefix" class="input" placeholder="Certificate Prefix (e.g., LH)" value="${me.certPrefix||'LH'}"/>
-              <input id="pf-signText" class="input" placeholder="Signature Name Text" value="${me.signText||''}"/>
-            </div>
-
-            <div style="display:flex;gap:8px;align-items:center">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
               <input id="pf-avatar" type="file" accept="image/*" style="display:none"/>
-              <button class="btn ghost" id="pf-pick"><i class="ri-image-add-line"></i> Upload avatar</button>
-              ${me.avatar? `<img src="${me.avatar}" alt="avatar" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border)"/>` : `<span class="muted">No avatar</span>`}
-            </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <input id="pf-signature" type="file" accept="image/*" style="display:none"/>
-              <button class="btn ghost" id="pf-pick-sign"><i class="ri-ink-bottle-line"></i> Upload signature</button>
-              ${me.signature? `<img src="${me.signature}" alt="signature" style="height:24px;border:1px dashed var(--border);padding:2px;background:#fff"/>` : `<span class="muted">No signature</span>`}
-            </div>
-
-            <div style="display:flex;gap:8px">
+              <input id="pf-sign" type="file" accept="image/*" style="display:none"/>
               <button class="btn" id="pf-save"><i class="ri-save-3-line"></i> Save</button>
-              <button class="btn ghost" id="pf-view"><i class="ri-id-card-line"></i> View card</button>
-              <button class="btn danger" id="pf-del"><i class="ri-delete-bin-6-line"></i> Delete profile</button>
+              <button class="btn ghost" id="pf-pick"><i class="ri-image-add-line"></i> Avatar</button>
+              <button class="btn ghost" id="pf-pick-sign"><i class="ri-pen-nib-line"></i> Signature</button>
+              <button class="btn danger" id="pf-delete"><i class="ri-delete-bin-6-line"></i> Delete profile</button>
+              <button class="btn secondary" id="pf-view"><i class="ri-id-card-line"></i> View Card</button>
             </div>
           </div>
         </div></div>
 
         <div class="card"><div class="card-body">
-          <h3 style="margin:0 0 8px 0">Transcript & Certificates</h3>
+          <h3 style="margin:0 0 8px 0">Transcript</h3>
           <div class="table-wrap">
             <table class="table">
-              <thead><tr><th>Course</th><th>Best</th><th>Credits</th><th>Certificate</th></tr></thead>
+              <thead><tr><th>Course</th><th>Best Score</th><th>Certificate</th></tr></thead>
               <tbody>
                 ${buildTranscript(auth.currentUser?.uid).map(r=>`
                   <tr>
                     <td>${r.courseTitle}</td>
                     <td class="num">${r.best}%</td>
-                    <td class="num">${r.credits||0}</td>
                     <td>${r.completed? `<button class="btn" data-cert="${r.courseId}"><i class="ri-award-line"></i> Download</button>`:'—'}</td>
                   </tr>`).join('')}
               </tbody>
             </table>
-          </div>
-          <hr class="sep"/>
-          <div style="display:flex;gap:8px">
-            ${isAdmin()? `<button class="btn ghost" id="demo-cert"><i class="ri-file-download-line"></i> Demo certificate</button>`:''}
-            ${isAdmin()? `<button class="btn ghost" id="demo-trans"><i class="ri-file-download-line"></i> Demo transcript</button>`:''}
           </div>
         </div></div>
       </div>
@@ -444,28 +374,50 @@
             <input id="rm-uid" class="input" placeholder="User UID"/>
             <select id="rm-role" class="input">${VALID_ROLES.map(r=>`<option value="${r}">${r}</option>`).join('')}</select>
             <button class="btn" id="rm-save"><i class="ri-save-3-line"></i> Save Role</button>
-            <div class="muted" style="font-size:12px">Tip: UID is in Authentication → Users.</div>
+            <div class="muted" style="font-size:12px">Tip: Create your own admin doc once in roles/{yourUid} via console.</div>
           </div>
         </div></div>
 
         <div class="card"><div class="card-body">
           <h3 style="margin:0 0 8px 0">Users (profiles)</h3>
           <div class="table-wrap">
-            <table class="table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead><tbody id="adm-users">
-            ${state.profiles.map(p=>`
-              <tr data-uid="${p.uid}">
-                <td>${p.name||'—'}</td>
-                <td>${p.email||'—'}</td>
-                <td>${p.role||'student'}</td>
-                <td>
-                  <button class="btn ghost" data-edit-user="${p.uid}"><i class="ri-edit-line"></i></button>
-                  <button class="btn danger" data-del-user="${p.uid}"><i class="ri-delete-bin-6-line"></i></button>
-                </td>
-              </tr>`).join('')}
+            <table class="table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead><tbody>
+            ${state.profiles.map(p=>`<tr>
+              <td>${p.name||'—'}</td><td>${p.email||'—'}</td><td>${p.role||'student'}</td>
+              <td>
+                <button class="btn ghost" data-admin-edit="${p.uid}"><i class="ri-edit-line"></i></button>
+                <button class="btn danger" data-admin-del="${p.uid}"><i class="ri-delete-bin-6-line"></i></button>
+              </td></tr>`).join('')}
             </tbody></table>
           </div>
         </div></div>
       </div>
+    `;
+  }
+
+  function vGuide(){
+    return `
+      <div class="card"><div class="card-body">
+        <h3 style="margin:0 0 8px 0">How to use LearnHub (Admin & Instructor)</h3>
+        <ol>
+          <li><strong>Create a course</strong> → Courses → New Course. You can paste:
+            <ul>
+              <li><em>Outline JSON URL</em> (host on Hosting: <code>/data/...json</code>)</li>
+              <li><em>Lesson Quizzes JSON URL</em> (keys = "<code>chapter-title-lesson-title</code>" in lowercase hyphen)</li>
+            </ul>
+          </li>
+          <li><strong>Paid course</strong>: set <em>price</em> &gt; 0. On enroll, a demo checkout runs then auto-enrolls.</li>
+          <li><strong>Finals</strong>: Assessments → New Final. Define <em>items</em> as JSON (supports feedback) and <em>passScore</em>.</li>
+          <li><strong>Contact students</strong>:
+            <ul>
+              <li>Course-wide chat: Chat → select course</li>
+              <li>Announcements (all users): Dashboard → New Announcement (Admins)</li>
+            </ul>
+          </li>
+          <li><strong>Profiles</strong>: Users update their own details and upload Avatar/Signature. Admin sees them in Admin → Users.</li>
+          <li><strong>Outline / lesson quizzes hosting</strong>: Put JSON under <code>public/data</code> and deploy. Paste the URLs in the course form.</li>
+        </ol>
+      </div></div>
     `;
   }
 
@@ -476,84 +428,26 @@
         <div class="grid cols-2">
           <div><label>Palette</label>
             <select id="theme-palette" class="input">
-              <option value="sunrise" ${document.body.classList.contains('theme-sunrise')?'selected':''}>sunrise</option>
-              <option value="dark" ${document.body.classList.contains('theme-dark')?'selected':''}>dark</option>
-              <option value="light" ${document.body.classList.contains('theme-light')?'selected':''}>light</option>
+              <option value="sunrise" ${state.theme.palette==='sunrise'?'selected':''}>sunrise</option>
+              <option value="dark" ${state.theme.palette==='dark'?'selected':''}>dark</option>
+              <option value="light" ${state.theme.palette==='light'?'selected':''}>light</option>
             </select>
           </div>
           <div><label>Font size</label>
             <select id="theme-font" class="input">
-              <option value="small"  ${document.body.classList.contains('font-small')?'selected':''}>small</option>
-              <option value="medium" ${document.body.classList.contains('font-medium')?'selected':''}>medium</option>
-              <option value="large"  ${document.body.classList.contains('font-large')?'selected':''}>large</option>
+              <option value="small" ${state.theme.font==='small'?'selected':''}>small</option>
+              <option value="medium" ${state.theme.font==='medium'?'selected':''}>medium</option>
+              <option value="large" ${state.theme.font==='large'?'selected':''}>large</option>
             </select>
           </div>
         </div>
-        <p class="muted" style="margin-top:8px">Changes apply instantly.</p>
+        <div class="muted" style="margin-top:8px">Changes apply instantly.</div>
       </div></div>
     `;
   }
 
-  function vGuide(){
-    return `
-      <div class="card"><div class="card-body">
-        <h3 style="margin:0 0 8px 0">Quick “How to Use” (Admin & Instructor)</h3>
-        <ol>
-          <li><strong>Create a course</strong> (Courses → New Course).</li>
-          <li><strong>Use Outline JSON / Quizzes JSON URL</strong> — host under <code>/data/</code> or any CORS-allowed URL.<br/>
-            Example URLs used in demo:
-            <ul>
-              <li><code>/data/marketing-outline.json</code>, <code>/data/marketing-quizzes.json</code></li>
-              <li><code>/data/web-bootcamp-outline.json</code>, <code>/data/web-bootcamp-quizzes.json</code></li>
-            </ul>
-          </li>
-          <li><strong>Course cards</strong> show: Image → Title → 2–3 line description → “What You’ll Gain” → Price → Register button.</li>
-          <li><strong>Paid courses</strong>: set <code>price &gt; 0</code>. Demo checkout enrolls the student; replace with Stripe/PayPal later.</li>
-          <li><strong>Messaging</strong> (restored): Messages page → Course-wide / Direct / Group.</li>
-          <li><strong>Certificates & Transcript</strong>: Profile page; thresholds: paid ≥75%, free ≥65%.</li>
-        </ol>
-      </div></div>
-    `;
-  }
+  const vSearch=()=>`<div class="card"><div class="card-body"><h3>Search</h3><div class="muted">Type in the top bar.</div></div></div>`;
 
-  const vSearch=()=> {
-    const q=state.searchQ||''; const res=q?doSearch(q):[];
-    return `
-      <div class="card"><div class="card-body">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <h3 style="margin:0">Search</h3>
-          <div class="muted">Query: <strong>${q||'(empty)'}</strong></div>
-        </div>
-        ${res.length? `<div class="grid">${res.map(r=>`
-          <div class="card"><div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <div style="font-weight:700">${r.label}</div>
-              <div class="muted" style="font-size:12px">${r.section}</div>
-            </div>
-            <button class="btn" data-open-route="${r.route}" data-id="${r.id||''}">Open</button>
-          </div></div>`).join('')}</div>` : `<p class="muted">No results.</p>`}
-      </div></div>`;
-  };
-
-  /* ---------- Search logic ---------- */
-  function buildIndex(){
-    const ix=[];
-    state.courses.forEach(c=> ix.push({label:c.title, section:'Courses', route:'courses', id:c.id, text:`${c.title} ${c.category||''} ${c.ownerEmail||''}`}));
-    state.quizzes.forEach(q=> ix.push({label:q.title, section:'Finals', route:'assessments', id:q.id, text:q.courseTitle||''}));
-    state.profiles.forEach(p=> ix.push({label:p.name||p.email, section:'Profiles', route:'admin', id:p.uid, text:(p.bio||'')+' '+(p.portfolio||'')}));
-    return ix;
-  }
-  function doSearch(q){
-    const tokens=(q||'').toLowerCase().split(/\s+/).filter(Boolean);
-    if(!tokens.length) return [];
-    return buildIndex().map(item=>{
-      const l=item.label.toLowerCase(), t=(item.text||'').toLowerCase();
-      const ok=tokens.every(tok=> l.includes(tok)||t.includes(tok));
-      return ok?{item,score:tokens.length + (l.includes(tokens[0])?1:0)}:null;
-    }).filter(Boolean).sort((a,b)=>b.score-a.score).map(x=>x.item).slice(0,20);
-  }
-
-  /* ---------- Render ---------- */
   function safeView(r){
     switch(r){
       case 'dashboard': return vDashboard();
@@ -564,12 +458,14 @@
       case 'tasks': return vTasks();
       case 'profile': return vProfile();
       case 'admin': return vAdmin();
-      case 'settings': return vSettings();
       case 'guide': return vGuide();
+      case 'settings': return vSettings();
       case 'search': return vSearch();
       default: return vDashboard();
     }
   }
+
+  // ---- Render / Shell ----
   function render(){
     const root=$('#root');
     if(!auth.currentUser){ root.innerHTML=vLogin(); wireLogin(); return; }
@@ -578,12 +474,15 @@
     if(state.highlightId){ const el=document.getElementById(state.highlightId); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'});} }
   }
 
-  /* ---------- Wiring ---------- */
-  function openModal(id){ $('#'+id)?.classList.add('active'); $('.modal-backdrop')?.classList.add('active'); }
-  function closeModal(id){ $('#'+id)?.classList.remove('active'); $('.modal-backdrop')?.classList.remove('active'); }
+  function openModal(id){ $('#'+id)?.classList.add('active'); }
+  function closeModal(id){ $('#'+id)?.classList.remove('active'); }
+  const closeSidebar=()=>{ document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
 
   function wireShell(){
-    $('#burger')?.addEventListener('click', ()=> document.body.classList.contains('sidebar-open')? closeSidebar(): openSidebar());
+    $('#burger')?.addEventListener('click', ()=> {
+      const open=document.body.classList.contains('sidebar-open');
+      if(open) closeSidebar(); else { document.body.classList.add('sidebar-open'); $('#backdrop')?.classList.add('active'); }
+    });
     $('#backdrop')?.addEventListener('click', closeSidebar);
     $('#brand')?.addEventListener('click', closeSidebar);
     $('#main')?.addEventListener('click', closeSidebar);
@@ -594,7 +493,7 @@
 
     $('#btnLogout')?.addEventListener('click', ()=> auth.signOut());
 
-    // search bar
+    // search live
     const input=$('#globalSearch'), results=$('#searchResults');
     if(input && results){
       let t;
@@ -604,7 +503,17 @@
       input.addEventListener('input', ()=>{
         clearTimeout(t); const q=input.value.trim(); if(!q){ results.classList.remove('active'); results.innerHTML=''; return; }
         t=setTimeout(()=>{
-          const out=doSearch(q).slice(0,12);
+          const ix=[];
+          state.courses.forEach(c=> ix.push({label:c.title, section:'Courses', route:'courses', id:c.id, text:`${c.title} ${c.category||''}`}));
+          state.quizzes.forEach(qz=> ix.push({label:qz.title, section:'Finals', route:'assessments', id:qz.id, text:qz.courseTitle||''}));
+          state.profiles.forEach(p=> ix.push({label:p.name||p.email, section:'Profiles', route:'profile', id:p.uid, text:(p.bio||'')}));
+          const tokens=q.toLowerCase().split(/\s+/).filter(Boolean);
+          const out=ix.map(item=>{
+            const l=item.label.toLowerCase(), t=(item.text||'').toLowerCase();
+            const ok=tokens.every(tok=> l.includes(tok)||t.includes(tok));
+            return ok?{item,score:tokens.length + (l.includes(tokens[0])?1:0)}:null;
+          }).filter(Boolean).sort((a,b)=>b.score-a.score).map(x=>x.item).slice(0,12);
+
           results.innerHTML=out.map(r=>`<div class="row" data-route="${r.route}" data-id="${r.id||''}"><strong>${r.label}</strong> <span class="muted">— ${r.section}</span></div>`).join('');
           results.classList.add('active');
           results.querySelectorAll('.row').forEach(row=>{
@@ -615,8 +524,11 @@
       document.addEventListener('click', e=>{ if(!results.contains(e.target) && e.target!==input) results.classList.remove('active'); });
     }
 
+    // theme instant
+    $('#theme-palette')?.addEventListener('change', (e)=>{ state.theme.palette=e.target.value; localStorage.setItem('lh.palette',state.theme.palette); applyTheme(); });
+    $('#theme-font')?.addEventListener('change', (e)=>{ state.theme.font=e.target.value; localStorage.setItem('lh.font',state.theme.font); applyTheme(); });
+
     $('#mm-close')?.addEventListener('click', ()=> closeModal('m-modal'));
-    $('#copyright')?.replaceChildren(document.createTextNode(`Powered by MM, ${nowYear()}`));
   }
 
   function wireRoute(){
@@ -628,13 +540,12 @@
       case 'tasks': wireTasks(); break;
       case 'profile': wireProfile(); break;
       case 'admin': wireAdmin(); break;
-      case 'settings': wireSettings(); break;
-      case 'guide': break;
-      case 'search': wireSearch(); break;
+      case 'settings': break;
+      case 'dashboard': wireAnnouncements(); break;
     }
   }
 
-  /* ---------- Login ---------- */
+  // ---- Login
   function wireLogin(){
     const doLogin=async ()=>{
       const email=$('#li-email')?.value.trim(), pass=$('#li-pass')?.value.trim();
@@ -656,256 +567,227 @@
         const cred=await auth.createUserWithEmailAndPassword(email, pass);
         const uid=cred.user.uid;
         await Promise.all([
-          doc('roles', uid).set({ uid, email, role: ADMIN_EMAILS.includes(email.toLowerCase())?'admin':'student', createdAt:firebase.firestore.FieldValue.serverTimestamp() }),
-          doc('profiles', uid).set({ uid, email, name:'', bio:'', portfolio:'', role: ADMIN_EMAILS.includes(email.toLowerCase())?'admin':'student', createdAt:firebase.firestore.FieldValue.serverTimestamp() })
+          doc('roles', uid).set({ uid, email, role:'student', createdAt:firebase.firestore.FieldValue.serverTimestamp() }),
+          doc('profiles', uid).set({ uid, email, name:'', bio:'', portfolio:'', role:'student', createdAt:firebase.firestore.FieldValue.serverTimestamp() })
         ]);
         notify('Account created — you can sign in.');
       }catch(e){ notify(e?.message||'Signup failed','danger'); }
     });
   }
 
-  /* ---------- Courses ---------- */
+  // ---- Courses
   function wireCourses(){
     $('#add-course')?.addEventListener('click', ()=>{
-      if(!canCreateCourse()) return notify('Instructors/Admins only','warn');
+      if(!canTeach()) return notify('Instructors/Admins only','warn');
       $('#mm-title').textContent='New Course';
       $('#mm-body').innerHTML=`
         <div class="grid">
           <input id="c-title" class="input" placeholder="Title"/>
-          <div class="grid cols-2">
-            <input id="c-category" class="input" placeholder="Category (e.g., Marketing)"/>
-            <input id="c-credits"  class="input" placeholder="Credits (e.g., 3)" type="number" min="0" step="1"/>
-          </div>
-          <textarea id="c-short" class="input" placeholder="Short description (2–3 lines)"></textarea>
-          <textarea id="c-goals" class="input" placeholder="Key benefits (one per line; top 3 shown)"></textarea>
-          <div class="grid cols-2">
-            <input id="c-price"   class="input" placeholder="Price (0 for free)" type="number" min="0" step="0.01"/>
-            <input id="c-image"   class="input" placeholder="Image URL (course card)"/>
-          </div>
-          <div class="grid cols-2">
-            <input id="c-outlineUrl" class="input" placeholder="Outline JSON URL (optional)"/>
-            <input id="c-quizzesUrl" class="input" placeholder="Lesson quizzes JSON URL (optional)"/>
-          </div>
-          <textarea id="c-outline" class="input" placeholder='Inline Outline JSON (if no URL)'></textarea>
+          <input id="c-category" class="input" placeholder="Category (e.g., Marketing)"/>
+          <input id="c-credits" class="input" type="number" value="3" placeholder="Credits"/>
+          <input id="c-price" class="input" type="number" value="0" placeholder="Price (0=Free)"/>
+          <textarea id="c-short" class="input" placeholder="Short description"></textarea>
+          <textarea id="c-goals" class="input" placeholder="Goals (one per line)"></textarea>
+          <input id="c-cover" class="input" placeholder="Cover image URL"/>
+          <input id="c-outlineUrl" class="input" placeholder="Outline JSON URL (Hosting)"/>
+          <input id="c-quizzesUrl" class="input" placeholder="Lesson Quizzes JSON URL (Hosting)"/>
         </div>`;
       $('#mm-foot').innerHTML=`<button class="btn" id="c-save">Save</button>`;
       openModal('m-modal');
       $('#c-save').onclick=async ()=>{
         const t=$('#c-title')?.value.trim(); if(!t) return notify('Title required','warn');
+        const goals=($('#c-goals')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
         const obj={
-          title:t, category:$('#c-category')?.value.trim(), credits:+($('#c-credits')?.value||0),
-          short:$('#c-short')?.value.trim(), goals:($('#c-goals')?.value||'').split(/\n|,/).map(s=>s.trim()).filter(Boolean),
-          price:+($('#c-price')?.value||0), image:$('#c-image')?.value.trim(),
+          title:t, category:$('#c-category')?.value.trim(), credits:+($('#c-credits')?.value||0), price:+($('#c-price')?.value||0),
+          short:$('#c-short')?.value.trim(), goals, coverImage:$('#c-cover')?.value.trim(),
           outlineUrl:$('#c-outlineUrl')?.value.trim(), quizzesUrl:$('#c-quizzesUrl')?.value.trim(),
-          outline: $('#c-outline')?.value.trim()||'',
-          ownerUid:auth.currentUser.uid, ownerEmail:auth.currentUser.email,
-          createdAt:firebase.firestore.FieldValue.serverTimestamp()
+          ownerUid:auth.currentUser.uid, ownerEmail:auth.currentUser.email, createdAt:firebase.firestore.FieldValue.serverTimestamp()
         };
-        await col('courses').add(obj); closeModal('m-modal'); notify('Course saved');
+        try{ await col('courses').add(obj); closeModal('m-modal'); notify('Saved'); }catch(e){ notify(e.message,'danger'); }
       };
     });
 
     const sec=$('[data-sec="courses"]'); if(!sec||sec.__wired) return; sec.__wired=true;
 
     sec.addEventListener('click', async (e)=>{
-      const openBtn=e.target.closest('button[data-open]'); const editBtn=e.target.closest('button[data-edit]'); const enrollBtn=e.target.closest('button[data-enroll]');
+      const openBtn=e.target.closest('button[data-open]');
+      const editBtn=e.target.closest('button[data-edit]');
+      const delBtn =e.target.closest('button[data-del]');
       if(openBtn){
-        const id=openBtn.getAttribute('data-open'); openCourseModal(id);
+        const id=openBtn.getAttribute('data-open'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
+        const c={id:snap.id, ...snap.data()};
+        const enrolled=isEnrolled(c.id);
+        $('#mm-title').textContent=c.title;
+        $('#mm-body').innerHTML=`
+          <div class="grid">
+            <img src="${c.coverImage||'/icons/learnhub-cap.svg'}" alt="${c.title}" style="width:100%;border-radius:12px"/>
+            <div class="muted">${c.category||'General'} • Credits ${c.credits||0}</div>
+            <p>${c.short||''}</p>
+            <ul>${(c.goals||[]).map(g=>`<li>${g}</li>`).join('')}</ul>
+            ${c.price>0? `<div><strong>Price:</strong> ${money(c.price)}</div>`:''}
+          </div>`;
+        $('#mm-foot').innerHTML=`
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            ${!enrolled? `<button class="btn" id="enroll">${c.price>0? 'Pay & Enroll':'Enroll'}</button>` : `<button class="btn ok" disabled>Enrolled</button>`}
+            <button class="btn ghost" id="open-quiz"><i class="ri-question-line"></i> Finals</button>
+          </div>`;
+        openModal('m-modal');
+
+        $('#enroll')?.addEventListener('click', async ()=>{
+          if(c.price>0){
+            // demo checkout
+            await col('payments').add({ uid:auth.currentUser.uid, courseId:c.id, amount:c.price, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+            notify('Demo payment successful');
+          }
+          await col('enrollments').add({ uid:auth.currentUser.uid, courseId:c.id, createdAt:firebase.firestore.FieldValue.serverTimestamp(), course:{id:c.id,title:c.title,category:c.category,credits:c.credits,coverImage:c.coverImage} });
+          closeModal('m-modal'); notify('Enrolled');
+        });
+        $('#open-quiz')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
       }
       if(editBtn){
+        if(!canTeach()) return notify('No permission','warn');
         const id=editBtn.getAttribute('data-edit'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
-        const c={id:snap.id, ...snap.data()}; if(!canEditCourse(c)) return notify('No permission','warn');
+        const c={id:snap.id, ...snap.data()};
         $('#mm-title').textContent='Edit Course';
         $('#mm-body').innerHTML=`
           <div class="grid">
             <input id="c-title" class="input" value="${c.title||''}"/>
-            <div class="grid cols-2">
-              <input id="c-category" class="input" value="${c.category||''}"/>
-              <input id="c-credits"  class="input" type="number" value="${c.credits||0}"/>
-            </div>
+            <input id="c-category" class="input" value="${c.category||''}"/>
+            <input id="c-credits" class="input" type="number" value="${c.credits||0}"/>
+            <input id="c-price" class="input" type="number" value="${c.price||0}"/>
             <textarea id="c-short" class="input">${c.short||''}</textarea>
             <textarea id="c-goals" class="input">${(c.goals||[]).join('\n')}</textarea>
-            <div class="grid cols-2">
-              <input id="c-price" class="input" type="number" step="0.01" value="${c.price||0}"/>
-              <input id="c-image" class="input" value="${c.image||''}"/>
-            </div>
-            <div class="grid cols-2">
-              <input id="c-outlineUrl" class="input" value="${c.outlineUrl||''}"/>
-              <input id="c-quizzesUrl" class="input" value="${c.quizzesUrl||''}"/>
-            </div>
-            <textarea id="c-outline" class="input">${c.outline||''}</textarea>
+            <input id="c-cover" class="input" value="${c.coverImage||''}"/>
+            <input id="c-outlineUrl" class="input" value="${c.outlineUrl||''}"/>
+            <input id="c-quizzesUrl" class="input" value="${c.quizzesUrl||''}"/>
           </div>`;
         $('#mm-foot').innerHTML=`<button class="btn" id="c-save">Save</button>`;
         openModal('m-modal');
         $('#c-save').onclick=async ()=>{
+          const goals=($('#c-goals')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
           await doc('courses', id).set({
-            title:$('#c-title')?.value.trim(),
-            category:$('#c-category')?.value.trim(),
-            credits:+($('#c-credits')?.value||0),
-            short:$('#c-short')?.value.trim(),
-            goals: ($('#c-goals')?.value||'').split(/\n|,/).map(s=>s.trim()).filter(Boolean),
-            price:+($('#c-price')?.value||0),
-            image:$('#c-image')?.value.trim(),
-            outlineUrl:$('#c-outlineUrl')?.value.trim(),
-            quizzesUrl:$('#c-quizzesUrl')?.value.trim(),
-            outline:$('#c-outline')?.value.trim(),
+            title:$('#c-title')?.value.trim(), category:$('#c-category')?.value.trim(),
+            credits:+($('#c-credits')?.value||0), price:+($('#c-price')?.value||0),
+            short:$('#c-short')?.value.trim(), goals,
+            coverImage:$('#c-cover')?.value.trim(), outlineUrl:$('#c-outlineUrl')?.value.trim(), quizzesUrl:$('#c-quizzesUrl')?.value.trim(),
             updatedAt:firebase.firestore.FieldValue.serverTimestamp()
           },{merge:true});
           closeModal('m-modal'); notify('Saved');
         };
       }
-      if(enrollBtn){
-        const id=enrollBtn.getAttribute('data-enroll');
-        const c=state.courses.find(x=>x.id===id); if(!c) return;
-        if(!isPaid(c)){
-          await enrollInCourse(c, true);
-          notify('Enrolled'); return;
-        }
-        // Paid — demo payment flow
-        $('#mm-title').textContent='Checkout';
-        $('#mm-body').innerHTML=`
-          <p><strong>${c.title}</strong></p>
-          <p>Price: ${currency(+c.price||0)}</p>
-          <p class="muted">Demo payment only. Replace this with Stripe/PayPal in production.</p>`;
-        $('#mm-foot').innerHTML=`
-          <button class="btn ghost" id="pay-cancel">Cancel</button>
-          <button class="btn" id="pay-ok"><i class="ri-bank-card-line"></i> Pay now</button>`;
-        openModal('m-modal');
-        $('#pay-cancel').onclick=()=> closeModal('m-modal');
-        $('#pay-ok').onclick=async ()=>{ await enrollInCourse(c, true); closeModal('m-modal'); notify('Payment successful — Enrolled'); };
+      if(delBtn){
+        if(!canTeach()) return notify('No permission','warn');
+        const id=delBtn.getAttribute('data-del');
+        await doc('courses',id).delete();
+        notify('Course deleted');
       }
     });
   }
 
-  async function enrollInCourse(course, paidFlag){
-    const uid=auth.currentUser.uid;
-    await col('enrollments').add({
-      uid, courseId:course.id, paid:!!paidFlag,
-      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-      course:{ id:course.id, title:course.title, category:course.category, credits:course.credits||0, image:course.image||'', price:course.price||0, short:course.short||'' }
-    });
-  }
-
-  async function openCourseModal(id){
-    const snap=await doc('courses',id).get(); if(!snap.exists) return;
-    const c={id:snap.id, ...snap.data()};
-    const enrolled=isEnrolled(c.id);
-    $('#mm-title').textContent=c.title;
-
-    let outline=[];
-    try{
-      if(c.outlineUrl){ const res=await fetch(c.outlineUrl, {cache:'no-cache'}); outline=await res.json(); }
-      else if(c.outline){ outline=JSON.parse(c.outline); }
-    }catch(_){ outline=[]; }
-
-    const chapters = (outline||[]).map((ch,ci)=>`
-      <details ${ci===0?'open':''} style="border:1px solid var(--border);border-radius:10px;padding:8px">
-        <summary><strong>${ch.title||('Chapter '+(ci+1))}</strong></summary>
-        <div class="grid" style="margin-top:8px">
-          ${(ch.lessons||[]).map((ls,li)=>`
-            <div class="card"><div class="card-body">
-              <div style="font-weight:700">${ls.title||('Lesson '+(li+1))}</div>
-              ${ls.video? `<div style="margin:8px 0;aspect-ratio:16/9;border:1px solid var(--border);border-radius:10px;overflow:hidden"><iframe width="100%" height="100%" src="${ls.video.replace('watch?v=','embed/')}" title="Video" frameborder="0" allowfullscreen></iframe></div>`:''}
-              ${ls.images?.length? `<div style="display:flex;gap:6px;flex-wrap:wrap">${ls.images.slice(0,3).map(u=>`<img src="${u}" alt="" style="border:1px solid var(--border);border-radius:8px;width:120px;height:80px;object-fit:cover"/>`).join('')}</div>`:''}
-              ${ls.html? `<div style="margin-top:6px">${ls.html}</div>`:''}
-              ${enrolled? `<div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn" data-quiz-lesson="${id}" data-ci="${ci}" data-li="${li}"><i class="ri-question-line"></i> Lesson quiz</button></div>`:''}
-            </div></div>`).join('')}
-        </div>
-      </details>`).join('');
-
-    $('#mm-body').innerHTML=`
-      <div class="grid">
-        <div class="muted">${c.category||'General'} • ${c.credits||0} credits • ${currency(+c.price||0)}</div>
-        <p>${c.short||''}</p>
-        ${chapters || '<div class="muted">No outline.</div>'}
-      </div>`;
-    $('#mm-foot').innerHTML=`
-      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-        ${!enrolled? `<button class="btn" id="enroll"><i class="ri-checkbox-circle-line"></i> Register Now</button>` : `<button class="btn ok" disabled>Enrolled</button>`}
-        <button class="btn ghost" id="open-final"><i class="ri-medal-line"></i> Final exam</button>
-      </div>`;
-    openModal('m-modal');
-
-    $('#enroll')?.addEventListener('click', async ()=>{
-      if(isPaid(c)){
-        $('#mm-foot').innerHTML=`<button class="btn" id="demo-pay">Demo Pay & Enroll</button>`;
-        $('#demo-pay').onclick=async ()=>{ await enrollInCourse(c,true); closeModal('m-modal'); notify('Enrolled'); };
-      }else{
-        await enrollInCourse(c,true); closeModal('m-modal'); notify('Enrolled');
-      }
-    });
-    $('#open-final')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
-
-    $('#mm-body')?.addEventListener('click', async (e)=>{
-      const b=e.target.closest('button[data-quiz-lesson]'); if(!b) return;
-      if(!isEnrolled(c.id)) return notify('Enroll first to take','warn');
-      const ci=+b.getAttribute('data-ci'), li=+b.getAttribute('data-li');
-      const ch=(outline||[])[ci]; const ls=(ch?.lessons||[])[li];
-      const lessonKey = `${(ch?.title||'ch'+(ci+1)).toLowerCase().replace(/\s+/g,'-')}-${(ls?.title||'lesson'+(li+1)).toLowerCase().replace(/\s+/g,'-')}`;
-      let map={};
-      try{
-        if(c.quizzesUrl){ const r=await fetch(c.quizzesUrl,{cache:'no-cache'}); map=await r.json(); }
-      }catch(_){}
-      const items = map[lessonKey]||[];
-      if(!items.length) return notify('No quiz for this lesson','warn');
-      takeQuiz({ id:`LQ-${lessonKey}`, title:`${ls.title} — Quiz`, courseId:c.id, passScore:70, items });
-    });
-  }
-
+  // ---- Learning
   function wireLearning(){
     $('#main')?.addEventListener('click', async (e)=>{
       const btn=e.target.closest('button[data-open-course]'); if(!btn) return;
-      const id=btn.getAttribute('data-open-course'); openCourseModal(id);
+      const id=btn.getAttribute('data-open-course'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
+      const c={id:snap.id, ...snap.data()};
+      $('#mm-title').textContent=c.title;
+      $('#mm-body').innerHTML=`<div class="grid">
+        <img src="${c.coverImage||'/icons/learnhub-cap.svg'}" alt="${c.title}" style="width:100%;border-radius:12px"/>
+        <p>${c.short||''}</p>
+        <div class="muted">Outline: ${c.outlineUrl?`<a href="${c.outlineUrl}" target="_blank">view</a>`:'(none)'}</div>
+        <div class="muted">Lesson Quizzes: ${c.quizzesUrl?`<a href="${c.quizzesUrl}" target="_blank">view</a>`:'(none)'}</div>
+      </div>`;
+      $('#mm-foot').innerHTML=`<button class="btn ghost" id="mm-ok">Close</button>`; openModal('m-modal');
+      $('#mm-ok').onclick=()=> closeModal('m-modal');
     });
   }
 
+  // ---- Finals
   function wireAssessments(){
-    $('#gen-final')?.addEventListener('click', ()=>{
-      $('#mm-title').textContent='Generate Final';
+    $('#new-quiz')?.addEventListener('click', ()=>{
+      if(!canTeach()) return notify('Instructors/Admins only','warn');
+      $('#mm-title').textContent='New Final';
       $('#mm-body').innerHTML=`
         <div class="grid">
-          <select id="gf-course" class="input">${state.courses.map(c=>`<option value="${c.id}">${c.title}</option>`).join('')}</select>
-          <input id="gf-pass" class="input" type="number" value="70" placeholder="Pass score (%)"/>
+          <input id="q-title" class="input" placeholder="Final title"/>
+          <select id="q-course" class="input">${state.courses.map(c=>`<option value="${c.id}">${c.title}</option>`).join('')}</select>
+          <input id="q-pass" class="input" type="number" value="70" placeholder="Pass score (%)"/>
+          <textarea id="q-json" class="input" placeholder='[{"q":"2+2?","choices":["3","4","5"],"answer":1,"feedbackOk":"Correct!","feedbackNo":"Try again"}]'></textarea>
         </div>`;
-      $('#mm-foot').innerHTML=`<button class="btn" id="gf-make">Generate</button>`;
+      $('#mm-foot').innerHTML=`<button class="btn" id="q-save">Save</button>`;
       openModal('m-modal');
-      $('#gf-make').onclick=async ()=>{
-        const courseId=$('#gf-course')?.value; const pass=+($('#gf-pass')?.value||70);
+      $('#q-save').onclick=async ()=>{
+        const t=$('#q-title')?.value.trim(); const courseId=$('#q-course')?.value; const pass=+($('#q-pass')?.value||70);
+        if(!t||!courseId) return notify('Fill title & course','warn');
+        let items=[]; try{ items=JSON.parse($('#q-json')?.value||'[]'); }catch{ return notify('Invalid JSON','danger'); }
         const course=state.courses.find(c=>c.id===courseId)||{};
-        let pool=[];
-        try{
-          if(course.quizzesUrl){ const r=await fetch(course.quizzesUrl,{cache:'no-cache'}); const map=await r.json();
-            Object.values(map).forEach(arr=> Array.isArray(arr)&&arr.forEach(q=> pool.push(q)));
-          }
-        }catch(_){}
-        if(!pool.length){ notify('No lesson quizzes found for this course','warn'); return; }
-        const items=[]; const cp=[...pool];
-        for(let i=0;i<12 && cp.length;i++){
-          const at=Math.floor(Math.random()*cp.length); items.push(cp.splice(at,1)[0]);
-        }
-        await col('quizzes').add({title:`${course.title} — Final`,courseId,courseTitle:course.title,passScore:pass,isFinal:true,items,ownerUid:auth.currentUser.uid,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-        closeModal('m-modal'); notify('Final generated');
+        await col('quizzes').add({ title:t, courseId, courseTitle:course.title, passScore:pass, items, isFinal:true, ownerUid:auth.currentUser.uid, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+        closeModal('m-modal'); notify('Final saved');
       };
     });
 
     const sec=$('[data-sec="quizzes"]'); if(!sec||sec.__wired){return;} sec.__wired=true;
+
     sec.addEventListener('click', async (e)=>{
       const take=e.target.closest('button[data-take]'); const edit=e.target.closest('button[data-edit]');
       if(take){
         const id=take.getAttribute('data-take'); const snap=await doc('quizzes',id).get(); if(!snap.exists) return;
         const q={id:snap.id,...snap.data()};
-        if(!isEnrolled(q.courseId) && !isInstructor()) return notify('Enroll first to take','warn');
-        takeQuiz(q);
+        if(!isEnrolled(q.courseId) && state.role==='student') return notify('Enroll first','warn');
+        // render quiz with scrollable modal
+        $('#mm-title').textContent=q.title;
+        $('#mm-body').innerHTML = q.items.map((it,idx)=>`
+          <div class="card"><div class="card-body">
+            <div style="font-weight:700">Q${idx+1}. ${it.q}</div>
+            <div style="margin-top:6px;display:grid;gap:6px">
+              ${it.choices.map((c,i)=>`
+                <label style="display:flex;gap:8px;align-items:center">
+                  <input type="radio" name="q${idx}" value="${i}"/> <span>${c}</span>
+                </label>`).join('')}
+            </div>
+            <div class="muted" id="fb-${idx}" style="margin-top:6px"></div>
+          </div></div>`).join('');
+        $('#mm-foot').innerHTML=`<button class="btn" id="q-submit"><i class="ri-checkbox-circle-line"></i> Submit</button>`;
+        openModal('m-modal');
+        // allow full scroll
+        $('#mm-body').scrollTop = 0;
+
+        // instant feedback on change
+        q.items.forEach((it,idx)=>{
+          $('#mm-body').addEventListener('change', (ev)=>{
+            const t = ev.target;
+            if(t && t.name===`q${idx}`){
+              const val=+t.value;
+              const fb=$(`#fb-${idx}`);
+              if(val===+it.answer){ fb.textContent = it.feedbackOk||'Correct'; fb.style.color='var(--ok)'; }
+              else { fb.textContent = it.feedbackNo||'Incorrect'; fb.style.color='var(--danger)'; }
+            }
+          });
+        });
+
+        $('#q-submit').onclick=async ()=>{
+          let correct=0;
+          q.items.forEach((it,idx)=>{
+            const v=(document.querySelector(`input[name="q${idx}"]:checked`)?.value)||'-1';
+            if(+v===+it.answer) correct++;
+          });
+          const score = Math.round((correct/q.items.length)*100);
+          await col('attempts').add({
+            uid:auth.currentUser.uid, email:auth.currentUser.email, quizId:q.id, quizTitle:q.title, courseId:q.courseId, score,
+            createdAt:firebase.firestore.FieldValue.serverTimestamp()
+          });
+          closeModal('m-modal'); notify(`Your score: ${score}%`);
+        };
       }
       if(edit){
         const id=edit.getAttribute('data-edit'); const snap=await doc('quizzes',id).get(); if(!snap.exists) return;
-        const q={id:snap.id,...snap.data()}; if(!(q.ownerUid===auth.currentUser?.uid || isAdmin())) return notify('No permission','warn');
+        const q={id:snap.id,...snap.data()}; if(!(canTeach() || q.ownerUid===auth.currentUser?.uid)) return notify('No permission','warn');
         $('#mm-title').textContent='Edit Final';
         $('#mm-body').innerHTML=`
           <div class="grid">
             <input id="q-title" class="input" value="${q.title||''}"/>
             <input id="q-pass" class="input" type="number" value="${q.passScore||70}"/>
-            <textarea id="q-json" class="input" style="min-height:220px">${JSON.stringify(q.items||[],null,2)}</textarea>
+            <textarea id="q-json" class="input">${JSON.stringify(q.items||[],null,2)}</textarea>
           </div>`;
         $('#mm-foot').innerHTML=`<button class="btn" id="q-save">Save</button>`;
         openModal('m-modal');
@@ -918,54 +800,9 @@
     });
   }
 
-  function takeQuiz(q){
-    $('#mm-title').textContent = q.title;
-    $('#mm-body').innerHTML = `
-      <div id="quiz-wrap" style="max-height:58vh;overflow:auto;padding-right:6px">
-        ${q.items.map((it,idx)=>`
-        <div class="card"><div class="card-body">
-          <div style="font-weight:700">Q${idx+1}. ${it.q}</div>
-          <div style="margin-top:6px;display:grid;gap:6px">
-            ${it.choices.map((c,i)=>`
-              <label style="display:flex;gap:8px;align-items:center">
-                <input type="radio" name="q${idx}" value="${i}"/> <span>${c}</span>
-              </label>`).join('')}
-          </div>
-          <div id="fb-${idx}" class="muted" style="margin-top:6px"></div>
-        </div></div>`).join('')}
-      </div>`;
-    $('#mm-foot').innerHTML=`<button class="btn" id="q-submit"><i class="ri-checkbox-circle-line"></i> Submit</button>`;
-    openModal('m-modal');
-
-    q.items.forEach((it,idx)=>{
-      $(`#quiz-wrap input[name="q${idx}"]`)?.closest('div')?.addEventListener('change', ()=>{
-        const v=+((document.querySelector(`input[name="q${idx}"]:checked`)?.value)||'-1');
-        const fb=$(`#fb-${idx}`); if(!fb) return;
-        if(v===+it.answer){ fb.textContent=it.feedbackOk||'Correct'; fb.style.color='var(--ok)';}
-        else { fb.textContent=it.feedbackNo||'Incorrect'; fb.style.color='var(--danger)';}
-      });
-    });
-
-    $('#q-submit').onclick=async ()=>{
-      let correct=0;
-      q.items.forEach((it,idx)=>{
-        const v=(document.querySelector(`input[name="q${idx}"]:checked`)?.value)||'-1';
-        if(+v===+it.answer) correct++;
-      });
-      const score = Math.round((correct/q.items.length)*100);
-      await col('attempts').add({
-        uid:auth.currentUser.uid, email:auth.currentUser.email, quizId:q.id, quizTitle:q.title, courseId:q.courseId, score,
-        createdAt:firebase.firestore.FieldValue.serverTimestamp()
-      });
-      closeModal('m-modal'); notify(`Your score: ${score}%`);
-    };
-  }
-
-  /* ---------- Chat (admin messages restored) ---------- */
+  // ---- Chat
   function wireChat(){
-    const box=$('#chat-box'); const typeSel=$('#chat-type'); const courseSel=$('#chat-course');
-    const userSel=$('#chat-user'); const groupInp=$('#chat-group');
-    const input=$('#chat-input'); const send=$('#chat-send');
+    const box=$('#chat-box'); const courseSel=$('#chat-course'); const input=$('#chat-input'); const send=$('#chat-send');
     const paint=(msgs)=>{
       box.innerHTML = msgs.map(m=>`
         <div style="margin-bottom:8px">
@@ -974,55 +811,28 @@
         </div>`).join('');
       box.scrollTop=box.scrollHeight;
     };
-    function subChat(){
+    const sub=(cid)=>{
       if(state._unsubChat){ try{state._unsubChat()}catch{} state._unsubChat=null; }
-      const t=state.chatTarget.type;
-      if(t==='course' && state.chatTarget.courseId){
-        state._unsubChat = col('messages').where('targetType','==','course').where('courseId','==',state.chatTarget.courseId).onSnapshot(
-          s => { state.messages = s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0)); paint(state.messages); },
-          err => console.warn('chat listener error:', err)
-        );
-      } else if(t==='user' && state.chatTarget.toUid){
-        const room = [auth.currentUser.uid, state.chatTarget.toUid].sort().join('_');
-        state._unsubChat = col('messages').where('targetType','==','user').where('room','==',room).onSnapshot(
-          s => { state.messages = s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0)); paint(state.messages); },
-          err => console.warn('chat listener error:', err)
-        );
-      } else if(t==='group' && (state.chatTarget.group||'').trim()){
-        state._unsubChat = col('messages').where('targetType','==','group').where('group','==',state.chatTarget.group.trim()).onSnapshot(
-          s => { state.messages = s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0)); paint(state.messages); },
-          err => console.warn('chat listener error:', err)
-        );
-      } else box.innerHTML='';
-    }
-    typeSel?.addEventListener('change', ()=>{
-      state.chatTarget.type=typeSel.value;
-      $('#chat-course').style.display = state.chatTarget.type==='course'?'block':'none';
-      $('#chat-user').style.display   = state.chatTarget.type==='user'?'block':'none';
-      $('#chat-group').style.display  = state.chatTarget.type==='group'?'block':'none';
-      subChat();
-    });
-    courseSel?.addEventListener('change', ()=>{ state.chatTarget.courseId=courseSel.value; subChat(); });
-    userSel?.addEventListener('change', ()=>{ state.chatTarget.toUid=userSel.value; subChat(); });
-    groupInp?.addEventListener('input', ()=>{ state.chatTarget.group=groupInp.value; });
+      if(!cid){ box.innerHTML=''; return; }
+      state._unsubChat = col('messages').where('courseId','==',cid).onSnapshot(
+        s => {
+          state.messages = s.docs.map(d=>({id:d.id, ...d.data()}))
+            .sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0));
+          paint(state.messages);
+        },
+        err => console.warn('chat listener error:', err)
+      );
+    };
+    courseSel?.addEventListener('change', e=> sub(e.target.value));
     send?.addEventListener('click', async ()=>{
-      const text=input.value.trim(); if(!text) return;
+      const cid=courseSel.value; const text=input.value.trim(); if(!text||!cid) return;
       const p = state.profiles.find(x=>x.uid===auth.currentUser?.uid) || {};
-      const base = { uid:auth.currentUser.uid, email:auth.currentUser.email, name:p.name||'', text, createdAt:firebase.firestore.FieldValue.serverTimestamp() };
-      if(state.chatTarget.type==='course' && state.chatTarget.courseId){
-        await col('messages').add({ ...base, targetType:'course', courseId:state.chatTarget.courseId });
-      } else if(state.chatTarget.type==='user' && state.chatTarget.toUid){
-        const room=[auth.currentUser.uid, state.chatTarget.toUid].sort().join('_');
-        await col('messages').add({ ...base, targetType:'user', toUid:state.chatTarget.toUid, room });
-      } else if(state.chatTarget.type==='group' && (state.chatTarget.group||'').trim()){
-        await col('messages').add({ ...base, targetType:'group', group:state.chatTarget.group.trim() });
-      }
-      input.value=''; subChat();
+      await col('messages').add({ courseId:cid, uid:auth.currentUser.uid, email:auth.currentUser.email, name:p.name||'', text, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+      input.value='';
     });
-    subChat();
   }
 
-  /* ---------- Tasks ---------- */
+  // ---- Tasks
   function wireTasks(){
     const root=$('[data-sec="tasks"]'); if(!root) return;
 
@@ -1058,14 +868,15 @@
       }
     });
 
-    // drag drop
+    // drag drop visuals
     root.querySelectorAll('.task-card').forEach(card=>{
       card.setAttribute('draggable','true'); card.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', card.getAttribute('data-task')); card.classList.add('dragging'); });
       card.addEventListener('dragend', ()=> card.classList.remove('dragging'));
     });
     root.querySelectorAll('.lane-grid').forEach(grid=>{
       const row=grid.closest('.lane-row'); const lane=row?.getAttribute('data-lane');
-      const show=e=>{ e.preventDefault(); row?.classList.add('drop'); }; const hide=()=> row?.classList.remove('drop');
+      const show=e=>{ e.preventDefault(); row?.classList.add('highlight'); };
+      const hide=()=> row?.classList.remove('highlight');
       grid.addEventListener('dragenter', show); grid.addEventListener('dragover', show); grid.addEventListener('dragleave', hide);
       grid.addEventListener('drop', async (e)=>{ e.preventDefault(); hide(); const id=e.dataTransfer.getData('text/plain'); if(!id) return;
         await doc('tasks',id).set({ status:lane, updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
@@ -1073,178 +884,155 @@
     });
   }
 
-  /* ---------- Profile / Certificates ---------- */
+  // ---- Profile
   function wireProfile(){
     $('#pf-pick')?.addEventListener('click', ()=> $('#pf-avatar')?.click());
-    $('#pf-pick-sign')?.addEventListener('click', ()=> $('#pf-signature')?.click());
+    $('#pf-pick-sign')?.addEventListener('click', ()=> $('#pf-sign')?.click());
 
     $('#pf-save')?.addEventListener('click', async ()=>{
       const uid=auth.currentUser.uid;
       await doc('profiles',uid).set({
-        name:$('#pf-name')?.value.trim(),
-        portfolio:$('#pf-portfolio')?.value.trim(),
-        bio:$('#pf-bio')?.value.trim(),
-        org:$('#pf-org')?.value.trim(),
-        location:$('#pf-location')?.value.trim(),
-        certPrefix:$('#pf-certprefix')?.value.trim(),
-        signText:$('#pf-signText')?.value.trim(),
+        name:$('#pf-name')?.value.trim(), portfolio:$('#pf-portfolio')?.value.trim(), bio:$('#pf-bio')?.value.trim(),
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
       },{merge:true});
 
-      const avatar=$('#pf-avatar')?.files?.[0];
-      if(avatar){
-        const ref=stg.ref().child(`avatars/${uid}/${Date.now()}_${avatar.name}`);
-        await ref.put(avatar); const url=await ref.getDownloadURL();
+      const fileA=$('#pf-avatar')?.files?.[0];
+      if(fileA){
+        const ref=stg.ref().child(`avatars/${uid}/${Date.now()}_${fileA.name}`);
+        await ref.put(fileA); const url=await ref.getDownloadURL();
         await doc('profiles',uid).set({ avatar:url },{merge:true});
       }
-      const signature=$('#pf-signature')?.files?.[0];
-      if(signature){
-        const ref=stg.ref().child(`signatures/${uid}/${Date.now()}_${signature.name}`);
-        await ref.put(signature); const url=await ref.getDownloadURL();
+      const fileS=$('#pf-sign')?.files?.[0];
+      if(fileS){
+        const ref=stg.ref().child(`signatures/${uid}/${Date.now()}_${fileS.name}`);
+        await ref.put(fileS); const url=await ref.getDownloadURL();
         await doc('profiles',uid).set({ signature:url },{merge:true});
       }
       notify('Profile saved');
+    });
+
+    $('#pf-delete')?.addEventListener('click', async ()=>{
+      const uid=auth.currentUser.uid;
+      await doc('profiles',uid).delete();
+      notify('Profile deleted');
     });
 
     $('#pf-view')?.addEventListener('click', ()=>{
       const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {};
       $('#mm-title').textContent='Profile Card';
       $('#mm-body').innerHTML=`
-        <div style="display:flex;gap:12px;align-items:center">
-          <img src="${me.avatar||'/icons/learnhub-192.png'}" alt="avatar" style="width:64px;height:64px;border-radius:50%;border:1px solid var(--border)"/>
-          <div>
-            <div style="font-weight:800">${me.name||me.email||'—'}</div>
-            <div class="muted" style="font-size:12px">${me.org||'LearnHub'} • ${me.location||''}</div>
+        <div class="grid">
+          <div style="display:flex;gap:12px;align-items:center">
+            <img src="${me.avatar||'/icons/learnhub-cap.svg'}" alt="avatar" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:1px solid var(--border)"/>
+            <div>
+              <div style="font-weight:800">${me.name||me.email||'—'}</div>
+              <div class="muted">${me.email||''}</div>
+            </div>
           </div>
-        </div>
-        <p style="margin-top:8px">${me.bio||''}</p>
-        ${me.signature? `<div class="muted" style="font-size:12px">Signature:</div><img src="${me.signature}" style="height:28px;background:#fff;border:1px dashed var(--border);padding:2px"/>`:''}
-      `;
-      $('#mm-foot').innerHTML=`<button class="btn ghost" id="mm-ok">Close</button>`; openModal('m-modal'); $('#mm-ok').onclick=()=> closeModal('m-modal');
+          <div>${(me.bio||'').replace(/</g,'&lt;')}</div>
+          ${me.signature? `<div class="muted">Signature:</div><img src="${me.signature}" alt="signature" style="max-height:48px">`:''}
+        </div>`;
+      $('#mm-foot').innerHTML=`<button class="btn ghost" id="mm-ok">Close</button>`; openModal('m-modal');
+      $('#mm-ok').onclick=()=> closeModal('m-modal');
     });
 
-    $('#pf-del')?.addEventListener('click', async ()=>{
-      if(!confirm('Delete your profile? This cannot be undone.')) return;
-      await doc('profiles',auth.currentUser.uid).delete(); notify('Profile deleted');
-    });
-
+    // certificate
     $('#main').addEventListener('click', async (e)=>{
-      const b=e.target.closest('button[data-cert]'); if(b){
-        const courseId=b.getAttribute('data-cert');
-        const course=state.courses.find(c=>c.id===courseId)||{};
-        const p=state.profiles.find(x=>x.uid===auth.currentUser?.uid)||{name:auth.currentUser.email, org:'LearnHub', certPrefix:'LH'};
-        await drawCertificate({ name:p.name||auth.currentUser.email, org:p.org||'LearnHub', location:p.location||'', course:course.title||courseId, prefix:p.certPrefix||'LH', signature:p.signature||'', signText:p.signText||'' });
-      }
-      if(e.target.id==='demo-cert'){
-        const p=state.profiles.find(x=>x.uid===auth.currentUser?.uid)||{name:auth.currentUser.email, org:'LearnHub', certPrefix:'LH'};
-        await drawCertificate({ name:p.name||'Student Name', org:p.org||'LearnHub', location:p.location||'', course:'Sample Course', prefix:p.certPrefix||'LH', signature:p.signature||'', signText:p.signText||''});
-      }
-      if(e.target.id==='demo-trans'){
-        await downloadDemoTranscript();
+      const b=e.target.closest('button[data-cert]'); if(!b) return;
+      const courseId=b.getAttribute('data-cert');
+      const course=state.courses.find(c=>c.id===courseId)||{};
+      const p=state.profiles.find(x=>x.uid===auth.currentUser?.uid)||{name:auth.currentUser.email};
+
+      const canvas=document.createElement('canvas'); canvas.width=1400; canvas.height=1000;
+      const ctx=canvas.getContext('2d');
+      // background + border
+      ctx.fillStyle='#0b0d10'; ctx.fillRect(0,0,1400,1000);
+      ctx.strokeStyle='#7ad3ff'; ctx.lineWidth=8; ctx.strokeRect(60,60,1280,880);
+      ctx.fillStyle='#fff'; ctx.font='bold 60px Inter'; ctx.fillText('Certificate of Completion', 340, 240);
+      ctx.font='28px Inter';
+      ctx.fillText(`Awarded to: ${p.name||p.email}`, 340, 320);
+      ctx.fillText(`Course: ${course.title||courseId}`, 340, 370);
+      ctx.fillText(`Organization: LearnHub`, 340, 420);
+      const id = 'LH-' + (courseId||'xxxx').slice(0,6).toUpperCase() + '-' + (auth.currentUser.uid||'user').slice(0,6).toUpperCase();
+      ctx.fillText(`Certificate ID: ${id}`, 340, 470);
+      ctx.fillText(`Date: ${new Date().toLocaleDateString()}`, 340, 520);
+      // signature
+      if(p.signature){
+        const img=new Image(); img.crossOrigin='anonymous'; img.onload=()=>{
+          ctx.drawImage(img, 980, 540, 260, 80);
+          finish(); };
+        img.src=p.signature;
+      } else { finish(); }
+
+      function finish(){
+        ctx.fillStyle='#fff'; ctx.font='20px Inter'; ctx.fillText('Authorized Signature', 1000, 640);
+        const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`certificate_${course.title||courseId}.png`; a.click();
       }
     });
   }
 
-  async function drawCertificate({name,org,location,course,prefix,signature,signText}){
-    const id = `${prefix}-${Date.now().toString().slice(-7)}`;
-    const canvas=document.createElement('canvas'); canvas.width=1400; canvas.height=1000;
-    const ctx=canvas.getContext('2d');
-    ctx.fillStyle='#0b0d10'; ctx.fillRect(0,0,1400,1000);
-    ctx.strokeStyle='#7ad3ff'; ctx.lineWidth=8; ctx.strokeRect(60,60,1280,880);
-    ctx.fillStyle='#fff'; ctx.font='bold 56px Inter, ui-sans-serif'; ctx.fillText('Certificate of Completion', 330, 220);
-    ctx.font='28px Inter'; ctx.fillText(`This is to certify that`, 330, 280);
-    ctx.font='bold 46px Inter'; ctx.fillText(name, 330, 340);
-    ctx.font='28px Inter'; ctx.fillText(`has successfully completed`, 330, 390);
-    ctx.font='bold 36px Inter'; ctx.fillText(course, 330, 440);
-    ctx.font='24px Inter'; ctx.fillText(`at ${org}${location?`, ${location}`:''}`, 330, 490);
-    ctx.font='24px Inter'; ctx.fillText(`Date: ${new Date().toLocaleDateString()}`, 330, 540);
-    ctx.font='20px Inter'; ctx.fillText(`Certificate No: ${id}`, 330, 580);
-    if(signature){
-      const img = new Image(); img.crossOrigin='anonymous'; img.onload=()=>{
-        ctx.drawImage(img, 980, 620, 220, 80);
-        ctx.font='20px Inter'; ctx.fillStyle='#fff';
-        ctx.fillText(signText||'Authorized Signature', 980, 720);
-        const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`certificate_${course}.png`; a.click();
-      };
-      img.src=signature;
-    }else{
-      ctx.font='20px Inter'; ctx.fillStyle='#fff';
-      ctx.fillText(signText||'Authorized Signature', 980, 720);
-      const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=`certificate_${course}.png`; a.click();
-    }
-  }
-
-  async function downloadDemoTranscript(){
-    const rows=[['Course','Best','Credits','Completed']];
-    buildTranscript(auth.currentUser?.uid).forEach(r=> rows.push([r.courseTitle, r.best, r.credits||0, r.completed?'Yes':'No']));
-    const csv = rows.map(r=> r.map(x=>`"${(x+'').replace(/"/g,'""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob);
-    const a=document.createElement('a'); a.href=url; a.download='transcript_demo.csv'; a.click(); URL.revokeObjectURL(url);
-  }
-
+  // ---- Admin
   function wireAdmin(){
     $('#rm-save')?.addEventListener('click', async ()=>{
       const uid=$('#rm-uid')?.value.trim(); const role=$('#rm-role')?.value||'student';
       if(!uid || !VALID_ROLES.includes(role)) return notify('Enter UID + valid role','warn');
       await doc('roles',uid).set({ uid, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
-      await doc('profiles',uid).set({ role },{merge:true});
       notify('Role saved');
     });
 
-    $('#adm-users')?.addEventListener('click', async (e)=>{
-      const editBtn=e.target.closest('button[data-edit-user]'); const delBtn=e.target.closest('button[data-del-user]');
-      if(editBtn){
-        const uid=editBtn.getAttribute('data-edit-user');
-        const snap=await doc('profiles',uid).get(); if(!snap.exists) return;
-        const p={id:snap.id, ...snap.data()};
-        $('#mm-title').textContent='Edit User Profile';
+    $('#main')?.addEventListener('click', async (e)=>{
+      const ed=e.target.closest('button[data-admin-edit]'); const del=e.target.closest('button[data-admin-del]');
+      if(ed){
+        const uid=ed.getAttribute('data-admin-edit'); const snap=await doc('profiles',uid).get(); if(!snap.exists) return;
+        const p={id:snap.id,...snap.data()};
+        $('#mm-title').textContent='Edit Profile (admin)';
         $('#mm-body').innerHTML=`<div class="grid">
-          <input id="p-name" class="input" value="${p.name||''}" placeholder="Name"/>
-          <input id="p-email" class="input" value="${p.email||''}" placeholder="Email (display only)"/>
-          <textarea id="p-bio" class="input">${p.bio||''}</textarea>
+          <input id="ap-name" class="input" value="${p.name||''}"/>
+          <input id="ap-portfolio" class="input" value="${p.portfolio||''}"/>
+          <textarea id="ap-bio" class="input">${p.bio||''}</textarea>
         </div>`;
-        $('#mm-foot').innerHTML=`<button class="btn" id="p-save">Save</button>`;
-        openModal('m-modal');
-        $('#p-save').onclick=async ()=>{
-          await doc('profiles',uid).set({ name:$('#p-name')?.value.trim(), bio:$('#p-bio')?.value.trim() },{merge:true});
+        $('#mm-foot').innerHTML=`<button class="btn" id="ap-save">Save</button>`; openModal('m-modal');
+        $('#ap-save').onclick=async ()=>{
+          await doc('profiles',uid).set({ name:$('#ap-name')?.value.trim(), portfolio:$('#ap-portfolio')?.value.trim(), bio:$('#ap-bio')?.value.trim(), updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
           closeModal('m-modal'); notify('Saved');
         };
       }
-      if(delBtn){
-        const uid=delBtn.getAttribute('data-del-user');
-        if(!confirm('Delete this profile?')) return;
-        await doc('profiles',uid).delete(); notify('Deleted');
+      if(del){
+        const uid=del.getAttribute('data-admin-del');
+        await doc('profiles',uid).delete();
+        notify('Profile deleted');
       }
     });
+  }
 
-    // announcements
-    $('#main').addEventListener('click', async (e)=>{
-      const add=e.target.closest('#ann-add'); const edit=e.target.closest('button[data-edit-ann]'); const del=e.target.closest('button[data-del-ann]');
-      if(add){
-        $('#mm-title').textContent='Announcement'; $('#mm-body').innerHTML=`
-          <div class="grid">
-            <input id="a-title" class="input" placeholder="Title"/>
-            <textarea id="a-body" class="input" placeholder="Details"></textarea>
-          </div>`;
-        $('#mm-foot').innerHTML=`<button class="btn" id="a-save">Save</button>`; openModal('m-modal');
-        $('#a-save').onclick=async ()=>{
-          await col('announcements').add({ title:$('#a-title')?.value.trim(), body:$('#a-body')?.value.trim(), createdAt:firebase.firestore.FieldValue.serverTimestamp() });
-          closeModal('m-modal'); notify('Saved');
-        };
-      }
-      if(edit){
-        const id=edit.getAttribute('data-edit-ann'); const snap=await doc('announcements',id).get(); if(!snap.exists) return;
-        const a={id:snap.id,...snap.data()};
-        $('#mm-title').textContent='Edit Announcement'; $('#mm-body').innerHTML=`
-          <div class="grid">
-            <input id="a-title" class="input" value="${a.title||''}"/>
-            <textarea id="a-body" class="input">${a.body||''}</textarea>
-          </div>`;
-        $('#mm-foot').innerHTML=`<button class="btn" id="a-save">Save</button>`; openModal('m-modal');
-        $('#a-save').onclick=async ()=>{
-          await doc('announcements',id).set({ title:$('#a-title')?.value.trim(), body:$('#a-body')?.value.trim(), updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
-          closeModal('m-modal'); notify('Saved');
-        };
+  // ---- Announcements (Dashboard)
+  function wireAnnouncements(){
+    if(!canManageUsers()) return;
+    $('#add-ann')?.addEventListener('click', ()=>{
+      $('#mm-title').textContent='Announcement';
+      $('#mm-body').innerHTML=`<div class="grid">
+        <input id="an-title" class="input" placeholder="Title"/>
+        <textarea id="an-body" class="input" placeholder="Body"></textarea>
+      </div>`;
+      $('#mm-foot').innerHTML=`<button class="btn" id="an-save">Save</button>`; openModal('m-modal');
+      $('#an-save').onclick=async ()=>{
+        await col('announcements').add({ title:$('#an-title')?.value.trim(), body:$('#an-body')?.value.trim(), createdAt:firebase.firestore.FieldValue.serverTimestamp(), uid:auth.currentUser.uid });
+        closeModal('m-modal'); notify('Announcement posted');
+      };
+    });
+
+    $('#ann-list')?.addEventListener('click', async (e)=>{
+      const ed=e.target.closest('button[data-edit-ann]'); const del=e.target.closest('button[data-del-ann]');
+      if(ed){
+        const id=ed.getAttribute('data-edit-ann'); const s=await doc('announcements',id).get(); if(!s.exists) return;
+        const a={id:s.id,...s.data()};
+        $('#mm-title').textContent='Edit Announcement';
+        $('#mm-body').innerHTML=`<div class="grid">
+          <input id="an-title" class="input" value="${a.title||''}"/>
+          <textarea id="an-body" class="input">${a.body||''}</textarea>
+        </div>`;
+        $('#mm-foot').innerHTML=`<button class="btn" id="an-save">Save</button>`; openModal('m-modal');
+        $('#an-save').onclick=async ()=>{ await doc('announcements',id).set({ title:$('#an-title')?.value.trim(), body:$('#an-body')?.value.trim(), updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true}); closeModal('m-modal'); notify('Saved'); };
       }
       if(del){
         const id=del.getAttribute('data-del-ann'); await doc('announcements',id).delete(); notify('Deleted');
@@ -1252,159 +1040,112 @@
     });
   }
 
-  function wireSettings(){
-    const applyPalette = (v)=>{
-      ['theme-sunrise','theme-dark','theme-light'].forEach(cls=>document.body.classList.remove(cls));
-      document.body.classList.add('theme-'+v); state.theme.palette=v;
-    };
-    const applyFont = (v)=>{
-      ['font-small','font-medium','font-large'].forEach(cls=>document.body.classList.remove(cls));
-      document.body.classList.add('font-'+v); state.theme.font=v;
-    };
-    $('#theme-palette')?.addEventListener('change', e=> applyPalette(e.target.value));
-    $('#theme-font')?.addEventListener('change', e=> applyFont(e.target.value));
-  }
-
-  function wireSearch(){
-    $('#main')?.querySelectorAll('[data-open-route]').forEach(el=>{
-      el.addEventListener('click', ()=>{
-        const r=el.getAttribute('data-open-route'); const id=el.getAttribute('data-id'); state.highlightId=id; go(r);
-      });
-    });
-  }
-
-  /* ---------- Transcript ---------- */
+  // ---- Transcript
   function buildTranscript(uid){
     const byCourse = {};
     (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
-      byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId, best:0, credits: (state.courses.find(c=>c.id===a.courseId)||{}).credits||0, completed:false};
+      byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId, best:0, completed:false};
       byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score||0);
-      const course = state.courses.find(c=>c.id===a.courseId)||{};
-      const passReq = (course.price||0)>0 ? 75 : 65;
-      const best = byCourse[a.courseId].best;
-      byCourse[a.courseId].completed = best >= passReq;
+      const q = state.quizzes.find(q=>q.courseId===a.courseId && q.isFinal);
+      byCourse[a.courseId].completed = q ? (byCourse[a.courseId].best >= (q.passScore||70)) : false;
     });
     return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
   }
 
-  /* ---------- Sync ---------- */
+  // ---- Firestore sync (no composite indexes)
   function clearUnsubs(){ state.unsub.forEach(u=>{try{u()}catch{}}); state.unsub=[]; }
   function sync(){
     clearUnsubs();
     const uid=auth.currentUser.uid;
 
-    state.unsub.push(col('profiles').onSnapshot(
-      s => { state.profiles = s.docs.map(d=>({id:d.id, ...d.data()})); if(['profile','admin','chat'].includes(state.route)) render(); },
-      err => console.warn('profiles listener error:', err)
-    ));
+    state.unsub.push(
+      col('profiles').onSnapshot(
+        s => { state.profiles = s.docs.map(d=>({id:d.id, ...d.data()})); if(['profile','admin'].includes(state.route)) render(); },
+        err => console.warn('profiles listener error:', err)
+      )
+    );
 
-    state.unsub.push(col('enrollments').where('uid','==',uid).onSnapshot(s=>{
-      state.enrollments=s.docs.map(d=>({id:d.id,...d.data()}));
-      state.myEnrolledIds = new Set(state.enrollments.map(e=>e.courseId));
-      if(['dashboard','learning','assessments','chat'].includes(state.route)) render();
-    }));
+    state.unsub.push(
+      col('enrollments').where('uid','==',uid).onSnapshot(s=>{
+        state.enrollments=s.docs.map(d=>({id:d.id,...d.data()}));
+        state.myEnrolledIds = new Set(state.enrollments.map(e=>e.courseId));
+        if(['dashboard','learning','assessments','chat'].includes(state.route)) render();
+      })
+    );
 
-    state.unsub.push(col('courses').orderBy('createdAt','desc').onSnapshot(
-      s => { state.courses = s.docs.map(d=>({id:d.id, ...d.data()})); if(['dashboard','courses','learning','assessments','chat'].includes(state.route)) render(); },
-      err => console.warn('courses listener error:', err)
-    ));
+    state.unsub.push(
+      col('courses').orderBy('createdAt','desc').onSnapshot(
+        s => { state.courses = s.docs.map(d=>({id:d.id, ...d.data()})); if(['dashboard','courses','learning','assessments','chat'].includes(state.route)) render(); },
+        err => console.warn('courses listener error:', err)
+      )
+    );
 
-    state.unsub.push(col('quizzes').orderBy('createdAt','desc').onSnapshot(
-      s => { state.quizzes = s.docs.map(d=>({id:d.id, ...d.data()})); if(['assessments','dashboard','profile'].includes(state.route)) render(); },
-      err => console.warn('quizzes listener error:', err)
-    ));
+    state.unsub.push(
+      col('quizzes').orderBy('createdAt','desc').onSnapshot(
+        s => { state.quizzes = s.docs.map(d=>({id:d.id, ...d.data()})); if(['assessments','dashboard','profile'].includes(state.route)) render(); },
+        err => console.warn('quizzes listener error:', err)
+      )
+    );
 
-    state.unsub.push(col('attempts').where('uid','==',uid).onSnapshot(
-      s => {
-        state.attempts = s.docs.map(d=>({id:d.id, ...d.data()}))
-          .sort((a,b)=>(b.createdAt?.toMillis?.()||0)-(a.createdAt?.toMillis?.()||0));
-        if(['assessments','profile','dashboard'].includes(state.route)) render();
-      },
-      err => console.warn('attempts listener error:', err)
-    ));
+    state.unsub.push(
+      col('attempts').where('uid','==',uid).onSnapshot(
+        s => {
+          state.attempts = s.docs.map(d=>({id:d.id, ...d.data()}))
+            .sort((a,b)=>(b.createdAt?.toMillis?.()||0)-(a.createdAt?.toMillis?.()||0));
+          if(['assessments','profile','dashboard'].includes(state.route)) render();
+        },
+        err => console.warn('attempts listener error:', err)
+      )
+    );
 
-    state.unsub.push(col('tasks').where('uid','==',uid).onSnapshot(
-      s => { state.tasks = s.docs.map(d=>({id:d.id, ...d.data()})); if(['tasks','dashboard'].includes(state.route)) render(); },
-      err => console.warn('tasks listener error:', err)
-    ));
+    state.unsub.push(
+      col('tasks').where('uid','==',uid).onSnapshot(
+        s => { state.tasks = s.docs.map(d=>({id:d.id, ...d.data()})); if(['tasks','dashboard'].includes(state.route)) render(); },
+        err => console.warn('tasks listener error:', err)
+      )
+    );
 
-    state.unsub.push(col('announcements').orderBy('createdAt','desc').limit(25).onSnapshot(
-      s => { state.announcements=s.docs.map(d=>({id:d.id,...d.data()})); if(['dashboard'].includes(state.route)) render(); },
-      err => console.warn('announcements listener error:', err)
-    ));
+    state.unsub.push(
+      col('announcements').orderBy('createdAt','desc').limit(25).onSnapshot(s=>{
+        state.announcements=s.docs.map(d=>({id:d.id,...d.data()})); if(['dashboard'].includes(state.route)) render();
+      })
+    );
   }
 
-  async function resolveRole(uid,email){
-    if(ADMIN_EMAILS.includes((email||'').toLowerCase())) return 'admin';
+  async function resolveRole(uid){
     try{
       const r=await doc('roles',uid).get(); const role=(r.data()?.role||'student').toLowerCase();
       return VALID_ROLES.includes(role)?role:'student';
     }catch{return 'student';}
   }
 
+  // ---- Auth
   auth.onAuthStateChanged(async (user)=>{
     state.user=user||null;
     if(!user){ clearUnsubs(); render(); return; }
-    state.role = await resolveRole(user.uid, user.email);
+    state.role = await resolveRole(user.uid);
     try{
       const p=await doc('profiles',user.uid).get();
       if(!p.exists) await doc('profiles',user.uid).set({ uid:user.uid, email:user.email, name:'', bio:'', portfolio:'', role:state.role, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
       else await doc('profiles',user.uid).set({ role: state.role },{merge:true});
     }catch{}
+    applyTheme();
     sync(); render();
   });
 
+  // ---- Boot
   render();
 
-  /* ---------- Seed (adds PAID and JSON URL courses) ---------- */
-  window.seedSampleData = async function(){
+  // ---- Seed paid/free sample courses (admin could run in console) ----
+  window.seedDemoCourses = async function(){
     const u=auth.currentUser; if(!u) return alert('Sign in first');
-
-    const c1=await col('courses').add({
-      title:'Algebra Basics',category:'Math',credits:3,
-      short:'Equations, functions, factoring. Build strong foundations.',
-      goals:['Understand variables','Solve linear equations','Factor polynomials'],
-      price:0, image:'/icons/learnhub-512.png',
-      outlineUrl:'/data/algebra-outline.json',
-      ownerUid:u.uid,ownerEmail:u.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    const c2=await col('courses').add({
-      title:'Advanced Digital Marketing',category:'Marketing',credits:4,
-      short:'Master SEO, social media, and content strategy to grow businesses online.',
-      goals:['Become a certified professional','Hands-on project experience','Career guidance'],
-      price:250.00, image:'/data/img/dm-cover.jpg',
-      outlineUrl:'/data/marketing-outline.json',
-      quizzesUrl:'/data/marketing-quizzes.json',
-      ownerUid:u.uid,ownerEmail:u.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    const c3=await col('courses').add({
-      title:'Modern Web Bootcamp',category:'Computer Science',credits:5,
-      short:'HTML, CSS, JS. Build responsive, accessible, and fast web apps.',
-      goals:['Build responsive pages','Manage state','Ship production apps'],
-      price:49.00, image:'/data/img/web-cover.jpg',
-      outlineUrl:'/data/web-bootcamp-outline.json',
-      quizzesUrl:'/data/web-bootcamp-quizzes.json',
-      ownerUid:u.uid,ownerEmail:u.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    await col('enrollments').add({
-      uid:u.uid,courseId:c1.id,paid:true,
-      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-      course:{id:c1.id,title:'Algebra Basics',category:'Math',credits:3,image:'/icons/learnhub-512.png',price:0,short:'Equations, functions, factoring.'}
-    });
-
-    await col('quizzes').add({
-      title:'Algebra Final',courseId:c1.id,courseTitle:'Algebra Basics',passScore:70,isFinal:true,
-      items:[
-        {q:'2+2?',choices:['3','4','5'],answer:1,feedbackOk:'Correct',feedbackNo:'Nope'},
-        {q:'5x=20, x=?',choices:['2','4','5'],answer:2,feedbackOk:'Nice',feedbackNo:'Check again'}
-      ],
-      ownerUid:u.uid,createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    await col('announcements').add({ title:'Welcome to LearnHub!', body:'New courses are live today. Explore and enroll.', createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-    alert('Seeded sample data (free + paid + JSON URLs)');
+    const list=[
+      {title:'Advanced Digital Marketing',category:'Marketing',credits:4,price:250,short:'Master SEO, social media, content strategy.',goals:['Get certified','Hands-on project','Career guidance'],coverImage:'https://images.unsplash.com/photo-1554774853-b415df9eeb92?w=1200&q=80'},
+      {title:'Modern Web Bootcamp',category:'CS',credits:5,price:0,short:'HTML, CSS, JS, and tooling.',goals:['Responsive sites','Deploy to Hosting','APIs basics'],coverImage:'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&q=80'}
+    ];
+    for(const c of list){
+      await col('courses').add({...c, ownerUid:u.uid, ownerEmail:u.email, createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    }
+    alert('Demo courses added');
   };
 })();
