@@ -2,10 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width,initial-scale=1,viewport-fit=cover"
-    />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>LearnHub</title>
 
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -13,25 +10,21 @@
     <link rel="apple-touch-icon" href="/icons/learnhub-512.png" />
 
     <link rel="stylesheet" href="/css/styles.css" />
+
+    <!-- Remix Icon (already used in your app) -->
     <link
-      href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css"
+      href="https://cdn.jsdelivr.net/npm/remixicon@3.6.0/fonts/remixicon.css"
       rel="stylesheet"
     />
 
-    <!-- Firebase compat v8 -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+    <!-- Firebase SDK v9 compat (auth, firestore, storage) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
-    <!-- PayPal SDK (optional) -->
-    <script
-      src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&currency=USD"
-      data-namespace="paypalSDK"
-    ></script>
-
+    <!-- Put your project config here -->
     <script>
-      // fill with your Firebase config
       window.__FIREBASE_CONFIG = {
         apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
         authDomain: "e-learning-mm.firebaseapp.com",
@@ -46,20 +39,8 @@
   <body class="theme-sunrise font-medium">
     <div id="root"></div>
 
-    <!-- Logo -->
-    <template id="logo-mark">
-      <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
-        <defs>
-          <linearGradient id="g" x1="0" x2="1">
-            <stop offset="0" stop-color="#6EE7F9" />
-            <stop offset="1" stop-color="#A78BFA" />
-          </linearGradient>
-        </defs>
-        <rect x="6" y="6" width="52" height="52" rx="12" fill="url(#g)" />
-        <path d="M20 40 L32 18 L44 40 Z" fill="#0b0d10" />
-        <circle cx="32" cy="42" r="4" fill="#0b0d10" />
-      </svg>
-    </template>
+    <!-- global notification -->
+    <div id="notification" class="notification"></div>
 
     <script src="/js/app.js"></script>
   </body>
