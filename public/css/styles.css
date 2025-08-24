@@ -30,7 +30,7 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui
 .nav .item.hidden{display:none}
 .nav .item i{opacity:.9}
 
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--panel);position:sticky;top:0;z-index:5}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--panel);position:sticky;top:0;z-index:50}
 .badge{background:rgba(255,255,255,.06);border:1px solid var(--border);padding:6px 10px;border-radius:999px;font-size:12px;display:flex;align-items:center;gap:6px}
 
 .main{padding:16px}
@@ -65,26 +65,25 @@ textarea.input{min-height:120px;white-space:pre-wrap}
 .hidden{display:none}
 .muted{color:var(--muted)}
 
-/* Search inline */
 .search-inline{display:flex;align-items:center;gap:8px;width:min(520px,52vw)}
 .search-inline .input{width:100%}
-.search-results{position:absolute;margin-top:40px;background:var(--panel);border:1px solid var(--border);border-radius:12px;display:none;max-height:50vh;overflow:auto}
+.search-results{position:absolute;margin-top:40px;background:var(--panel);border:1px solid var(--border);border-radius:12px;display:none;max-height:50vh;overflow:auto;z-index:20}
 .search-results.active{display:block}
 .search-results .row{padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
 .search-results .row:hover{background:rgba(255,255,255,.05)}
 
 /* Modal */
-.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:50}
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:80}
 .modal.active{display:flex}
-.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:none;z-index:40}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:none;z-index:70}
 .modal-backdrop.active{display:block}
 .dialog{width:min(900px,96vw);max-height:86vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow)}
-.dialog .head{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
+.dialog .head{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:10px 14px;z-index:1}
 .dialog .body{padding:14px}
 .dialog .foot{padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
 
 /* Notification */
-.notification{position:fixed;right:16px;bottom:16px;background:var(--panel);border:1px solid var(--border);padding:10px 12px;border-radius:12px;opacity:0;transform:translateY(8px);transition:.25s;z-index:80}
+.notification{position:fixed;right:16px;bottom:16px;background:var(--panel);border:1px solid var(--border);padding:10px 12px;border-radius:12px;opacity:0;transform:translateY(8px);transition:.25s;z-index:90}
 .notification.show{opacity:1;transform:none}
 .notification.ok{border-color:rgba(16,185,129,.6)}
 .notification.warn{border-color:rgba(245,158,11,.6)}
@@ -104,9 +103,28 @@ textarea.input{min-height:120px;white-space:pre-wrap}
 .embed{aspect-ratio:16/9;width:100%;border:0;border-radius:12px}
 img.media{max-width:100%;border-radius:12px;border:1px solid var(--border)}
 
-/* Certificate canvas container */
-.cert-preview{display:flex;justify-content:center;padding:12px}
+/* Backdrop for mobile drawer */
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:55}
+.backdrop.active{display:block}
 
-/* Guide content */
+/* Guide */
 .guide h2{margin:.3em 0}
 .guide .section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin:10px 0}
+
+/* Avatars */
+.avatar-fallback{
+  width:160px;height:160px;border-radius:50%;display:grid;place-items:center;
+  border:1px solid var(--border);background:rgba(255,255,255,.03);font-weight:800;font-size:32px;
+}
+
+/* Responsive – mobile-first drawer */
+@media (max-width: 980px){
+  .app{grid-template-columns:1fr}
+  .sidebar{
+    position:fixed;top:0;bottom:0;left:-300px;width:280px;z-index:60;transition:left .25s cubic-bezier(.2,.7,.3,1);
+  }
+  body.sidebar-open .sidebar{left:0}
+  .grid.cols-2{grid-template-columns:1fr}
+  .grid.cols-3{grid-template-columns:1fr}
+  .grid.cols-4{grid-template-columns:1fr}
+}
