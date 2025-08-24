@@ -1,0 +1,8 @@
+{
+  "intro-to-digital-marketing-landscape": [
+    {"q":"What does KPI stand for?","choices":["Key Product Insight","Key Performance Indicator","Knowledge Performance Index"],"answer":1,"feedbackOk":"Exactly!","feedbackNo":"KPIs measure success."}
+  ],
+  "seo-&-content-seo-fundamentals": [
+    {"q":"Which is NOT on-page SEO?","choices":["Title tag","Backlinks","Meta description"],"answer":1,"feedbackOk":"Right, backlinks are off-page.","feedbackNo":"Try again."}
+  ]
+}

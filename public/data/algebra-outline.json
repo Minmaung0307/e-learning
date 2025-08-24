@@ -1,0 +1,15 @@
+[
+  {
+    "title": "Chapter 1: Basics",
+    "lessons": [
+      { "title": "Welcome", "video": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "html": "Welcome to Algebra!", "images": [] },
+      { "title": "Numbers", "html": "Understanding numbers…", "images": [] }
+    ]
+  },
+  {
+    "title": "Chapter 2: Algebra",
+    "lessons": [
+      { "title": "Equations", "html": "ax + b = 0", "images": [] }
+    ]
+  }
+]

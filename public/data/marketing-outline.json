@@ -1,0 +1,16 @@
+[
+  {
+    "title": "Intro to Digital Marketing",
+    "lessons": [
+      { "title": "Landscape", "video": "https://www.youtube.com/watch?v=ysz5S6PUM-U", "html": "Channels, funnels, KPIs.", "images": [] },
+      { "title": "Personas", "html": "Build user personas and journeys.", "images": [] }
+    ]
+  },
+  {
+    "title": "SEO & Content",
+    "lessons": [
+      { "title": "SEO Fundamentals", "html": "On-page, off-page, technical.", "images": [] },
+      { "title": "Content Strategy", "html": "Editorial calendar, pillars.", "images": [] }
+    ]
+  }
+]

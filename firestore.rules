@@ -13,66 +13,56 @@ service cloud.firestore {
              (isSignedIn() && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'instructor');
     }
 
-    // Profiles
     match /profiles/{uid} {
       allow read: if isSignedIn();
       allow create: if isSelf(uid);
       allow update, delete: if isSelf(uid) || isAdmin();
     }
 
-    // Roles (read allowed so app can resolve role; write admin only)
     match /roles/{uid} {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }
 
-    // Courses
     match /courses/{id} {
       allow read: if true;
       allow create: if isInstructor();
       allow update, delete: if isInstructor();
     }
 
-    // Enrollments
     match /enrollments/{id} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.uid == request.auth.uid || isAdmin();
     }
 
-    // Quizzes / Finals
     match /quizzes/{id} {
       allow read: if true;
       allow create, update, delete: if isInstructor();
     }
 
-    // Attempts
     match /attempts/{id} {
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
-    // Tasks
     match /tasks/{id} {
       allow read, write: if isSignedIn() && (request.auth.uid == resource.data.uid || request.resource.data.uid == request.auth.uid);
       allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
-    // Announcements
     match /announcements/{id} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 
-    // Messages (course/user/group)
     match /messages/{id} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn(); // keep simple for now
+      allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
 
-    // Notes (optional)
     match /notes/{id} {
       allow read, write: if isSignedIn() && (request.auth.uid == resource.data.uid || request.resource.data.uid == request.auth.uid);
     }

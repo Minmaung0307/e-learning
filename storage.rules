@@ -2,7 +2,6 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // public course images
     match /courseAssets/{file=**} {
       allow read: if true;
       allow write: if request.auth != null
@@ -10,7 +9,6 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
 
-    // user avatars
     match /avatars/{uid}/{file=**} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
@@ -19,19 +17,12 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
 
-    // signatures
     match /signatures/{uid}/{file=**} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
                    && request.auth.uid == uid
                    && request.resource.size < 1 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
-    }
-
-    // admin-only bucket area (optional, requires custom claim)
-    match /admin/{path=**} {
-      allow read, write: if request.auth != null
-                         && request.auth.token.role == 'admin';
     }
   }
 }

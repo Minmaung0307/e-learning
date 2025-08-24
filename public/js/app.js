@@ -1,13 +1,7 @@
-/* LearnHub — E-Learning & Community Platform
-   Adds: paid courses, half-image cards, outline/quizzes JSON URL support,
-   final exam generation (random 12), improved profile/media, announcements,
-   guide page, DM/group/course messaging, instant theme changes, mobile drawer.
-*/
 (() => {
   'use strict';
 
   /* ---------- Firebase ---------- */
-  if (!window.firebase || !window.__FIREBASE_CONFIG) console.error('Firebase SDK or config missing');
   firebase.initializeApp(window.__FIREBASE_CONFIG);
   const auth = firebase.auth();
   const db   = firebase.firestore();
@@ -24,7 +18,6 @@
     searchQ:'', highlightId:null,
     profiles:[], courses:[], enrollments:[], quizzes:[], attempts:[], tasks:[],
     announcements:[], messages:[], notes:[],
-    // chat recipient
     chatTarget:{ type:'course', courseId:'', toUid:'', group:'' },
     unsub:[], _unsubChat:null
   };
@@ -46,7 +39,6 @@
   const isPaid = (course)=> (+course.price||0) > 0;
   const isAdmin=()=> state.role==='admin';
   const isInstructor=()=> state.role==='instructor' || isAdmin();
-
   const canCreateCourse = ()=> isInstructor() || isAdmin();
   const canManageUsers  = ()=> isAdmin();
   const canEditCourse   = (c)=> isAdmin() || c.ownerUid===auth.currentUser?.uid;
@@ -56,27 +48,8 @@
     return state.enrollments.some(e=> e.courseId===courseId && e.uid===uid);
   };
 
-  // mobile drawer helpers
-  const openSidebar=()=>{ document.body.classList.add('sidebar-open'); $('#backdrop')?.classList.add('active'); };
-  const closeSidebar=()=>{ document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
-
-  // search
-  function buildIndex(){
-    const ix=[];
-    state.courses.forEach(c=> ix.push({label:c.title, section:'Courses', route:'courses', id:c.id, text:`${c.title} ${c.category||''} ${c.ownerEmail||''}`}));
-    state.quizzes.forEach(q=> ix.push({label:q.title, section:'Finals', route:'assessments', id:q.id, text:q.courseTitle||''}));
-    state.profiles.forEach(p=> ix.push({label:p.name||p.email, section:'Profiles', route:'admin', id:p.uid, text:(p.bio||'')+' '+(p.portfolio||'')}));
-    return ix;
-  }
-  function doSearch(q){
-    const tokens=(q||'').toLowerCase().split(/\s+/).filter(Boolean);
-    if(!tokens.length) return [];
-    return buildIndex().map(item=>{
-      const l=item.label.toLowerCase(), t=(item.text||'').toLowerCase();
-      const ok=tokens.every(tok=> l.includes(tok)||t.includes(tok));
-      return ok?{item,score:tokens.length + (l.includes(tokens[0])?1:0)}:null;
-    }).filter(Boolean).sort((a,b)=>b.score-a.score).map(x=>x.item).slice(0,20);
-  }
+  const openSidebar=()=> document.body.classList.add('sidebar-open');
+  const closeSidebar=()=> document.body.classList.remove('sidebar-open');
 
   /* ---------- Router ---------- */
   const routes=['dashboard','courses','learning','assessments','chat','tasks','profile','admin','settings','guide','search'];
@@ -111,7 +84,7 @@
         <div class="footer"><div class="muted" id="copyright" style="font-size:12px">Powered by MM, ${nowYear()}</div></div>
       </aside>
 
-      <div>
+      <div style="display:flex; flex-direction:column; width:100%">
         <div class="topbar">
           <div style="display:flex;align-items:center;gap:10px">
             <button class="btn ghost" id="burger" title="Menu"><i class="ri-menu-line"></i></button>
@@ -173,7 +146,6 @@
     const myEnroll = state.enrollments.filter(e=>e.uid===my).length;
     const myAttempts = state.attempts.filter(a=>a.uid===my).length;
 
-    // random educational videos (rotates on each view)
     const vids = [
       'https://www.youtube.com/embed/8mAITcNt710',
       'https://www.youtube.com/embed/HcA4p2QW19w',
@@ -219,35 +191,38 @@
     `;
   }
 
-  /* ---------- Course Cards (half image) ---------- */
+  /* ---------- Course Cards (VERTICAL spec) ---------- */
   function courseCard(c, context='catalog'){
     const priceText = currency(+c.price||0);
     const priceCls  = (+c.price||0)>0 ? 'paid' : 'free';
     const action = context==='catalog'
       ? (isEnrolled(c.id) ? `<button class="btn ok" data-open="${c.id}"><i class="ri-external-link-line"></i> Open</button>`
-                          : `<button class="btn" data-enroll="${c.id}"><i class="ri-checkbox-circle-line"></i> Enroll</button>`)
+                          : `<button class="btn" data-enroll="${c.id}"><i class="ri-checkbox-circle-line"></i> Register Now</button>`)
       : `<button class="btn" data-open="${c.id}"><i class="ri-external-link-line"></i> Open</button>`;
 
     return `
     <div class="card course-card ${state.highlightId===c.id?'highlight':''}" id="${c.id}">
+      <!-- Top: Image -->
       <div class="img">
         <img src="${c.image||'/icons/learnhub-512.png'}" alt="${c.title}"/>
       </div>
+
+      <!-- Middle: Title, Short Description, Key Benefits -->
       <div class="info">
-        <div class="card-body">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-            <div>
-              <div style="font-weight:800">${c.title}</div>
-              <div class="muted" style="font-size:12px">${c.category||'General'} • ${c.credits||0} credits</div>
-            </div>
-            <div class="price ${priceCls}">${priceText}</div>
-          </div>
-          <p style="margin:8px 0">${c.short||''}</p>
-          ${c.goals? `<ul style="margin:0 0 8px 18px">${(Array.isArray(c.goals)?c.goals:(c.goals+'').split(/\n|,/)).slice(0,4).map(g=>`<li>${g}</li>`).join('')}</ul>`:''}
-          <div style="display:flex;gap:6px;justify-content:flex-end">
-            ${action}
-            ${canEditCourse(c)? `<button class="btn ghost" data-edit="${c.id}"><i class="ri-edit-line"></i></button>`:''}
-          </div>
+        <div class="title">${c.title}</div>
+        <div class="desc">${c.short||''}</div>
+
+        ${c.goals && c.goals.length ? `
+          <div style="font-weight:700;margin-top:2px">What You’ll Gain</div>
+          <ul class="benefits">
+            ${(c.goals||[]).slice(0,3).map(g=>`
+              <li><i class="ri-check-double-line"></i><span>${g}</span></li>`).join('')}
+          </ul>` : ''}
+
+        <!-- Bottom: Price + CTA -->
+        <div class="bottom">
+          <div class="price ${priceCls}">${priceText}</div>
+          ${action}
         </div>
       </div>
     </div>`;
@@ -261,7 +236,7 @@
           <h3 style="margin:0">Courses</h3>
           ${canCreate? `<button class="btn" id="add-course"><i class="ri-add-line"></i> New Course</button>`:''}
         </div>
-        <div class="grid cols-2" data-sec="courses">
+        <div class="grid cols-3" data-sec="courses">
           ${state.courses.map(c=> courseCard(c,'catalog')).join('')}
           ${!state.courses.length? `<div class="muted" style="padding:10px">No courses yet.</div>`:''}
         </div>
@@ -275,14 +250,15 @@
     return `
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">My Learning</h3>
-        <div class="grid cols-2" data-sec="learning">
+        <div class="grid cols-3" data-sec="learning">
           ${list.map(c=>`
             <div class="card course-card">
               <div class="img"><img src="${c.image||'/icons/learnhub-512.png'}" alt="${c.title}"/></div>
               <div class="info">
-                <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
-                  <div><div style="font-weight:800">${c.title}</div>
-                       <div class="muted" style="font-size:12px">${c.category||'General'} • ${c.credits||0} credits</div></div>
+                <div class="title">${c.title}</div>
+                <div class="desc">${c.short||''}</div>
+                <div class="bottom">
+                  <div class="price ${(c.price||0)>0?'paid':'free'}">${currency(+c.price||0)}</div>
                   <button class="btn" data-open-course="${c.id}">Open</button>
                 </div>
               </div>
@@ -309,7 +285,7 @@
                 </div>
                 <div class="actions" style="display:flex;gap:6px">
                   <button class="btn" data-take="${q.id}"><i class="ri-play-line"></i> Take</button>
-                  ${ (q.ownerUid===auth.currentUser?.uid || isAdmin())? `<button class="btn ghost" data-edit="${q.id}"><i class="ri-edit-line"></i></button>`:''}
+                  ${(q.ownerUid===auth.currentUser?.uid || isAdmin())? `<button class="btn ghost" data-edit="${q.id}"><i class="ri-edit-line"></i></button>`:''}
                 </div>
               </div>
             </div>`).join('')}
@@ -363,7 +339,7 @@
         <input id="chat-input" class="input" placeholder="Message…"/>
         <button class="btn" id="chat-send"><i class="ri-send-plane-2-line"></i></button>
       </div>
-      <div class="muted" style="font-size:12px;margin-top:6px">Course messages are visible to enrolled students + instructors. Direct and Group are visible only to their recipients.</div>
+      <div class="muted" style="font-size:12px;margin-top:6px">Course-wide (enrolled users), Direct (1:1), Group (same cohort like “Diploma-2025”).</div>
     </div></div>`;
 
   function vTasks(){
@@ -523,33 +499,18 @@
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">Quick “How to Use” (Admin & Instructor)</h3>
         <ol>
-          <li><strong>Create a course</strong> (Courses → New Course). Fields:<br/>
-            <code>title, category, credits, short, price, image (URL), goals (comma lines)</code><br/>
-            Optional: <code>outlineUrl</code> (JSON URL), <code>outline</code> (JSON inline), <code>quizzesUrl</code> (per-lesson quiz JSON).
+          <li><strong>Create a course</strong> (Courses → New Course).</li>
+          <li><strong>Use Outline JSON / Quizzes JSON URL</strong> — host under <code>/data/</code> or any CORS-allowed URL.<br/>
+            Example URLs used in demo:
+            <ul>
+              <li><code>/data/marketing-outline.json</code>, <code>/data/marketing-quizzes.json</code></li>
+              <li><code>/data/web-bootcamp-outline.json</code>, <code>/data/web-bootcamp-quizzes.json</code></li>
+            </ul>
           </li>
-          <li><strong>Outline JSON</strong> format (either at <em>outlineUrl</em> or pasted into <em>outline</em>):<br/>
-<pre>[
-  { "title": "Chapter 1", "lessons": [
-    { "title": "Welcome", "video": "https://youtu...", "html": "Lesson text (HTML ok)", "images": ["https://.../img1.jpg"] },
-    { "title": "Numbers", "html": "..." }
-  ]},
-  { "title": "Chapter 2", "lessons": [ ... ] }
-]</pre>
-          </li>
-          <li><strong>Lesson quizzes JSON</strong> (per course via <code>quizzesUrl</code>):<br/>
-<pre>{
-  "lessonKey (e.g. ch1-welcome)": [
-    {"q":"2+2?","choices":["3","4","5"],"answer":1,"feedbackOk":"Nice!","feedbackNo":"Try again."},
-    ...
-  ],
-  "ch1-numbers":[ ... ]
-}</pre>
-          </li>
-          <li><strong>Final exam</strong>: “Final Exams” → “Generate final from course”. It pulls up to 12 randomized questions from lesson quizzes.</li>
-          <li><strong>Paid courses</strong>: set <code>price</code> &gt; 0. Students click “Enroll” → demo “Pay” → then added to <em>My Learning</em>. Replace demo with Stripe/PayPal when you add a backend.</li>
-          <li><strong>Messaging</strong>: “Messages” page → choose Course-wide / Direct / Group. Course-wide visible to enrolled students; Direct is 1:1; Group is by group string (e.g. “Diploma-2025”).</li>
-          <li><strong>Certificates & Transcript</strong>: Profile → table shows course best score & credits. ≥75% for paid/main courses and ≥65% for optional free courses → certificate enabled. Download from Profile.</li>
-          <li><strong>Credits</strong>: Academic units indicating workload; admins/instructors assign credits per course. Used on Transcript & completion thresholds.</li>
+          <li><strong>Course cards</strong> show: Image → Title → 2–3 line description → “What You’ll Gain” → Price → Register button.</li>
+          <li><strong>Paid courses</strong>: set <code>price &gt; 0</code>. Demo checkout enrolls the student; replace with Stripe/PayPal later.</li>
+          <li><strong>Messaging</strong> (restored): Messages page → Course-wide / Direct / Group.</li>
+          <li><strong>Certificates & Transcript</strong>: Profile page; thresholds: paid ≥75%, free ≥65%.</li>
         </ol>
       </div></div>
     `;
@@ -573,6 +534,24 @@
           </div></div>`).join('')}</div>` : `<p class="muted">No results.</p>`}
       </div></div>`;
   };
+
+  /* ---------- Search logic ---------- */
+  function buildIndex(){
+    const ix=[];
+    state.courses.forEach(c=> ix.push({label:c.title, section:'Courses', route:'courses', id:c.id, text:`${c.title} ${c.category||''} ${c.ownerEmail||''}`}));
+    state.quizzes.forEach(q=> ix.push({label:q.title, section:'Finals', route:'assessments', id:q.id, text:q.courseTitle||''}));
+    state.profiles.forEach(p=> ix.push({label:p.name||p.email, section:'Profiles', route:'admin', id:p.uid, text:(p.bio||'')+' '+(p.portfolio||'')}));
+    return ix;
+  }
+  function doSearch(q){
+    const tokens=(q||'').toLowerCase().split(/\s+/).filter(Boolean);
+    if(!tokens.length) return [];
+    return buildIndex().map(item=>{
+      const l=item.label.toLowerCase(), t=(item.text||'').toLowerCase();
+      const ok=tokens.every(tok=> l.includes(tok)||t.includes(tok));
+      return ok?{item,score:tokens.length + (l.includes(tokens[0])?1:0)}:null;
+    }).filter(Boolean).sort((a,b)=>b.score-a.score).map(x=>x.item).slice(0,20);
+  }
 
   /* ---------- Render ---------- */
   function safeView(r){
@@ -694,11 +673,11 @@
         <div class="grid">
           <input id="c-title" class="input" placeholder="Title"/>
           <div class="grid cols-2">
-            <input id="c-category" class="input" placeholder="Category (e.g., Math)"/>
+            <input id="c-category" class="input" placeholder="Category (e.g., Marketing)"/>
             <input id="c-credits"  class="input" placeholder="Credits (e.g., 3)" type="number" min="0" step="1"/>
           </div>
-          <textarea id="c-short" class="input" placeholder="Short description"></textarea>
-          <textarea id="c-goals" class="input" placeholder="Goals (comma or newline separated)"></textarea>
+          <textarea id="c-short" class="input" placeholder="Short description (2–3 lines)"></textarea>
+          <textarea id="c-goals" class="input" placeholder="Key benefits (one per line; top 3 shown)"></textarea>
           <div class="grid cols-2">
             <input id="c-price"   class="input" placeholder="Price (0 for free)" type="number" min="0" step="0.01"/>
             <input id="c-image"   class="input" placeholder="Image URL (course card)"/>
@@ -779,7 +758,7 @@
         const id=enrollBtn.getAttribute('data-enroll');
         const c=state.courses.find(x=>x.id===id); if(!c) return;
         if(!isPaid(c)){
-          await enrollInCourse(c, /*paid*/true); // free -> auto paid=true
+          await enrollInCourse(c, true);
           notify('Enrolled'); return;
         }
         // Paid — demo payment flow
@@ -793,7 +772,7 @@
           <button class="btn" id="pay-ok"><i class="ri-bank-card-line"></i> Pay now</button>`;
         openModal('m-modal');
         $('#pay-cancel').onclick=()=> closeModal('m-modal');
-        $('#pay-ok').onclick=async ()=>{ await enrollInCourse(c, /*paid*/true); closeModal('m-modal'); notify('Payment successful — Enrolled'); };
+        $('#pay-ok').onclick=async ()=>{ await enrollInCourse(c, true); closeModal('m-modal'); notify('Payment successful — Enrolled'); };
       }
     });
   }
@@ -803,7 +782,7 @@
     await col('enrollments').add({
       uid, courseId:course.id, paid:!!paidFlag,
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-      course:{ id:course.id, title:course.title, category:course.category, credits:course.credits||0, image:course.image||'', price:course.price||0 }
+      course:{ id:course.id, title:course.title, category:course.category, credits:course.credits||0, image:course.image||'', price:course.price||0, short:course.short||'' }
     });
   }
 
@@ -813,7 +792,6 @@
     const enrolled=isEnrolled(c.id);
     $('#mm-title').textContent=c.title;
 
-    // fetch outline/quizzes if URLs present
     let outline=[];
     try{
       if(c.outlineUrl){ const res=await fetch(c.outlineUrl, {cache:'no-cache'}); outline=await res.json(); }
@@ -843,14 +821,13 @@
       </div>`;
     $('#mm-foot').innerHTML=`
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-        ${!enrolled? `<button class="btn" id="enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>` : `<button class="btn ok" disabled>Enrolled</button>`}
+        ${!enrolled? `<button class="btn" id="enroll"><i class="ri-checkbox-circle-line"></i> Register Now</button>` : `<button class="btn ok" disabled>Enrolled</button>`}
         <button class="btn ghost" id="open-final"><i class="ri-medal-line"></i> Final exam</button>
       </div>`;
     openModal('m-modal');
 
     $('#enroll')?.addEventListener('click', async ()=>{
       if(isPaid(c)){
-        // go through demo pay
         $('#mm-foot').innerHTML=`<button class="btn" id="demo-pay">Demo Pay & Enroll</button>`;
         $('#demo-pay').onclick=async ()=>{ await enrollInCourse(c,true); closeModal('m-modal'); notify('Enrolled'); };
       }else{
@@ -859,7 +836,6 @@
     });
     $('#open-final')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
 
-    // handle lesson quiz open (pull quizzesUrl)
     $('#mm-body')?.addEventListener('click', async (e)=>{
       const b=e.target.closest('button[data-quiz-lesson]'); if(!b) return;
       if(!isEnrolled(c.id)) return notify('Enroll first to take','warn');
@@ -876,7 +852,6 @@
     });
   }
 
-  /* ---------- Learning ---------- */
   function wireLearning(){
     $('#main')?.addEventListener('click', async (e)=>{
       const btn=e.target.closest('button[data-open-course]'); if(!btn) return;
@@ -884,10 +859,8 @@
     });
   }
 
-  /* ---------- Finals ---------- */
   function wireAssessments(){
     $('#gen-final')?.addEventListener('click', ()=>{
-      // modal: choose course to generate
       $('#mm-title').textContent='Generate Final';
       $('#mm-body').innerHTML=`
         <div class="grid">
@@ -899,7 +872,6 @@
       $('#gf-make').onclick=async ()=>{
         const courseId=$('#gf-course')?.value; const pass=+($('#gf-pass')?.value||70);
         const course=state.courses.find(c=>c.id===courseId)||{};
-        // attempt to fetch quizzesUrl to build a pool
         let pool=[];
         try{
           if(course.quizzesUrl){ const r=await fetch(course.quizzesUrl,{cache:'no-cache'}); const map=await r.json();
@@ -907,7 +879,6 @@
           }
         }catch(_){}
         if(!pool.length){ notify('No lesson quizzes found for this course','warn'); return; }
-        // pick up to 12 random
         const items=[]; const cp=[...pool];
         for(let i=0;i<12 && cp.length;i++){
           const at=Math.floor(Math.random()*cp.length); items.push(cp.splice(at,1)[0]);
@@ -948,7 +919,6 @@
   }
 
   function takeQuiz(q){
-    // render quiz (scrollable)
     $('#mm-title').textContent = q.title;
     $('#mm-body').innerHTML = `
       <div id="quiz-wrap" style="max-height:58vh;overflow:auto;padding-right:6px">
@@ -967,14 +937,13 @@
     $('#mm-foot').innerHTML=`<button class="btn" id="q-submit"><i class="ri-checkbox-circle-line"></i> Submit</button>`;
     openModal('m-modal');
 
-    // instant feedback on selection
     q.items.forEach((it,idx)=>{
       $(`#quiz-wrap input[name="q${idx}"]`)?.closest('div')?.addEventListener('change', ()=>{
         const v=+((document.querySelector(`input[name="q${idx}"]:checked`)?.value)||'-1');
         const fb=$(`#fb-${idx}`); if(!fb) return;
         if(v===+it.answer){ fb.textContent=it.feedbackOk||'Correct'; fb.style.color='var(--ok)';}
         else { fb.textContent=it.feedbackNo||'Incorrect'; fb.style.color='var(--danger)';}
-      }, {once:false});
+      });
     });
 
     $('#q-submit').onclick=async ()=>{
@@ -992,7 +961,7 @@
     };
   }
 
-  /* ---------- Chat ---------- */
+  /* ---------- Chat (admin messages restored) ---------- */
   function wireChat(){
     const box=$('#chat-box'); const typeSel=$('#chat-type'); const courseSel=$('#chat-course');
     const userSel=$('#chat-user'); const groupInp=$('#chat-group');
@@ -1035,14 +1004,12 @@
     });
     courseSel?.addEventListener('change', ()=>{ state.chatTarget.courseId=courseSel.value; subChat(); });
     userSel?.addEventListener('change', ()=>{ state.chatTarget.toUid=userSel.value; subChat(); });
-    groupInp?.addEventListener('input', ()=>{ state.chatTarget.group=groupInp.value; }); // sub later
-
+    groupInp?.addEventListener('input', ()=>{ state.chatTarget.group=groupInp.value; });
     send?.addEventListener('click', async ()=>{
       const text=input.value.trim(); if(!text) return;
       const p = state.profiles.find(x=>x.uid===auth.currentUser?.uid) || {};
       const base = { uid:auth.currentUser.uid, email:auth.currentUser.email, name:p.name||'', text, createdAt:firebase.firestore.FieldValue.serverTimestamp() };
       if(state.chatTarget.type==='course' && state.chatTarget.courseId){
-        if(!isEnrolled(state.chatTarget.courseId) && !isInstructor()) return notify('Enroll to chat','warn');
         await col('messages').add({ ...base, targetType:'course', courseId:state.chatTarget.courseId });
       } else if(state.chatTarget.type==='user' && state.chatTarget.toUid){
         const room=[auth.currentUser.uid, state.chatTarget.toUid].sort().join('_');
@@ -1052,8 +1019,6 @@
       }
       input.value=''; subChat();
     });
-
-    // initial
     subChat();
   }
 
@@ -1108,14 +1073,13 @@
     });
   }
 
-  /* ---------- Profile ---------- */
+  /* ---------- Profile / Certificates ---------- */
   function wireProfile(){
     $('#pf-pick')?.addEventListener('click', ()=> $('#pf-avatar')?.click());
     $('#pf-pick-sign')?.addEventListener('click', ()=> $('#pf-signature')?.click());
 
     $('#pf-save')?.addEventListener('click', async ()=>{
       const uid=auth.currentUser.uid;
-      // text bits
       await doc('profiles',uid).set({
         name:$('#pf-name')?.value.trim(),
         portfolio:$('#pf-portfolio')?.value.trim(),
@@ -1127,7 +1091,6 @@
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
       },{merge:true});
 
-      // files
       const avatar=$('#pf-avatar')?.files?.[0];
       if(avatar){
         const ref=stg.ref().child(`avatars/${uid}/${Date.now()}_${avatar.name}`);
@@ -1165,7 +1128,6 @@
       await doc('profiles',auth.currentUser.uid).delete(); notify('Profile deleted');
     });
 
-    // certificate download and demos
     $('#main').addEventListener('click', async (e)=>{
       const b=e.target.closest('button[data-cert]'); if(b){
         const courseId=b.getAttribute('data-cert');
@@ -1187,11 +1149,8 @@
     const id = `${prefix}-${Date.now().toString().slice(-7)}`;
     const canvas=document.createElement('canvas'); canvas.width=1400; canvas.height=1000;
     const ctx=canvas.getContext('2d');
-    // bg
     ctx.fillStyle='#0b0d10'; ctx.fillRect(0,0,1400,1000);
-    // border
     ctx.strokeStyle='#7ad3ff'; ctx.lineWidth=8; ctx.strokeRect(60,60,1280,880);
-    // title
     ctx.fillStyle='#fff'; ctx.font='bold 56px Inter, ui-sans-serif'; ctx.fillText('Certificate of Completion', 330, 220);
     ctx.font='28px Inter'; ctx.fillText(`This is to certify that`, 330, 280);
     ctx.font='bold 46px Inter'; ctx.fillText(name, 330, 340);
@@ -1200,7 +1159,6 @@
     ctx.font='24px Inter'; ctx.fillText(`at ${org}${location?`, ${location}`:''}`, 330, 490);
     ctx.font='24px Inter'; ctx.fillText(`Date: ${new Date().toLocaleDateString()}`, 330, 540);
     ctx.font='20px Inter'; ctx.fillText(`Certificate No: ${id}`, 330, 580);
-    // signature
     if(signature){
       const img = new Image(); img.crossOrigin='anonymous'; img.onload=()=>{
         ctx.drawImage(img, 980, 620, 220, 80);
@@ -1217,7 +1175,6 @@
   }
 
   async function downloadDemoTranscript(){
-    // very simple CSV for demo
     const rows=[['Course','Best','Credits','Completed']];
     buildTranscript(auth.currentUser?.uid).forEach(r=> rows.push([r.courseTitle, r.best, r.credits||0, r.completed?'Yes':'No']));
     const csv = rows.map(r=> r.map(x=>`"${(x+'').replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -1234,7 +1191,6 @@
       notify('Role saved');
     });
 
-    // edit/delete user profile rows
     $('#adm-users')?.addEventListener('click', async (e)=>{
       const editBtn=e.target.closest('button[data-edit-user]'); const delBtn=e.target.closest('button[data-del-user]');
       if(editBtn){
@@ -1261,7 +1217,7 @@
       }
     });
 
-    // announcements on dashboard
+    // announcements
     $('#main').addEventListener('click', async (e)=>{
       const add=e.target.closest('#ann-add'); const edit=e.target.closest('button[data-edit-ann]'); const del=e.target.closest('button[data-del-ann]');
       if(add){
@@ -1323,11 +1279,10 @@
     (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
       byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId, best:0, credits: (state.courses.find(c=>c.id===a.courseId)||{}).credits||0, completed:false};
       byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score||0);
-      const q = state.quizzes.find(q=>q.courseId===a.courseId && q.isFinal);
-      const mainPass = 75, freePass = 65;
       const course = state.courses.find(c=>c.id===a.courseId)||{};
-      const passReq = (course.price||0)>0 ? mainPass : freePass;
-      byCourse[a.courseId].completed = q ? (byCourse[a.courseId].best >= passReq) : false;
+      const passReq = (course.price||0)>0 ? 75 : 65;
+      const best = byCourse[a.courseId].best;
+      byCourse[a.courseId].completed = best >= passReq;
     });
     return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
   }
@@ -1338,32 +1293,27 @@
     clearUnsubs();
     const uid=auth.currentUser.uid;
 
-    // profiles
     state.unsub.push(col('profiles').onSnapshot(
       s => { state.profiles = s.docs.map(d=>({id:d.id, ...d.data()})); if(['profile','admin','chat'].includes(state.route)) render(); },
       err => console.warn('profiles listener error:', err)
     ));
 
-    // enrollments
     state.unsub.push(col('enrollments').where('uid','==',uid).onSnapshot(s=>{
       state.enrollments=s.docs.map(d=>({id:d.id,...d.data()}));
       state.myEnrolledIds = new Set(state.enrollments.map(e=>e.courseId));
       if(['dashboard','learning','assessments','chat'].includes(state.route)) render();
     }));
 
-    // courses (order by created only — no composite)
     state.unsub.push(col('courses').orderBy('createdAt','desc').onSnapshot(
       s => { state.courses = s.docs.map(d=>({id:d.id, ...d.data()})); if(['dashboard','courses','learning','assessments','chat'].includes(state.route)) render(); },
       err => console.warn('courses listener error:', err)
     ));
 
-    // finals/quizzes — filter client-side
     state.unsub.push(col('quizzes').orderBy('createdAt','desc').onSnapshot(
       s => { state.quizzes = s.docs.map(d=>({id:d.id, ...d.data()})); if(['assessments','dashboard','profile'].includes(state.route)) render(); },
       err => console.warn('quizzes listener error:', err)
     ));
 
-    // attempts — where uid only (no orderBy to avoid index) then sort client-side
     state.unsub.push(col('attempts').where('uid','==',uid).onSnapshot(
       s => {
         state.attempts = s.docs.map(d=>({id:d.id, ...d.data()}))
@@ -1373,13 +1323,11 @@
       err => console.warn('attempts listener error:', err)
     ));
 
-    // tasks
     state.unsub.push(col('tasks').where('uid','==',uid).onSnapshot(
       s => { state.tasks = s.docs.map(d=>({id:d.id, ...d.data()})); if(['tasks','dashboard'].includes(state.route)) render(); },
       err => console.warn('tasks listener error:', err)
     ));
 
-    // announcements
     state.unsub.push(col('announcements').orderBy('createdAt','desc').limit(25).onSnapshot(
       s => { state.announcements=s.docs.map(d=>({id:d.id,...d.data()})); if(['dashboard'].includes(state.route)) render(); },
       err => console.warn('announcements listener error:', err)
@@ -1394,7 +1342,6 @@
     }catch{return 'student';}
   }
 
-  /* ---------- Auth ---------- */
   auth.onAuthStateChanged(async (user)=>{
     state.user=user||null;
     if(!user){ clearUnsubs(); render(); return; }
@@ -1407,30 +1354,57 @@
     sync(); render();
   });
 
-  /* ---------- Boot ---------- */
   render();
 
-  /* ---------- Seed (optional) ---------- */
+  /* ---------- Seed (adds PAID and JSON URL courses) ---------- */
   window.seedSampleData = async function(){
     const u=auth.currentUser; if(!u) return alert('Sign in first');
-    const outline=[{title:"Chapter 1: Basics",lessons:[{title:"Welcome",video:"https://www.youtube.com/watch?v=dQw4w9WgXcQ",html:"Welcome text here.",images:[]},{title:"Numbers",html:"Understanding numbers…",images:[]}]}];
+
     const c1=await col('courses').add({
-      title:'Algebra Basics',category:'Math',credits:3,short:'Equations, functions, factoring.',
+      title:'Algebra Basics',category:'Math',credits:3,
+      short:'Equations, functions, factoring. Build strong foundations.',
       goals:['Understand variables','Solve linear equations','Factor polynomials'],
       price:0, image:'/icons/learnhub-512.png',
-      outline:JSON.stringify(outline),
+      outlineUrl:'/data/algebra-outline.json',
       ownerUid:u.uid,ownerEmail:u.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
+
     const c2=await col('courses').add({
-      title:'Modern Web Bootcamp',category:'CS',credits:4,short:'HTML, CSS, JS in practice.',
-      goals:['Build responsive pages','Manage state','Component thinking'],
-      price:19.99, image:'/icons/learnhub-512.png',
-      outline:JSON.stringify(outline),
+      title:'Advanced Digital Marketing',category:'Marketing',credits:4,
+      short:'Master SEO, social media, and content strategy to grow businesses online.',
+      goals:['Become a certified professional','Hands-on project experience','Career guidance'],
+      price:250.00, image:'/data/img/dm-cover.jpg',
+      outlineUrl:'/data/marketing-outline.json',
+      quizzesUrl:'/data/marketing-quizzes.json',
       ownerUid:u.uid,ownerEmail:u.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
-    await col('enrollments').add({uid:u.uid,courseId:c1.id,paid:true,createdAt:firebase.firestore.FieldValue.serverTimestamp(),course:{id:c1.id,title:'Algebra Basics',category:'Math',credits:3,image:'/icons/learnhub-512.png',price:0}});
-    await col('quizzes').add({title:'Algebra Final',courseId:c1.id,courseTitle:'Algebra Basics',passScore:70,isFinal:true,items:[{q:'2+2?',choices:['3','4','5'],answer:1,feedbackOk:'Correct',feedbackNo:'Nope'},{q:'5x=20, x=?',choices:['2','4','5'],answer:2,feedbackOk:'Nice',feedbackNo:'Check again'}],ownerUid:u.uid,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+
+    const c3=await col('courses').add({
+      title:'Modern Web Bootcamp',category:'Computer Science',credits:5,
+      short:'HTML, CSS, JS. Build responsive, accessible, and fast web apps.',
+      goals:['Build responsive pages','Manage state','Ship production apps'],
+      price:49.00, image:'/data/img/web-cover.jpg',
+      outlineUrl:'/data/web-bootcamp-outline.json',
+      quizzesUrl:'/data/web-bootcamp-quizzes.json',
+      ownerUid:u.uid,ownerEmail:u.email,createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    await col('enrollments').add({
+      uid:u.uid,courseId:c1.id,paid:true,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+      course:{id:c1.id,title:'Algebra Basics',category:'Math',credits:3,image:'/icons/learnhub-512.png',price:0,short:'Equations, functions, factoring.'}
+    });
+
+    await col('quizzes').add({
+      title:'Algebra Final',courseId:c1.id,courseTitle:'Algebra Basics',passScore:70,isFinal:true,
+      items:[
+        {q:'2+2?',choices:['3','4','5'],answer:1,feedbackOk:'Correct',feedbackNo:'Nope'},
+        {q:'5x=20, x=?',choices:['2','4','5'],answer:2,feedbackOk:'Nice',feedbackNo:'Check again'}
+      ],
+      ownerUid:u.uid,createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+
     await col('announcements').add({ title:'Welcome to LearnHub!', body:'New courses are live today. Explore and enroll.', createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-    alert('Seeded sample data');
+    alert('Seeded sample data (free + paid + JSON URLs)');
   };
 })();

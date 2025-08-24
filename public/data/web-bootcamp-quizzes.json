@@ -1,0 +1,8 @@
+{
+  "getting-started-html-basics": [
+    {"q":"Which is a semantic tag?","choices":["<div>","<span>","<article>"],"answer":2,"feedbackOk":"Correct!","feedbackNo":"Hint: describes meaning."}
+  ],
+  "javascript-essentials-dom-&-events": [
+    {"q":"Which adds a click handler?","choices":["el.click(fn)","el.addEventListener('click',fn)","onClick=fn"],"answer":1,"feedbackOk":"Nice!","feedbackNo":"Think standard JS."}
+  ]
+}

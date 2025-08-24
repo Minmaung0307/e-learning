@@ -1,0 +1,16 @@
+[
+  {
+    "title": "Getting Started",
+    "lessons": [
+      { "title": "HTML Basics", "html": "Tags, elements, semantics.", "images": [] },
+      { "title": "CSS Basics", "html": "Selectors, layout, responsive.", "images": [] }
+    ]
+  },
+  {
+    "title": "JavaScript Essentials",
+    "lessons": [
+      { "title": "Syntax & Types", "html": "Variables, scopes, arrays.", "images": [] },
+      { "title": "DOM & Events", "html": "Manipulating UI and events.", "images": [] }
+    ]
+  }
+]
