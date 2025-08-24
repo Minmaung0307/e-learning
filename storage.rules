@@ -2,11 +2,15 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() { return request.auth != null; }
-    function isSelf(uid){ return signedIn() && request.auth.uid == uid; }
     function isAdmin(){
       return signedIn() &&
         get(/databases/(default)/documents/roles/$(request.auth.uid)).data.role == "admin";
     }
+    function isInstructorRole(){
+      return signedIn() &&
+        (get(/databases/(default)/documents/roles/$(request.auth.uid)).data.role in ["instructor","admin"]);
+    }
+    function isSelf(uid){ return signedIn() && request.auth.uid == uid; }
 
     match /avatars/{uid}/{file} {
       allow read: if true;
@@ -20,6 +24,13 @@ service firebase.storage {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    /* NEW: Store large course outlines as JSON here (public read) */
+    match /courseOutlines/{courseId}/{file} {
+      allow read: if true;
+      allow write: if isInstructorRole();
+    }
+
     match /{allPaths=**} {
       allow read: if false;
       allow write: if false;

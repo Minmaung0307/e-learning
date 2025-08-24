@@ -9,7 +9,7 @@
   const stg  = firebase.storage();
 
   // ---------- Constants ----------
-  const ADMIN_EMAILS = ['admin@learnhub.com']; // optional default
+  const ADMIN_EMAILS = ['admin@learnhub.com']; // optional seed admin
   const VALID_ROLES  = ['student','instructor','admin'];
   const DEFAULT_AVATAR = 'https://dummyimage.com/160x160/0c0f14/7ad3ff.png&text=Avatar';
   const DEFAULT_SIGN = 'https://dummyimage.com/220x70/0c0f14/7ad3ff.png&text=Signature';
@@ -26,7 +26,9 @@
     searchQ:'', highlightId:null, myEnrolledIds:new Set(),
     profiles:[], courses:[], enrollments:[], quizzes:[], attempts:[], tasks:[], messages:[], notes:[], announcements:[],
     org:{ name:'LearnHub Academy', location:'Online', signerName:'Program Director', certificateNote:'Certificate of Completion', signatureUrl:'', logo:'/icons/learnhub-192.png' },
-    unsub:[], _unsubChat:null, _currentCourseChat:''
+    // inbox & groups
+    groupsMine:[], groupsAll:[], myGroupIds:[], inboxDirect:[], inboxGroup:[],
+    unsub:[], _unsubChat:null, _unsubInboxGroups:null
   };
 
   // ---------- Helpers ----------
@@ -177,9 +179,17 @@
     </div>
   </div>`;
 
+  function priceTag(c){
+    return c.isFree || !c.price || +c.price===0 ? `<span class="price-tag"><i class="ri-price-tag-3-line"></i> Free</span>` :
+      `<span class="price-tag"><i class="ri-currency-line"></i> $${Number(c.price).toFixed(2)}</span>`;
+  }
+
   function courseCard(c, my=false){
     const cover = c.cover || DEFAULT_COVER;
     const goals = (c.goals||[]).slice(0,3).map(g=>`<li>${(g||'').replace(/</g,'&lt;')}</li>`).join('');
+    const cat = c.category||'General';
+    const creds = c.credits||0;
+    const enrolled = isEnrolled(c.id);
     return `
       <div class="card ${state.highlightId===c.id?'highlight':''}" id="${c.id}">
         <div class="card-body">
@@ -187,16 +197,26 @@
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
             <div>
               <div style="font-weight:800">${c.title}</div>
-              <div class="muted" style="font-size:12px">${c.category||'General'} • ${c.credits||0} credits • ${c.isFree?'Free':('$'+(c.price||0))}</div>
+              <div class="muted" style="font-size:12px">${cat} • ${creds} credits</div>
             </div>
-            <div class="actions" style="display:flex;gap:6px">
-              <button class="btn" data-open="${c.id}"><i class="ri-external-link-line"></i></button>
-              ${canEditCourse(c)? `<button class="btn ghost" data-edit="${c.id}"><i class="ri-edit-line"></i></button>`:''}
+            <div class="actions" style="display:flex;gap:6px;align-items:center">
+              ${priceTag(c)}
             </div>
           </div>
           <div class="muted" style="margin-top:6px">${(c.short||'').replace(/</g,'&lt;')}</div>
           ${goals? `<ul style="margin:8px 0 0 18px">${goals}</ul>`:''}
-          ${my? `<div style="margin-top:8px"><button class="btn" data-open-course="${c.id}">Open</button></div>`:''}
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            ${my
+              ? `<button class="btn" data-open-course="${c.id}"><i class="ri-external-link-line"></i> Open</button>`
+              : `
+                <button class="btn ghost" data-open="${c.id}"><i class="ri-external-link-line"></i> Open</button>
+                ${enrolled
+                  ? `<button class="btn ok" disabled><i class="ri-checkbox-circle-line"></i> Enrolled</button>`
+                  : `<button class="btn" data-enroll="${c.id}"><i class="ri-add-circle-line"></i> Enroll</button>`
+                }
+                ${canEditCourse(c)? `<button class="btn ghost" data-edit="${c.id}"><i class="ri-edit-line"></i></button>`:''}
+              `}
+          </div>
         </div>
       </div>`;
   }
@@ -205,7 +225,7 @@
     const my=uid();
     const myEnroll = state.enrollments.filter(e=>e.uid===my).length;
     const myAttempts = state.attempts.filter(a=>a.uid===my).length;
-    // random video
+
     const vids = [
       'https://www.youtube.com/watch?v=H1elmMBnykA',
       'https://www.youtube.com/watch?v=Ud7Q1G2lW9k',
@@ -224,6 +244,9 @@
           <i class="${icon}" style="font-size:26px;color:var(--brand)"></i>
         </div>
       </div>`;
+
+    const inbox = [...(state.inboxDirect||[]), ...(state.inboxGroup||[])]
+      .sort((a,b)=>(b.createdAt?.toMillis?.()||0)-(a.createdAt?.toMillis?.()||0)).slice(0,6);
 
     return `
       <div class="grid cols-4">
@@ -251,6 +274,16 @@
           </div>
         </div></div>
       </div>
+
+      <div class="card" style="margin-top:10px"><div class="card-body">
+        <h3 style="margin:0 0 8px 0">Messages to you</h3>
+        ${(inbox.length? inbox.map(m=>`
+          <div style="padding:6px 0;border-bottom:1px solid var(--border)">
+            <div style="font-weight:700">${m.fromName||m.fromEmail||'Admin'} <span class="muted" style="font-size:12px">• ${new Date(m.createdAt?.toDate?.()||m.createdAt||Date.now()).toLocaleString()}</span></div>
+            <div>${(m.text||'').replace(/</g,'&lt;')}</div>
+            <div class="muted" style="font-size:12px">${m.type==='group'?'Group message':(m.type==='direct'?'Direct message':'Course broadcast')}</div>
+          </div>`).join('') : `<div class="muted">No new messages.</div>`)}
+      </div></div>
     `;
   }
 
@@ -437,7 +470,7 @@
             <label>Signature image (PNG)</label><input id="org-signature" type="file" accept="image/png" class="input"/>
             <button class="btn" id="org-save"><i class="ri-save-3-line"></i> Save</button>
           </div>
-          <div style="margin-top:8px;display:flex;gap:8px">
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn ghost" id="admin-demo-cert"><i class="ri-award-line"></i> Demo Certificate</button>
             <button class="btn ghost" id="admin-demo-tr"><i class="ri-download-2-line"></i> Demo Transcript (CSV)</button>
           </div>
@@ -481,6 +514,49 @@
               </div></div>`).join('')}
           </div>
         </div></div>
+
+        <div class="card" style="grid-column:1/-1"><div class="card-body">
+          <h3 style="margin:0 0 8px 0">Contact (Admin)</h3>
+          <div class="grid cols-3">
+            <div>
+              <h4>Course-wide</h4>
+              <select id="ct-course" class="input">
+                <option value="">Select course…</option>
+                ${state.courses.map(c=>`<option value="${c.id}">${c.title}</option>`).join('')}
+              </select>
+              <textarea id="ct-course-text" class="input" placeholder="Message to all students in this course"></textarea>
+              <button class="btn" id="ct-course-send" style="margin-top:6px">Send</button>
+            </div>
+            <div>
+              <h4>Direct to user</h4>
+              <select id="ct-user" class="input">
+                <option value="">Select user…</option>
+                ${state.profiles.map(p=>`<option value="${p.uid}">${p.name||p.email||p.uid}</option>`).join('')}
+              </select>
+              <textarea id="ct-user-text" class="input" placeholder="Message to this user"></textarea>
+              <button class="btn" id="ct-user-send" style="margin-top:6px">Send</button>
+            </div>
+            <div>
+              <h4>Group message</h4>
+              <select id="ct-group" class="input">
+                <option value="">Select group…</option>
+                ${state.groupsAll.map(g=>`<option value="${g.id}">${g.name} (${(g.members||[]).length})</option>`).join('')}
+              </select>
+              <textarea id="ct-group-text" class="input" placeholder="Message to this group"></textarea>
+              <button class="btn" id="ct-group-send" style="margin-top:6px">Send</button>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+            <h4 style="margin:0 0 6px 0">Manage groups</h4>
+            <div class="grid cols-3">
+              <input id="grp-name" class="input" placeholder="Group name (e.g., BA 2025)"/>
+              <input id="grp-tag" class="input" placeholder="Tag (Diploma / BA / MA)"/>
+              <input id="grp-emails" class="input" placeholder="Member emails, comma-separated"/>
+            </div>
+            <button class="btn" id="grp-create" style="margin-top:6px">Create/Update Group</button>
+          </div>
+        </div></div>
       </div>
     `;
   }
@@ -512,13 +588,16 @@
         <h3 style="margin:0 0 8px 0">Quick Guide</h3>
         <h4>Admin</h4>
         <ul>
-          <li>Set org info + signature in <b>Admin</b>. This feeds certificates.</li>
-          <li>Manage roles in <b>Users</b> (edit → role). Delete profile removes it from Profile page too.</li>
+          <li>Set org info in <b>Admin</b> → Organization. This feeds certificates.</li>
+          <li>Manage roles in <b>Users</b>. Delete profile removes it from Profile page too.</li>
           <li>Post <b>Announcements</b>. They appear on the Dashboard.</li>
+          <li>Use <b>Contact</b> to message a course, a single user, or a group (create groups below).</li>
         </ul>
-        <h4>Instructor</h4>
+        <h4>Instructors</h4>
         <ul>
-          <li><b>Courses → New Course</b>: title, category, credits, short, cover URL, price (<code>0</code> or leave blank for Free), goals list, and outline JSON. You can add per-lesson quizzes:</li>
+          <li><b>Courses → New Course</b>: title, category, credits, short, cover URL, price (<code>0</code> or blank = Free), goals (one per line), and outline.</li>
+          <li>For large outlines, upload JSON to Firebase Storage (e.g., <code>courseOutlines/&lt;courseId&gt;/outline.json</code>) or Hosting, and set <b>Outline JSON URL</b>.</li>
+          <li>Lesson quizzes go inside each lesson’s <code>quiz</code> field.</li>
         </ul>
         <pre class="muted" style="white-space:pre-wrap;font-size:12px;border:1px solid var(--border);padding:8px;border-radius:8px">
 [
@@ -527,6 +606,8 @@
     "lessons": [
       {
         "title": "Welcome",
+        "headers": ["Intro","What you'll learn"],
+        "subheaders": ["A","B"],
         "video": "https://www.youtube.com/watch?v=...",
         "html": "Welcome text...",
         "images": [],
@@ -541,16 +622,11 @@
   }
 ]
         </pre>
+        <h4>Students</h4>
         <ul>
-          <li><b>Finals</b>: either author a final explicitly, or let students launch it from the course — it auto-builds 12 random questions from lesson quizzes (24-minute timer).</li>
-        </ul>
-        <h4>Student</h4>
-        <ul>
-          <li>Enroll: Free → instant. Paid → pay (PayPal); then enrolled.</li>
-          <li>Read lessons, take the mini-quiz per lesson. Progress bar shows completion.</li>
-          <li>Final: needs ≥75% for paid courses, ≥65% for free courses.</li>
-          <li>Transcript & Certificates live in <b>Profile</b>. Credits sum when you pass.</li>
-          <li>Badges: 3=Gold, 7=Platinum, 10=Diamond.</li>
+          <li>Enroll: Free → instant. Paid → payment then instant enroll.</li>
+          <li>Lesson quizzes → progress bar.</li>
+          <li>Finals: 24 min timer. Need ≥75% (paid) or ≥65% (free). Certificates & transcript in <b>Profile</b>.</li>
         </ul>
       </div></div>
     `;
@@ -669,7 +745,22 @@
     });
   }
 
-  // ---------- Courses ----------
+  // ---------- Outline (inline or URL) ----------
+  async function loadOutline(course){
+    // If outlineUrl provided, fetch JSON; else parse inline outline string
+    if(course.outlineUrl){
+      try{
+        const res = await fetch(course.outlineUrl, {cache:'no-cache'});
+        const data = await res.json();
+        return Array.isArray(data)? data : [];
+      }catch(e){
+        console.warn('outlineUrl fetch failed', e);
+        notify('Failed to load outline file','warn');
+        return parseOutline(course.outline);
+      }
+    }
+    return parseOutline(course.outline);
+  }
   function parseOutline(out){
     try{ const j = typeof out==='string'? JSON.parse(out): (out||[]); return Array.isArray(j)? j:[]; }catch{ return []; }
   }
@@ -692,7 +783,7 @@
   function bestLessonScore(courseId, lidx){
     const list=(state.attempts||[]).filter(a=>a.uid===uid() && a.type==='lesson' && a.courseId===courseId && a.lessonIndex===lidx);
     return list.reduce((m,a)=> Math.max(m,a.score||0),0);
-    }
+  }
 
   // enroll (handles free/paid)
   function handleEnroll(course){
@@ -702,10 +793,10 @@
     // paid — show PayPal (or mock)
     $('#mm-title').textContent='Payment';
     $('#mm-body').innerHTML=`<div class="grid">
-      <div class="muted">Course: <b>${course.title}</b> • Price: <b>$${course.price}</b></div>
+      <div class="muted">Course: <b>${course.title}</b> • Price: <b>$${Number(course.price).toFixed(2)}</b></div>
       <div id="paypal-btn"></div>
       <div id="mock-btn" style="display:none"><button class="btn ok" id="mockPay">Simulate payment (dev)</button></div>
-      <div class="muted" style="font-size:12px">Note: for production, connect PayPal or Stripe with server-side verification.</div>
+      <div class="muted" style="font-size:12px">For production, connect PayPal/Stripe with server-side verification.</div>
     </div>`;
     $('#mm-foot').innerHTML=`<button class="btn ghost" id="mm-ok">Close</button>`;
     openModal('m-modal');
@@ -735,8 +826,8 @@
   }
 
   // viewer
-  function openCourseViewer(course){
-    const outline = parseOutline(course.outline);
+  async function openCourseViewer(course){
+    const outline = await loadOutline(course);
     const lessons = outline.flatMap((ch,ci)=> ch.lessons.map((l,li)=> ({...l, chapter:ch.title, absIndex: outline.slice(0,ci).reduce((n,c)=>n+c.lessons.length,0)+li })) );
     let idx=0;
     const totalLq = countLessonQuizzes(outline);
@@ -772,6 +863,9 @@
             <div style="margin-top:8px">${(l.html||'').replace(/</g,'&lt;').replace(/\n/g,'<br/>')}</div>
             ${imgs}
 
+            ${l.headers?.length? `<ul style="margin-top:6px">${(l.headers||[]).map(h=>`<li>${(h||'').replace(/</g,'&lt;')}</li>`).join('')}</ul>`:''}
+            ${l.subheaders?.length? `<ul style="margin-top:6px">${(l.subheaders||[]).map(h=>`<li>${(h||'').replace(/</g,'&lt;')}</li>`).join('')}</ul>`:''}
+
             ${l.quiz? `
               <div class="card" style="margin-top:10px"><div class="card-body">
                 <h4 style="margin:0">Lesson Quiz ${passed? ' <span class="badge" style="margin-left:6px;background:rgba(16,185,129,.2);color:var(--ok);border-color:rgba(16,185,129,.4)">passed</span>':''}</h4>
@@ -784,7 +878,7 @@
             `: ''}
 
             <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-              ${isEnrolled(course.id)? `<button class="btn ok" disabled>Enrolled</button>` : `<button class="btn" id="enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>`}
+              ${isEnrolled(course.id)? `<button class="btn ok" disabled>Enrolled</button>` : `<button class="btn" id="enroll"><i class="ri-add-circle-line"></i> Enroll</button>`}
               <button class="btn ghost" id="openFinal"><i class="ri-file-list-3-line"></i> Final (24 min)</button>
               <button class="btn ghost" id="addNote"><i class="ri-sticky-note-add-line"></i> Add note</button>
             </div>
@@ -879,7 +973,6 @@
     const outline=parseOutline(course.outline);
     const pool=[];
     outline.forEach(ch=> ch.lessons.forEach(l=> (l.quiz?.items||[]).forEach(it=> pool.push(it)) ));
-    // If explicit final exists, prefer that; else random 12 from pool
     const q = state.quizzes.find(x=>x.courseId===course.id) || { title:`${course.title} Final`, items:shuffle(pool).slice(0,12), passScore: course.isFree?65:75 };
     if((q.items||[]).length===0) return notify('No questions available','warn');
 
@@ -943,9 +1036,10 @@
           <input id="c-category" class="input" placeholder="Category (e.g., Math)"/>
           <input id="c-credits" class="input" type="number" placeholder="Credits (e.g., 3)"/>
           <input id="c-cover" class="input" placeholder="Cover image URL (optional)"/>
-          <input id="c-price" class="input" type="number" placeholder="Price (0 or blank = Free)"/>
+          <input id="c-price" class="input" type="number" placeholder="Price (0/blank = Free)"/>
           <textarea id="c-goals" class="input" placeholder="Goals (one per line, first 3 shown on card)"></textarea>
           <textarea id="c-short" class="input" placeholder="Short description"></textarea>
+          <input id="c-outline-url" class="input" placeholder="Outline JSON URL (optional, e.g., https://.../outline.json)"/>
           <textarea id="c-outline" class="input" placeholder='[{"title":"Chapter 1","lessons":[{"title":"Welcome","video":"https://www.youtube.com/watch?v=...","html":"Welcome...","images":[],"quiz":{"pass":70,"items":[{"q":"2+2?","choices":["3","4","5"],"answer":1}]}}]}]'></textarea>
         </div>`;
       $('#mm-foot').innerHTML=`<button class="btn" id="c-save">Save</button>`; openModal('m-modal');
@@ -956,7 +1050,7 @@
         const isFree = !(price>0);
         const obj={ title:t, category:$('#c-category')?.value.trim(), credits:+($('#c-credits')?.value||0), short:$('#c-short')?.value.trim(),
           cover:$('#c-cover')?.value.trim(), goals, price:isFree?0:price, isFree, outline:$('#c-outline')?.value.trim(),
-          ownerUid:uid(), ownerEmail:auth.currentUser.email, createdAt:ts };
+          outlineUrl: $('#c-outline-url')?.value.trim() || '', ownerUid:uid(), ownerEmail:auth.currentUser.email, createdAt:ts };
         await col('courses').add(obj); closeModal('m-modal'); notify('Saved');
       };
     });
@@ -964,10 +1058,16 @@
     const sec=$('[data-sec="courses"]'); if(!sec||sec.__wired) return; sec.__wired=true;
 
     sec.addEventListener('click', async (e)=>{
-      const openBtn=e.target.closest('button[data-open]'); const editBtn=e.target.closest('button[data-edit]');
+      const openBtn=e.target.closest('button[data-open]');
+      const enrollBtn=e.target.closest('button[data-enroll]');
+      const editBtn=e.target.closest('button[data-edit]');
       if(openBtn){
         const id=openBtn.getAttribute('data-open'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
         openCourseViewer({id:snap.id, ...snap.data()});
+      }
+      if(enrollBtn){
+        const id=enrollBtn.getAttribute('data-enroll'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
+        handleEnroll({id:snap.id, ...snap.data()});
       }
       if(editBtn){
         const id=editBtn.getAttribute('data-edit'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
@@ -983,6 +1083,7 @@
             <input id="c-price" class="input" type="number" value="${c.price||0}"/>
             <textarea id="c-goals" class="input">${(c.goals||[]).join('\n')}</textarea>
             <textarea id="c-short" class="input">${c.short||''}</textarea>
+            <input id="c-outline-url" class="input" value="${c.outlineUrl||''}"/>
             <textarea id="c-outline" class="input">${c.outline||''}</textarea>
           </div>`;
         $('#mm-foot').innerHTML=`<button class="btn" id="c-save">Save</button>`; openModal('m-modal');
@@ -992,7 +1093,8 @@
           await doc('courses', id).set({
             title:$('#c-title')?.value.trim(), category:$('#c-category')?.value.trim(), credits:+($('#c-credits')?.value||0),
             cover:$('#c-cover')?.value.trim(), price:isFree?0:price, isFree, goals,
-            short:$('#c-short')?.value.trim(), outline:$('#c-outline')?.value.trim(), updatedAt:ts
+            short:$('#c-short')?.value.trim(), outline:$('#c-outline')?.value.trim(), outlineUrl:$('#c-outline-url')?.value.trim()||'',
+            updatedAt:ts
           },{merge:true});
           closeModal('m-modal'); notify('Saved');
         };
@@ -1091,7 +1193,7 @@
       const text=input.value.trim(); if(!text||!state._currentCourseChat) return;
       if(!canPostMessage(state._currentCourseChat)) return notify('Enroll to chat','warn');
       const p = state.profiles.find(x=>x.uid===uid()) || {};
-      await col('messages').add({ courseId:state._currentCourseChat, uid:uid(), email:auth.currentUser.email, name:p.name||'', text, createdAt:ts });
+      await col('messages').add({ type:'course', courseId:state._currentCourseChat, uid:uid(), email:auth.currentUser.email, name:p.name||'', text, createdAt:ts });
       input.value='';
     });
   }
@@ -1220,7 +1322,7 @@
     });
   }
 
-  // Admin events
+  // Admin events (incl. Contact)
   function wireAdmin(){
     // Save org settings
     $('#org-save')?.addEventListener('click', async ()=>{
@@ -1274,16 +1376,58 @@
       }
     });
 
+    // Contact — course-wide
+    $('#ct-course-send')?.addEventListener('click', async ()=>{
+      const courseId=$('#ct-course')?.value; const text=$('#ct-course-text')?.value.trim();
+      if(!courseId||!text) return notify('Pick a course and write a message','warn');
+      const me=state.profiles.find(p=>p.uid===uid())||{};
+      await col('messages').add({ type:'course', courseId, fromUid:uid(), fromEmail:auth.currentUser.email, fromName:me.name||'', text, createdAt:ts });
+      $('#ct-course-text').value=''; notify('Sent to course chat');
+    });
+
+    // Contact — direct
+    $('#ct-user-send')?.addEventListener('click', async ()=>{
+      const toUid=$('#ct-user')?.value; const text=$('#ct-user-text')?.value.trim();
+      if(!toUid||!text) return notify('Pick a user and write a message','warn');
+      const me=state.profiles.find(p=>p.uid===uid())||{};
+      await col('messages').add({ type:'direct', toUid, fromUid:uid(), fromEmail:auth.currentUser.email, fromName:me.name||'', text, createdAt:ts });
+      $('#ct-user-text').value=''; notify('Direct message sent');
+    });
+
+    // Contact — group
+    $('#ct-group-send')?.addEventListener('click', async ()=>{
+      const groupId=$('#ct-group')?.value; const text=$('#ct-group-text')?.value.trim();
+      if(!groupId||!text) return notify('Pick a group and write a message','warn');
+      const me=state.profiles.find(p=>p.uid===uid())||{};
+      await col('messages').add({ type:'group', groupId, fromUid:uid(), fromEmail:auth.currentUser.email, fromName:me.name||'', text, createdAt:ts });
+      $('#ct-group-text').value=''; notify('Group message sent');
+    });
+
+    // Create/Update group
+    $('#grp-create')?.addEventListener('click', async ()=>{
+      const name=$('#grp-name')?.value.trim(); const tag=$('#grp-tag')?.value.trim(); const emails=($('#grp-emails')?.value||'').split(',').map(x=>x.trim()).filter(Boolean);
+      if(!name) return notify('Group name required','warn');
+      const emailToUid = new Map(state.profiles.map(p=>[(p.email||'').toLowerCase(),p.uid]));
+      const members = emails.map(e=>emailToUid.get(e.toLowerCase())).filter(Boolean);
+      const exists = state.groupsAll.find(g=>g.name.toLowerCase()===name.toLowerCase());
+      if(exists){
+        await doc('groups',exists.id).set({ name, tag, members, updatedAt:ts },{merge:true});
+      }else{
+        await col('groups').add({ name, tag, members, createdAt:ts });
+      }
+      notify('Group saved');
+    });
+
     // Users edit/delete
     $('#main')?.addEventListener('click', async (e)=>{
       const edit=e.target.closest('[data-edit-user]'); const del=e.target.closest('[data-del-user]');
       if(edit){
-        const uid=edit.getAttribute('data-edit-user'); const p=(await doc('profiles',uid).get()).data()||{};
+        const uidX=edit.getAttribute('data-edit-user'); const p=(await doc('profiles',uidX).get()).data()||{};
         const role=prompt('Set role (student/instructor/admin)', p.role||'student'); if(!role||!VALID_ROLES.includes(role)) return notify('Invalid role','warn');
         const name=prompt('Name (optional)', p.name||''); 
         await Promise.all([
-          doc('roles',uid).set({ role, updatedAt:ts },{merge:true}),
-          doc('profiles',uid).set({ role, name },{merge:true})
+          doc('roles',uidX).set({ role, updatedAt:ts },{merge:true}),
+          doc('profiles',uidX).set({ role, name },{merge:true})
         ]);
         notify('User updated');
       }
@@ -1296,7 +1440,6 @@
 
   // ---------- Settings ----------
   function wireSettings(){
-    // Apply instantly (no Save)
     $('#theme-palette')?.addEventListener('change', ()=>{
       state.theme.palette=$('#theme-palette').value; localStorage.setItem('lh:palette', state.theme.palette); applyTheme();
     });
@@ -1310,26 +1453,22 @@
     const canvas=document.createElement('canvas'); canvas.width=1400; canvas.height=900;
     const ctx=canvas.getContext('2d');
 
-    // bg & border
     ctx.fillStyle=getComputedStyle(document.body).getPropertyValue('--bg')?.trim()||'#0b0d10';
     ctx.fillRect(0,0,1400,900);
     ctx.strokeStyle=getComputedStyle(document.body).getPropertyValue('--brand')?.trim()||'#7ad3ff';
     ctx.lineWidth=8; ctx.strokeRect(60,60,1280,780);
 
-    // title & subtitle
     ctx.fillStyle='#fff';
     ctx.font='bold 64px Inter,system-ui'; ctx.fillText('Certificate of Completion', 300, 220);
     ctx.font='24px Inter,system-ui'; ctx.fillStyle='#94a3b8'; ctx.fillText(org.certificateNote||'', 300, 260);
 
-    // logo
     try{
       if(org.logo){
-        const lg=new Image(); lg.crossOrigin='anonymous'; await new Promise((res,rej)=>{ lg.onload=res; lg.onerror=res; lg.src=org.logo; });
+        const lg=new Image(); lg.crossOrigin='anonymous'; await new Promise((res)=>{ lg.onload=res; lg.onerror=res; lg.src=org.logo; });
         ctx.drawImage(lg, 120, 160, 120, 120);
       }
     }catch{}
 
-    // body
     ctx.fillStyle='#fff';
     ctx.font='bold 40px Inter,system-ui'; ctx.fillText(`Awarded to: ${person.name||person.email}`, 300, 320);
     ctx.font='28px Inter,system-ui';
@@ -1339,20 +1478,17 @@
     ctx.fillText(`Certificate #: ${id}`, 300, 450);
     ctx.fillText(`Date: ${new Date().toLocaleDateString()}`, 300, 490);
 
-    // signature line
     ctx.strokeStyle='#94a3b8'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(300, 610); ctx.lineTo(760,610); ctx.stroke();
     ctx.font='20px Inter,system-ui'; ctx.fillStyle='#94a3b8'; ctx.fillText(person.signName || org.signerName || 'Authorized', 300, 640);
 
-    // signature image
     try{
       if(org.signatureUrl){
         const img=new Image(); img.crossOrigin='anonymous';
-        await new Promise((res,rej)=>{ img.onload=res; img.onerror=res; img.src=org.signatureUrl+'?t='+Date.now(); });
+        await new Promise((res)=>{ img.onload=res; img.onerror=res; img.src=org.signatureUrl+'?t='+Date.now(); });
         ctx.drawImage(img, 780, 560, 260, 80);
       }
     }catch{}
 
-    // download
     const url=canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download=filename||'certificate.png'; a.click();
   }
 
@@ -1376,8 +1512,26 @@
   }
   function validUrl(u){ return typeof u==='string' && /^https?:\/\//i.test(u); }
 
+  // ---------- Inbox (direct & group) ----------
+  function subInboxDirect(){
+    const my=uid();
+    state.unsub.push(col('messages').where('toUid','==',my).onSnapshot(s=>{
+      state.inboxDirect = s.docs.map(d=>({id:d.id,...d.data()}));
+      if(state.route==='dashboard') render();
+    }, err=>console.warn('dm',err)));
+  }
+  function subInboxGroups(){
+    state._unsubInboxGroups?.(); state._unsubInboxGroups=null;
+    const ids=state.myGroupIds.slice(0,10);
+    if(!ids.length) return;
+    state._unsubInboxGroups = col('messages').where('groupId','in',ids).onSnapshot(s=>{
+      state.inboxGroup = s.docs.map(d=>({id:d.id,...d.data()}));
+      if(state.route==='dashboard') render();
+    }, err=>console.warn('gm',err));
+  }
+
   // ---------- Sync ----------
-  function clearUnsubs(){ state.unsub.forEach(u=>{try{u()}catch{}}); state.unsub=[]; }
+  function clearUnsubs(){ state.unsub.forEach(u=>{try{u()}catch{}}); state.unsub=[]; state._unsubChat?.(); state._unsubChat=null; state._unsubInboxGroups?.(); state._unsubInboxGroups=null; }
   function sync(){
     clearUnsubs();
     const my=uid();
@@ -1402,6 +1556,22 @@
     state.unsub.push(col('notes').where('uid','==',my).onSnapshot(s=>{ state.notes=s.docs.map(d=>({id:d.id,...d.data()})); },err=>console.warn('notes',err)));
     state.unsub.push(col('announcements').orderBy('createdAt','desc').limit(25).onSnapshot(s=>{ state.announcements=s.docs.map(d=>({id:d.id,...d.data()})); if(['dashboard','admin'].includes(state.route)) render(); },err=>console.warn('ann',err)));
 
+    // Groups (mine) for inbox
+    state.unsub.push(col('groups').where('members','array-contains',my).onSnapshot(s=>{
+      state.groupsMine = s.docs.map(d=>({id:d.id,...d.data()}));
+      state.myGroupIds = state.groupsMine.map(g=>g.id);
+      subInboxGroups(); // restart subscription with new list
+    }, err=>console.warn('groupsMine',err)));
+
+    // All groups for admin UI
+    if(canManageUsers()){
+      state.unsub.push(col('groups').onSnapshot(s=>{
+        state.groupsAll = s.docs.map(d=>({id:d.id,...d.data()}));
+        if(state.route==='admin') render();
+      }, err=>console.warn('groupsAll',err)));
+    }
+
+    subInboxDirect();
     ensureOrgLoaded();
   }
   async function ensureOrgLoaded(){

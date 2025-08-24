@@ -52,9 +52,15 @@ service cloud.firestore {
     }
 
     match /messages/{id} {
-      allow read: if true;
-      allow create: if signedIn();
+      allow read: if true;         // (public chat + simple inbox demo)
+      allow create: if signedIn(); // anyone logged in can create (admins use Contact too)
       allow update, delete: if false;
+    }
+
+    // NEW: Groups (for admin contact)
+    match /groups/{id} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid in resource.data.members);
+      allow create, update, delete: if isAdmin();
     }
 
     match /notes/{id} {

@@ -13,7 +13,6 @@
 .theme-grape{ --brand:#a78bfa; --accent:#f472b6; }
 .theme-slate{ --brand:#94a3b8; --accent:#38bdf8; }
 .theme-dark{}
-/* NEW light theme */
 .theme-light{
   --bg:#f6f7fb; --panel:#ffffff; --card:#ffffff; --text:#0b0d10; --muted:#5b6069; --border:#e6e8ef;
   --brand:#2563eb; --accent:#10b981; --ok:#16a34a; --warn:#ca8a04; --danger:#dc2626;
@@ -74,6 +73,7 @@ select.input, textarea.input{ color:var(--text) }
 .cols-3{ grid-template-columns:repeat(3,minmax(0,1fr)) }
 .cols-4{ grid-template-columns:repeat(4,minmax(0,1fr)) }
 
+/* Login */
 .login-wrap{ display:grid; place-items:center; min-height:100vh; padding:20px }
 .login-card{ width:min(420px,96vw) }
 .login-brand{ display:flex; align-items:center; gap:10px; margin-bottom:10px; justify-content:center }
@@ -89,7 +89,7 @@ select.input, textarea.input{ color:var(--text) }
 .dialog .head{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid var(--border) }
 .dialog .body{ padding:12px; overflow:auto; max-height:66vh }
 .dialog .foot{ padding:12px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end }
-/* Full-screen variant for course viewer */
+/* Full-screen course viewer */
 .dialog.full{ width:96vw; height:92vh; max-height:92vh }
 .dialog.full .body{ max-height:calc(92vh - 120px) }
 
@@ -139,3 +139,4 @@ select.input, textarea.input{ color:var(--text) }
 img.round{ border-radius:999px; }
 img.ph{ background:#0c0f14; border:1px solid var(--border) }
 .course-cover{ width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:10px; border:1px solid var(--border) }
+.price-tag{ display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-weight:700; border:1px solid var(--border); }
