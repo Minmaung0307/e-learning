@@ -500,48 +500,57 @@
          High-contrast, theme-aware tokens
          =============================== */
       .guide{
-        /* gradient stays vibrant */
         --g-bg: linear-gradient(135deg,#0ea5e9 0%, #22c55e 100%);
 
         /* LIGHT defaults */
-        --g-text:#0a0a0a;
-        --g-muted:#475569;
-        --g-border:#e5e7eb;
-        --g-surface:#ffffff;
-        --g-surface-2:#f8fafc;
+        --g-text:#0a0a0a;          /* primary text */
+        --g-muted:#475569;         /* secondary text */
+        --g-border:#e5e7eb;        /* card borders */
+        --g-surface:#ffffff;       /* cards */
+        --g-surface-2:#f8fafc;     /* subtle surfaces */
 
-        --g-chip-bg:#111827;
+        --g-chip-bg:#111827;       /* chip */
         --g-chip-text:#f8fafc;
 
-        --g-code-bg:#0b0d10;
-        --g-code-text:#e5e7eb;
+        /* Code block (force readable) */
+        --g-code-bg:#0f172a;       /* slate-900 */
+        --g-code-text:#f8fafc;     /* white */
+
+        --g-link:#1d4ed8;          /* links, ensure visible */
+        --g-link-visited:#7c3aed;
 
         --g-ok-bg:#ecfdf5;     --g-ok-text:#064e3b;
         --g-warn-bg:#fff7ed;   --g-warn-text:#7c2d12;
         --g-danger-bg:#fef2f2; --g-danger-text:#7f1d1d;
       }
-      /* DARK overrides (when the app sets body.theme-dark) */
+      /* DARK overrides */
       .theme-dark .guide{
         --g-text:#e5e7eb;
         --g-muted:#94a3b8;
         --g-border:#334155;
-        --g-surface:#0f172a;     /* slate-900 */
-        --g-surface-2:#111827;   /* gray-900 */
+        --g-surface:#0f172a;
+        --g-surface-2:#111827;
 
         --g-chip-bg:#1f2937;
         --g-chip-text:#f8fafc;
 
-        --g-code-bg:#0b0d10;
+        --g-code-bg:#0b1220;      /* slightly darker than card */
         --g-code-text:#e5e7eb;
 
-        --g-ok-bg:#052e16;     --g-ok-text:#bbf7d0;  /* emerald-950 on mint text */
-        --g-warn-bg:#451a03;   --g-warn-text:#fed7aa;/* amber-950 on warm text */
-        --g-danger-bg:#450a0a; --g-danger-text:#fecaca;/* red-950 on soft red */
+        --g-link:#93c5fd;         /* lighter link for dark bg */
+        --g-link-visited:#c4b5fd;
+
+        --g-ok-bg:#052e16;     --g-ok-text:#bbf7d0;
+        --g-warn-bg:#451a03;   --g-warn-text:#fed7aa;
+        --g-danger-bg:#450a0a; --g-danger-text:#fecaca;
       }
 
       /* ===== base ===== */
       .guide, .guide * { color: var(--g-text); }
+      .guide a { color: var(--g-link); text-underline-offset: 2px; }
+      .guide a:visited { color: var(--g-link-visited); }
       .guide .mini, .guide .muted { color: var(--g-muted); }
+      .guide ::selection{ background:#fde68a; color:#111827; }
 
       .guide .hero {
         background: var(--g-bg);
@@ -599,9 +608,16 @@
       .guide .callout.danger { border-left-color:#ef4444; background:var(--g-danger-bg); color:var(--g-danger-text); }
 
       .guide code, .guide pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace }
-      .guide pre {
-        background:var(--g-code-bg); color:var(--g-code-text);
+
+      /* >>> HARD-FORCE code block readability <<< */
+      .guide pre{
+        background:var(--g-code-bg) !important;
+        color:var(--g-code-text) !important;
         padding:12px; border-radius:12px; overflow:auto; border:1px solid #1f2937;
+        white-space:pre; tab-size:2;
+      }
+      .guide pre, .guide pre *, .guide code, .guide code *{
+        color:var(--g-code-text) !important; /* fixes "black screen" text-invisible issue */
       }
       .guide .code-card { position:relative }
       .guide .copy-btn {
@@ -623,12 +639,19 @@
     </style>
 
     <div class="hero">
-      <div class="title"><i class="ri-compass-3-line"></i> LearnHub — Quick Start Guide</div>
-      <div class="subtitle">Everything you need to run Admin / Instructor / Student flows, chat channels, rosters, and hosted JSON content.</div>
+      <div class="title"><i class="ri-compass-3-line"></i> LearnHub — Complete Guide</div>
+      <div class="subtitle">Everything you need: Rosters, Chat, Users/Roles, Hosted JSON, plus step-by-steps for every menu.</div>
       <div class="nav">
-        <a href="#roster"><i class="ri-team-line"></i> Roster Tools</a>
-        <a href="#chat"><i class="ri-chat-3-line"></i> Course Chat</a>
-        <a href="#roles"><i class="ri-shield-user-line"></i> Roles & Users</a>
+        <a href="#dashboard"><i class="ri-dashboard-line"></i> Dashboard</a>
+        <a href="#courses"><i class="ri-book-2-line"></i> Courses</a>
+        <a href="#learning"><i class="ri-graduation-cap-line"></i> My Learning</a>
+        <a href="#assessments"><i class="ri-file-list-3-line"></i> Finals</a>
+        <a href="#chat"><i class="ri-chat-3-line"></i> Chat</a>
+        <a href="#tasks"><i class="ri-list-check-2"></i> Tasks</a>
+        <a href="#profile"><i class="ri-user-3-line"></i> Profile</a>
+        <a href="#admin"><i class="ri-shield-star-line"></i> Admin</a>
+        <a href="#settings"><i class="ri-settings-3-line"></i> Settings</a>
+        <a href="#search"><i class="ri-search-line"></i> Search</a>
         <a href="#datajson"><i class="ri-file-json-line"></i> Public JSON</a>
         <a href="#troubleshoot"><i class="ri-tools-line"></i> Troubleshooting</a>
       </div>
@@ -640,26 +663,61 @@
       <div class="kpi"><div class="lbl">Content Hosting</div><div class="val">/public/data/*.json</div></div>
     </div>
 
-    <!-- Roster Tools -->
-    <div id="roster" class="section">
-      <div class="h"><i class="ri-team-line"></i> Course Roster Tools (Admin)</div>
+    <!-- Dashboard -->
+    <div id="dashboard" class="section">
+      <div class="h"><i class="ri-dashboard-line"></i> Dashboard</div>
       <div class="gcard row">
-        <div class="callout">Use this to build a course’s <code>participants</code> array from existing <code>enrollments</code> — the roster powers smarter DM lists in Chat.</div>
         <div class="grid2">
           <div class="row">
-            <div class="step"><i class="ri-checkbox-circle-line"></i><div><b>Pre-req:</b> You already have enrollment docs like <code>{ uid, courseId, createdAt }</code>.</div></div>
-            <div class="step"><i class="ri-settings-2-line"></i><div>Go to <b>Admin → Course Roster Tools</b> and pick a course.</div></div>
-            <div class="step"><i class="ri-refresh-line"></i><div>Click <b>Sync from Enrollments</b>. The app gathers all <code>uid</code>s enrolled + <code>ownerUid</code> and writes <code>participants</code> on the course.</div></div>
-            <div class="step"><i class="ri-eye-line"></i><div>Click <b>View Roster</b> to confirm the <code>participants</code> list.</div></div>
+            <div class="step"><i class="ri-megaphone-line"></i><div><b>Announcements:</b> Admins can <i>New Announcement</i>, edit, or delete. Students see the feed here.</div></div>
+            <div class="step"><i class="ri-pie-chart-2-line"></i><div><b>KPIs:</b> Quick glance at course count, your enrollments, finals, and attempts.</div></div>
+          </div>
+          <div class="row">
+            <div class="callout">Click the cards to jump to Courses, My Learning, or Finals.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Courses -->
+    <div id="courses" class="section">
+      <div class="h"><i class="ri-book-2-line"></i> Courses</div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-add-line"></i><div><b>New Course (Instructor/Admin):</b> fill Title, Category, Credits, Price; optional Goals, Cover, and JSON URLs (Outline & Lesson Quizzes).</div></div>
+            <div class="step"><i class="ri-external-link-line"></i><div><b>Details:</b> open a course → Enroll (free/paid demo) → quick link to its Finals.</div></div>
+            <div class="step"><i class="ri-edit-2-line"></i><div><b>Edit/Delete:</b> available to course owners and admins.</div></div>
+          </div>
+          <div class="row">
+            <div class="callout warn">Paid flow is a demo (writes to <code>payments</code>). Adjust to your gateway later.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- My Learning -->
+    <div id="learning" class="section">
+      <div class="h"><i class="ri-graduation-cap-line"></i> My Learning</div>
+      <div class="gcard row">
+        <div class="step"><i class="ri-login-circle-line"></i><div>Shows courses you’re enrolled in. Click <b>Open</b> to review Outline / Lesson Quizzes links.</div></div>
+      </div>
+    </div>
+
+    <!-- Finals -->
+    <div id="assessments" class="section">
+      <div class="h"><i class="ri-file-list-3-line"></i> Final Exams</div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-add-box-line"></i><div><b>New Final (Instructor/Admin):</b> choose course, pass score, and paste Items JSON.</div></div>
+            <div class="step"><i class="ri-play-line"></i><div><b>Take Final:</b> students must be enrolled. Live feedback per question when selecting answers.</div></div>
+            <div class="step"><i class="ri-check-double-line"></i><div><b>Scoring:</b> result stored in <code>attempts</code>; transcript computed under Profile.</div></div>
           </div>
           <div class="row">
             <details open>
-              <summary><span class="pill">Troubleshooting</span></summary>
-              <ul class="mini">
-                <li>Empty list? Ensure <code>enrollments</code> exist for that <code>courseId</code>.</li>
-                <li>Don’t see the tool? Your user isn’t <b>admin</b> (set role via Role Manager).</li>
-                <li>Write denied? Check your Firestore rules for updating <code>courses/{id}</code>.</li>
-              </ul>
+              <summary><span class="pill">Items JSON (per question)</span></summary>
+              <div class="mini">Each item: <code>{ "q": "...", "choices":[...], "answer": index, "feedbackOk":"...", "feedbackNo":"..." }</code></div>
             </details>
           </div>
         </div>
@@ -673,15 +731,15 @@
         <div class="grid3">
           <div class="gcard" style="gap:8px">
             <div class="badge"><i class="ri-megaphone-line"></i> Course-wide</div>
-            <div class="mini">Mode = <b>Course</b> → pick a course. Channel key becomes <code>course_{courseId}</code>.</div>
+            <div class="mini">Mode = <b>Course</b> → pick a course. Channel key: <code>course_{courseId}</code>.</div>
           </div>
           <div class="gcard" style="gap:8px">
             <div class="badge"><i class="ri-user-3-line"></i> Direct (DM)</div>
-            <div class="mini">Mode = <b>Direct</b> → pick a user (roster-aware). Channel key <code>dm_{minUid}_{maxUid}</code>.</div>
+            <div class="mini">Mode = <b>Direct</b> → pick a user (roster-aware). Channel key: <code>dm_{minUid}_{maxUid}</code>.</div>
           </div>
           <div class="gcard" style="gap:8px">
             <div class="badge"><i class="ri-group-line"></i> Group/Batch</div>
-            <div class="mini">Mode = <b>Group</b> → type ID (e.g., <code>Diploma-2025</code>). Channel key <code>group_{id}</code>.</div>
+            <div class="mini">Mode = <b>Group</b> → type ID (e.g., <code>Diploma-2025</code>). Channel key: <code>group_{id}</code>.</div>
           </div>
         </div>
 
@@ -693,46 +751,81 @@
           <div class="row">
             <div class="step"><i class="ri-arrow-right-s-line"></i><div>Open <b>Chat</b>, choose a <b>Mode</b>.</div></div>
             <div class="step"><i class="ri-hashtag"></i><div>Course: select course • DM: select user • Group: type group id.</div></div>
-            <div class="step"><i class="ri-send-plane-2-line"></i><div>Type a message and <b>Send</b>. Messages are saved to <code>messages</code> with: <code>channel</code>, <code>type</code>, <code>uid</code>, <code>email</code>, <code>name</code>, <code>text</code>, <code>createdAt</code> + a helper field (<code>courseId</code>, <code>peerUid</code>, or <code>groupId</code>).</div></div>
+            <div class="step"><i class="ri-send-plane-2-line"></i><div>Type a message and <b>Send</b>. Firestore collection: <code>messages</code> with <code>channel</code>, <code>type</code>, <code>uid</code>, <code>email</code>, <code>name</code>, <code>text</code>, <code>createdAt</code>, and helper (<code>courseId</code>/<code>peerUid</code>/<code>groupId</code>).</div></div>
           </div>
           <div class="row">
             <details open>
               <summary><span class="pill">How the DM user list is built</span></summary>
-              <div class="mini">If a course is selected, the DM dropdown lists its <b>participants</b> (synced from enrollments). If no roster is set, it falls back to <b>all profiles</b> except you.</div>
-            </details>
-            <details>
-              <summary><span class="pill">Who can chat?</span></summary>
-              <div class="mini">Students, Instructors, and Admins can join channels they select. For broadcast-style messages, use <b>Announcements</b> on the dashboard (Admins).</div>
+              <div class="mini">If a course is selected, DM list shows its <b>participants</b> (synced from enrollments). If none, it falls back to <b>all profiles</b> except you.</div>
             </details>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Roles -->
-    <div id="roles" class="section">
-      <div class="h"><i class="ri-shield-user-line"></i> Roles & User Lists</div>
+    <!-- Tasks -->
+    <div id="tasks" class="section">
+      <div class="h"><i class="ri-list-check-2"></i> Tasks (Personal Kanban)</div>
       <div class="gcard row">
         <div class="grid2">
           <div class="row">
-            <div class="step"><i class="ri-admin-line"></i><div><b>Change a role:</b> Admin → <b>Role Manager</b> → paste UID → pick <code>student</code>/<code>instructor</code>/<code>admin</code> → Save.</div></div>
-            <div class="step"><i class="ri-pages-line"></i><div><b>View users:</b> Admin → <b>Users (profiles)</b> table shows name, email, and role.</div></div>
+            <div class="step"><i class="ri-add-line"></i><div><b>Add Task:</b> in <i>To do</i> column → <b>Add Task</b>.</div></div>
+            <div class="step"><i class="ri-drag-move-2-line"></i><div><b>Drag & drop</b> cards to <i>In progress</i> or <i>Done</i>.</div></div>
+            <div class="step"><i class="ri-edit-2-line"></i><div>Edit/Delete via card actions.</div></div>
           </div>
           <div class="row">
-            <div class="callout">
-              <b>Where do I find a UID?</b> Firebase Console → Authentication → copy the user’s UID.
-            </div>
-            <div class="code-card">
-              <button class="copy-btn" data-copy="role-snippet">Copy</button>
-              <pre id="role-snippet"><code>firebase.firestore().collection('profiles').get().then(s => {
-  const arr = s.docs.map(d => d.data());
-  console.log('Admins'); console.table(arr.filter(p => p.role === 'admin'));
-  console.log('Instructors'); console.table(arr.filter(p => p.role === 'instructor'));
-  console.log('Students'); console.table(arr.filter(p => p.role === 'student'));
-});</code></pre>
-            </div>
+            <div class="callout">All tasks are stored under your user in <code>tasks</code>.</div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Profile -->
+    <div id="profile" class="section">
+      <div class="h"><i class="ri-user-3-line"></i> Profile & Certificates</div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-image-add-line"></i><div>Update name, portfolio, bio. Upload Avatar & Signature (image files).</div></div>
+            <div class="step"><i class="ri-award-line"></i><div><b>Certificates:</b> After passing a course final (≥ passScore), download the certificate from your Transcript.</div></div>
+          </div>
+          <div class="row">
+            <div class="callout">Transcript calculates your best score per course from <code>attempts</code>.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin -->
+    <div id="admin" class="section">
+      <div class="h"><i class="ri-shield-star-line"></i> Admin Toolkit</div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-shield-user-line"></i><div><b>Role Manager:</b> paste UID, choose role (<code>student</code>/<code>instructor</code>/<code>admin</code>), Save.</div></div>
+            <div class="step"><i class="ri-team-line"></i><div><b>Users (profiles):</b> quick table to edit/delete profiles.</div></div>
+            <div class="step"><i class="ri-user-add-line"></i><div><b>Course Roster Tools:</b> pick course → <b>Sync from Enrollments</b> → <b>View Roster</b>.</div></div>
+          </div>
+          <div class="row">
+            <div class="callout warn">If sync fails, check rules on <code>courses/{id}</code> and that <code>enrollments</code> exist. Owner is auto-added.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div id="settings" class="section">
+      <div class="h"><i class="ri-settings-3-line"></i> Settings</div>
+      <div class="gcard row">
+        <div class="step"><i class="ri-brush-line"></i><div>Change <b>Palette</b> and <b>Font size</b>. Colors update instantly site-wide.</div></div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div id="search" class="section">
+      <div class="h"><i class="ri-search-line"></i> Search</div>
+      <div class="gcard row">
+        <div class="step"><i class="ri-keyboard-line"></i><div>Use the top bar. Live suggestions show Courses, Finals, and Profiles. Press <b>Enter</b> to open the Search view, or click a row to jump directly.</div></div>
       </div>
     </div>
 
@@ -742,15 +835,15 @@
       <div class="gcard row">
         <div class="grid2">
           <div class="row">
-            <div class="step"><i class="ri-folder-2-line"></i><div>Place files under your hosting root (e.g. Firebase Hosting) in <code>public/data</code>.</div></div>
+            <div class="step"><i class="ri-folder-2-line"></i><div>Put files under hosting root <code>public/data</code>.</div></div>
             <div class="step"><i class="ri-upload-2-line"></i><div>Deploy, then use URLs like <code>/data/outlines/marketing-101.json</code> and <code>/data/lesson-quizzes/marketing-101.json</code>.</div></div>
-            <div class="step"><i class="ri-edit-2-line"></i><div>When creating/editing a Course, paste the URLs into <b>Outline JSON URL</b> and <b>Lesson Quizzes JSON URL</b>.</div></div>
-            <div class="callout warn">Open the URL in a browser: you should see raw JSON. If you see HTML, the path is wrong (common cause of “Unexpected token &lt;”).</div>
+            <div class="step"><i class="ri-edit-2-line"></i><div>Course form → paste into <b>Outline JSON URL</b> and <b>Lesson Quizzes JSON URL</b>.</div></div>
+            <div class="callout warn">Open each URL in a browser: you must see raw JSON (not HTML). HTML indicates a bad path and will cause “Unexpected token &lt;”.</div>
           </div>
           <div class="row">
             <div class="badge"><i class="ri-layout-2-line"></i> Outline JSON — example</div>
             <div class="code-card">
-              <button class="copy-btn" data-copy="outline-json">Copy</button>
+              <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('outline-json').innerText)">Copy</button>
               <pre id="outline-json"><code>{
   "title": "Advanced Digital Marketing",
   "category": "Marketing",
@@ -778,7 +871,7 @@
 
             <div class="badge"><i class="ri-question-answer-line"></i> Lesson Quizzes JSON — example</div>
             <div class="code-card">
-              <button class="copy-btn" data-copy="lesson-json">Copy</button>
+              <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('lesson-json').innerText)">Copy</button>
               <pre id="lesson-json"><code>{
   "seo-foundations-how-search-works": [
     {
@@ -807,18 +900,18 @@
       <div class="h"><i class="ri-tools-line"></i> Troubleshooting</div>
       <div class="gcard row">
         <details>
-          <summary><i class="ri-error-warning-line"></i> “Unexpected token &lt;” when loading <code>app.js</code> or JSON</summary>
+          <summary><i class="ri-error-warning-line"></i> “Unexpected token &lt;” on JS/JSON</summary>
           <div class="row mini" style="margin-top:8px">
-            <div>It means the browser fetched an <b>HTML document</b> instead of JavaScript/JSON (often a 404 page). Fix the path:</div>
+            <div>This means the browser fetched <b>HTML</b> instead of JavaScript/JSON (usually a 404 page). Fix the path:</div>
             <ul>
-              <li>Confirm your script tag is <code>&lt;script src="/app.js" defer&gt;&lt;/script&gt;</code> and the file exists on Hosting.</li>
-              <li>Open your JSON URL directly: it must show raw JSON, not an HTML error page.</li>
+              <li>Script tag must point to an existing file, e.g. <code>&lt;script src="/app.js" defer&gt;&lt;/script&gt;</code>.</li>
+              <li>Open your JSON URL directly — it must show raw JSON.</li>
             </ul>
           </div>
         </details>
         <details>
           <summary><i class="ri-lock-2-line"></i> Permission / rules errors</summary>
-          <div class="mini">Check Firestore rules for writes to <code>courses</code>, <code>messages</code>, <code>announcements</code>, etc. Admin actions require rules that authorize admins.</div>
+          <div class="mini">Check Firestore rules for writes to <code>courses</code>, <code>messages</code>, <code>announcements</code>, <code>tasks</code>, etc. Admin actions require admin-authorized rules.</div>
         </details>
       </div>
     </div>
