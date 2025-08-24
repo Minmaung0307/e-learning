@@ -8,25 +8,18 @@ service firebase.storage {
         get(/databases/(default)/documents/roles/$(request.auth.uid)).data.role == "admin";
     }
 
-    // avatars/{uid}/filename
     match /avatars/{uid}/{file} {
       allow read: if true;
       allow write: if isSelf(uid) || isAdmin();
     }
-
-    // signatures/{uid}/filename
     match /signatures/{uid}/{file} {
       allow read: if true;
       allow write: if isSelf(uid) || isAdmin();
     }
-
-    // org/signature_*.png
     match /org/{file} {
       allow read: if true;
       allow write: if isAdmin();
     }
-
-    // Default deny
     match /{allPaths=**} {
       allow read: if false;
       allow write: if false;
