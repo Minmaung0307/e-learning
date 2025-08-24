@@ -496,83 +496,127 @@
   return `
   <section class="guide">
     <style>
-      /* ---- scoped styling just for the guide page ---- */
-      .guide { --g-bg: linear-gradient(135deg,#0ea5e9 0%, #22c55e 100%); }
+      /* ===============================
+         High-contrast, theme-aware tokens
+         =============================== */
+      .guide{
+        /* gradient stays vibrant */
+        --g-bg: linear-gradient(135deg,#0ea5e9 0%, #22c55e 100%);
+
+        /* LIGHT defaults */
+        --g-text:#0a0a0a;
+        --g-muted:#475569;
+        --g-border:#e5e7eb;
+        --g-surface:#ffffff;
+        --g-surface-2:#f8fafc;
+
+        --g-chip-bg:#111827;
+        --g-chip-text:#f8fafc;
+
+        --g-code-bg:#0b0d10;
+        --g-code-text:#e5e7eb;
+
+        --g-ok-bg:#ecfdf5;     --g-ok-text:#064e3b;
+        --g-warn-bg:#fff7ed;   --g-warn-text:#7c2d12;
+        --g-danger-bg:#fef2f2; --g-danger-text:#7f1d1d;
+      }
+      /* DARK overrides (when the app sets body.theme-dark) */
+      .theme-dark .guide{
+        --g-text:#e5e7eb;
+        --g-muted:#94a3b8;
+        --g-border:#334155;
+        --g-surface:#0f172a;     /* slate-900 */
+        --g-surface-2:#111827;   /* gray-900 */
+
+        --g-chip-bg:#1f2937;
+        --g-chip-text:#f8fafc;
+
+        --g-code-bg:#0b0d10;
+        --g-code-text:#e5e7eb;
+
+        --g-ok-bg:#052e16;     --g-ok-text:#bbf7d0;  /* emerald-950 on mint text */
+        --g-warn-bg:#451a03;   --g-warn-text:#fed7aa;/* amber-950 on warm text */
+        --g-danger-bg:#450a0a; --g-danger-text:#fecaca;/* red-950 on soft red */
+      }
+
+      /* ===== base ===== */
+      .guide, .guide * { color: var(--g-text); }
+      .guide .mini, .guide .muted { color: var(--g-muted); }
+
       .guide .hero {
         background: var(--g-bg);
-        color: #fff;
         border-radius: 16px;
         padding: 26px 20px;
         display: grid;
         gap: 6px;
         box-shadow: 0 6px 24px rgba(0,0,0,.15);
       }
+      .guide .hero, .guide .hero * { color:#fff; }
       .guide .hero .title { font-size: 22px; font-weight: 800; letter-spacing:.3px; }
       .guide .hero .subtitle { opacity:.95; font-size: 13px }
-      .guide .nav {
-        display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 6px 0;
-      }
+
+      .guide .nav { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 6px 0; }
       .guide .nav a {
-        text-decoration:none; background:#0b0d10; color:#fff;
-        border:1px solid var(--border); padding:8px 10px; border-radius:999px; font-size:12px;
+        text-decoration:none;
+        background:var(--g-chip-bg);
+        color:var(--g-chip-text);
+        border:1px solid transparent;
+        padding:8px 10px; border-radius:999px; font-size:12px;
       }
+
       .guide .section { margin-top:14px }
-      .guide .section .h {
-        display:flex; align-items:center; gap:8px; margin:0 0 6px 0; font-size:16px; font-weight:800;
-      }
+      .guide .section .h { display:flex; align-items:center; gap:8px; margin:0 0 6px 0; font-size:16px; font-weight:800; }
+
       .guide .kpis { display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:8px; }
-      .guide .kpi { border:1px solid var(--border); border-radius:12px; padding:12px; background:#fff }
-      .guide .kpi .lbl { font-size:12px; color:var(--muted); }
+      .guide .kpi { border:1px solid var(--g-border); border-radius:12px; padding:12px; background:var(--g-surface) }
+      .guide .kpi .lbl { font-size:12px; color:var(--g-muted); }
       .guide .kpi .val { font-weight:800; font-size:18px; }
 
-      /* cards */
-      .guide .gcard {
-        border:1px solid var(--border); border-radius:16px; background:#fff;
-        padding:14px; display:grid; gap:10px;
-      }
+      .guide .gcard { border:1px solid var(--g-border); border-radius:16px; background:var(--g-surface); padding:14px; display:grid; gap:10px; }
       .guide .row { display:grid; gap:10px }
       .guide .grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px }
       .guide .grid3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px }
-      .guide .callout {
-        border-left:4px solid #22c55e; background:#f8fef9; padding:10px; border-radius:10px;
-        font-size:13px;
+
+      .guide .badge {
+        display:inline-flex; align-items:center; gap:6px;
+        padding:5px 8px; border-radius:999px; font-size:12px;
+        background:var(--g-surface-2); border:1px solid var(--g-border); color:var(--g-text);
       }
-      .guide .warn {
-        border-left:4px solid #f59e0b; background:#fff8eb;
-      }
-      .guide .danger {
-        border-left:4px solid #ef4444; background:#fff5f5;
-      }
+
       .guide .step {
         display:flex; gap:10px; align-items:flex-start; padding:10px; border-radius:12px;
-        border:1px dashed var(--border); background:#fafafa;
+        border:1px dashed var(--g-border); background:var(--g-surface-2);
       }
-      .guide .step i { font-size:18px; opacity:.7; margin-top:2px }
+      .guide .step i { font-size:18px; opacity:.75; margin-top:2px }
+
+      .guide .callout {
+        border-left:4px solid #10b981;
+        background:var(--g-ok-bg);
+        color:var(--g-ok-text);
+        padding:10px; border-radius:10px; font-size:13px;
+      }
+      .guide .callout.warn { border-left-color:#f59e0b; background:var(--g-warn-bg); color:var(--g-warn-text); }
+      .guide .callout.danger { border-left-color:#ef4444; background:var(--g-danger-bg); color:var(--g-danger-text); }
+
       .guide code, .guide pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace }
       .guide pre {
-        background:#0b0d10; color:#e5e7eb; padding:12px; border-radius:12px; overflow:auto; border:1px solid #222;
+        background:var(--g-code-bg); color:var(--g-code-text);
+        padding:12px; border-radius:12px; overflow:auto; border:1px solid #1f2937;
       }
       .guide .code-card { position:relative }
       .guide .copy-btn {
-        position:absolute; right:10px; top:10px; border:1px solid #1f2937; background:#111827; color:#e5e7eb;
+        position:absolute; right:10px; top:10px;
+        border:1px solid #334155; background:var(--g-code-bg); color:var(--g-code-text);
         font-size:12px; border-radius:8px; padding:6px 8px; cursor:pointer;
       }
-      .guide .badge {
-        display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border-radius:999px; font-size:12px;
-        background:#f1f5f9; border:1px solid var(--border);
-      }
-      .guide .mini {
-        font-size:12px; color:var(--muted);
-      }
-      /* details / summary accordion */
-      .guide details {
-        border:1px solid var(--border); border-radius:12px; background:#fff; padding:8px 10px;
-      }
+
+      .guide details { border:1px solid var(--g-border); border-radius:12px; background:var(--g-surface); padding:8px 10px; }
       .guide details + details { margin-top:8px }
       .guide summary { cursor:pointer; font-weight:700; display:flex; align-items:center; gap:8px }
       .guide summary::-webkit-details-marker { display:none }
       .guide .pill { background:#eef2ff; color:#3730a3; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid #c7d2fe }
-      /* responsive tweaks */
+
+      /* responsive */
       @media (max-width: 840px){
         .guide .grid2, .guide .grid3 { grid-template-columns: 1fr; }
       }
@@ -590,7 +634,6 @@
       </div>
     </div>
 
-    <!-- KPIs / quick facts -->
     <div class="kpis" style="margin-top:10px">
       <div class="kpi"><div class="lbl">Roles</div><div class="val">student • instructor • admin</div></div>
       <div class="kpi"><div class="lbl">Chat Channels</div><div class="val">course_* • dm_*_* • group_*</div></div>
