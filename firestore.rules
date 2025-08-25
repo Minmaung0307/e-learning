@@ -1,81 +1,69 @@
-// Firestore rules (PROD)
+// Firestore rules
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Role helpers ---
-    function userRole() {
-      return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role;
-    }
+    function isSignedIn() { return request.auth != null; }
     function isAdmin() {
-      return request.auth != null && userRole() == "admin";
-    }
-    function isInstructor() {
-      return request.auth != null && userRole() == "instructor";
-    }
-    function isTeacher() {
-      return isAdmin() || isInstructor();
+      return isSignedIn() &&
+             get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == "admin";
     }
 
-    // --- Courses ---
-    match /courses/{courseId} {
-      allow read: if true;
-
-      // Only teachers can create courses
-      allow create: if isTeacher();
-
-      // Update/Delete: any admin OR the instructor who owns the course
-      allow update, delete: if
-        isAdmin() ||
-        (isInstructor() && request.auth.uid == resource.data.ownerUid);
-    }
-
-    // Roles collection
-    match /roles/{uid} {
-      // App can read (to show the role badge). You could restrict this to uid == request.auth.uid if you prefer.
-      allow read: if request.auth != null;
-
-      // Only admins can write roles
-      allow write: if isAdmin();
-    }
-
-    // OPTIONAL: other collections your app writes to
-    match /announcements/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /quizzes/{id} {
-      allow read: if true;
-      allow create, update, delete: if isTeacher();
-    }
-
-    match /attempts/{id} {
-      allow read: if request.auth != null;
-      // A user can write their own attempt; teachers might also write for testing
-      allow create: if request.auth != null;
-      allow update, delete: if isAdmin();
+    match /payments/{id} {
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.amount is number
+        && request.resource.data.courseId is string;
+      allow read: if isAdmin();           // only admins can read payments
+      allow update, delete: if false;
     }
 
     match /enrollments/{id} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null; // adjust if you want only admins/teachers to enroll users
-      allow update, delete: if isAdmin();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow update, delete: if false;
     }
 
-    match /profiles/{uid} {
+    match /courses/{id} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == uid || isAdmin();
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() &&
+        (resource.data.ownerUid == request.auth.uid || isAdmin());
     }
 
     match /messages/{id} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null; // chat
-      allow update, delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+    }
+
+    match /roles/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() &&
+        request.resource.data.role in ["student","instructor","admin"];
+    }
+
+    match /profiles/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && uid == request.auth.uid;
+      allow delete: if isSignedIn() && (uid == request.auth.uid || isAdmin());
+    }
+
+    match /attempts/{id} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
     match /tasks/{id} {
-      allow read, write: if request.auth != null;
+      allow read, create, update, delete:
+        if isSignedIn() && (
+          (resource != null && resource.data.uid == request.auth.uid) ||
+          (request.resource != null && request.resource.data.uid == request.auth.uid)
+        );
+    }
+
+    match /announcements/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
     }
   }
 }

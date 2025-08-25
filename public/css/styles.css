@@ -259,3 +259,13 @@ img{ max-width:100% }
   --cc-badge-bg: rgba(0,0,0,.08);
   --cc-badge-text:#0b1220;
 }
+
+/* small cover in course Details modal */
+.course-details{ display:flex; gap:12px; align-items:flex-start }
+.course-details .left{ flex:0 0 17% }        /* ~17% of modal width */
+.course-cover-thumb{ width:100%; border-radius:12px; display:block }
+
+@media (max-width:860px){
+  .course-details{ flex-direction:column }
+  .course-details .left{ flex:none; width:40% } /* a bit larger on phones */
+}

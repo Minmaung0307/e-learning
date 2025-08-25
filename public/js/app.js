@@ -1222,17 +1222,17 @@ await db.collection('roles').doc(uid).set({ uid, role }, { merge: true });</code
       if(!canTeach()) return notify('Instructors/Admins only','warn');
       $('#mm-title').textContent='New Course';
       $('#mm-body').innerHTML=`
-        <div class="grid">
-          <input id="c-title" class="input" placeholder="Title"/>
-          <input id="c-category" class="input" placeholder="Category (e.g., Marketing)"/>
-          <input id="c-credits" class="input" type="number" value="3" placeholder="Credits"/>
-          <input id="c-price" class="input" type="number" value="0" placeholder="Price (0=Free)"/>
-          <textarea id="c-short" class="input" placeholder="Short description"></textarea>
-          <textarea id="c-goals" class="input" placeholder="Goals (one per line)"></textarea>
-          <input id="c-cover" class="input" placeholder="Cover image URL"/>
-          <input id="c-outlineUrl" class="input" placeholder="Outline JSON URL (Hosting)"/>
-          <input id="c-quizzesUrl" class="input" placeholder="Lesson Quizzes JSON URL (Hosting)"/>
-        </div>`;
+  <div class="course-details">
+    <div class="left">
+      <img class="course-cover-thumb" src="${c.coverImage||'/icons/learnhub-cap.svg'}" alt="${c.title}"/>
+    </div>
+    <div class="right">
+      <div class="muted">${c.category||'General'} • Credits ${c.credits||0}</div>
+      <p>${c.short||''}</p>
+      ${(c.goals?.length ? `<ul>${c.goals.map(g=>`<li>${g}</li>`).join('')}</ul>` : '')}
+      ${c.price>0 ? `<div style="margin-top:6px"><strong>Price:</strong> ${money(c.price)}</div>` : ''}
+    </div>
+  </div>`;
       $('#mm-foot').innerHTML=`<button class="btn" id="c-save">Save</button>`;
       openModal('m-modal');
 
