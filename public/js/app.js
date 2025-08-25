@@ -49,6 +49,12 @@
 
   const money = x => (x===0 ? 'Free' : `$${Number(x).toFixed(2)}`);
 
+  // ---- Theme palettes (built-ins + new) ----
+const THEME_PALETTES = [
+  'sunrise', 'light', 'dark',      // existing
+  'ocean', 'forest', 'grape', 'lavender', 'sunset', 'sand', 'mono', 'midnight' // new
+];
+
   // ---- Chat helpers (DM roster)
   function profileKey(p){ return p.uid || p.id; }
 
@@ -81,11 +87,20 @@
   }
 
   // ---- Theme (instant) ----
-  function applyTheme(){
-    if (!document.body) return; // guard when script runs before body exists
-    document.body.classList.remove('theme-sunrise','theme-dark','theme-light','font-small','font-medium','font-large');
-    document.body.classList.add(`theme-${state.theme.palette}`, `font-${state.theme.font}`);
-  }
+function applyTheme(){
+  if (!document.body) return;
+
+  // remove ANY previous theme-* class so we don’t need to keep a manual list
+  Array.from(document.body.classList)
+    .filter(c => c.startsWith('theme-'))
+    .forEach(c => document.body.classList.remove(c));
+
+  document.body.classList.add(`theme-${state.theme.palette}`);
+
+  // font size
+  document.body.classList.remove('font-small','font-medium','font-large');
+  document.body.classList.add(`font-${state.theme.font}`);
+}
   onReady(applyTheme);
 
   // ---- Modal + Sidebar helpers (placed early to avoid any hoist/init surprises) ----
@@ -920,29 +935,28 @@
 }
 
   function vSettings(){
-    return `
-      <div class="card"><div class="card-body">
-        <h3 style="margin:0 0 8px 0">Theme</h3>
-        <div class="grid cols-2">
-          <div><label>Palette</label>
-            <select id="theme-palette" class="input">
-              <option value="sunrise" ${state.theme.palette==='sunrise'?'selected':''}>sunrise</option>
-              <option value="dark" ${state.theme.palette==='dark'?'selected':''}>dark</option>
-              <option value="light" ${state.theme.palette==='light'?'selected':''}>light</option>
-            </select>
-          </div>
-          <div><label>Font size</label>
-            <select id="theme-font" class="input">
-              <option value="small" ${state.theme.font==='small'?'selected':''}>small</option>
-              <option value="medium" ${state.theme.font==='medium'?'selected':''}>medium</option>
-              <option value="large" ${state.theme.font==='large'?'selected':''}>large</option>
-            </select>
-          </div>
+  const opts = THEME_PALETTES
+    .map(p => `<option value="${p}" ${state.theme.palette===p?'selected':''}>${p}</option>`)
+    .join('');
+  return `
+    <div class="card"><div class="card-body">
+      <h3 style="margin:0 0 8px 0">Theme</h3>
+      <div class="grid cols-2">
+        <div><label>Palette</label>
+          <select id="theme-palette" class="input">${opts}</select>
         </div>
-        <div class="muted" style="margin-top:8px">Changes apply instantly.</div>
-      </div></div>
-    `;
-  }
+        <div><label>Font size</label>
+          <select id="theme-font" class="input">
+            <option value="small" ${state.theme.font==='small'?'selected':''}>small</option>
+            <option value="medium" ${state.theme.font==='medium'?'selected':''}>medium</option>
+            <option value="large" ${state.theme.font==='large'?'selected':''}>large</option>
+          </select>
+        </div>
+      </div>
+      <div class="muted" style="margin-top:8px">Changes apply instantly.</div>
+    </div></div>
+  `;
+}
 
   const vSearch=()=>`<div class="card"><div class="card-body"><h3>Search</h3><div class="muted">Type in the top bar.</div></div></div>`;
 
