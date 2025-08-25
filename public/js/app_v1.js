@@ -100,24 +100,6 @@
   }
   onReady(applyTheme);
 
-    // ---- Page hero (route-aware header) ----
-  function heroForRoute(route){
-    switch(route){
-      case 'dashboard': return { icon:'ri-dashboard-line', klass:'dashboard', title:'Dashboard', sub:'Your hub of activity' };
-      case 'courses': return { icon:'ri-book-2-line', klass:'courses', title:'Courses', sub:'Create, browse, enroll' };
-      case 'learning': return { icon:'ri-graduation-cap-line', klass:'learning', title:'My Learning', sub:'Enrolled courses' };
-      case 'assessments': return { icon:'ri-file-list-3-line', klass:'assess', title:'Final Exams', sub:'Take and track results' };
-      case 'chat': return { icon:'ri-chat-3-line', klass:'chat', title:'Chat', sub:'Course, DM, and group' };
-      case 'tasks': return { icon:'ri-list-check-2', klass:'tasks', title:'Tasks', sub:'Personal kanban' };
-      case 'profile': return { icon:'ri-user-3-line', klass:'profile', title:'Profile', sub:'Bio, avatar & certificates' };
-      case 'admin': return { icon:'ri-shield-star-line', klass:'admin', title:'Admin', sub:'Users, roles & rosters' };
-      case 'guide': return { icon:'ri-compass-3-line', klass:'guide', title:'Guide', sub:'All features explained' };
-      case 'settings': return { icon:'ri-settings-3-line', klass:'settings', title:'Settings', sub:'Theme & preferences' };
-      case 'search': return { icon:'ri-search-line', klass:'search', title:'Search', sub:'Global search' };
-      default: return { icon:'ri-compass-3-line', klass:'guide', title:'LearnHub', sub:'Smart learning platform' };
-    }
-  }
-
   // ---- Modal + Sidebar helpers ----
   function openModal(id){ $('#'+id)?.classList.add('active'); }
   function closeModal(id){ $('#'+id)?.classList.remove('active'); }
@@ -133,8 +115,7 @@
     render();
   }
 
-    function layout(content){
-    const hero = heroForRoute(state.route);
+  function layout(content){
     return `
     <div class="app">
       <aside class="sidebar" id="sidebar">
@@ -155,8 +136,7 @@
             ['guide','Guide','ri-compass-3-line'],
             ['settings','Settings','ri-settings-3-line']
           ].map(([r,label,ic])=>`
-            <div class="item ${state.route===r?'active':''} ${r==='admin'&&!canManageUsers()?'hidden':''}"
-                 role="button" tabindex="0" data-route="${r}">
+            <div class="item ${state.route===r?'active':''} ${r==='admin'&&!canManageUsers()?'hidden':''}" data-route="${r}">
               <i class="${ic}"></i><span>${label}</span>
             </div>`).join('')}
         </div>
@@ -178,15 +158,6 @@
           </div>
         </div>
         <div id="backdrop"></div>
-
-        <div class="page-hero ${hero.klass}">
-          <i class="${hero.icon}"></i>
-          <div>
-            <div class="t">${hero.title}</div>
-            <div class="s">${hero.sub}</div>
-          </div>
-        </div>
-
         <div class="main" id="main">${content}</div>
       </div>
     </div>
@@ -1072,7 +1043,7 @@ await db.collection('roles').doc(uid).set({ uid, role }, { merge: true });</code
     }
   }
 
-    function wireShell(){
+  function wireShell(){
     $('#burger')?.addEventListener('click', ()=> {
       const open=document.body.classList.contains('sidebar-open');
       if(open) closeSidebar(); else { document.body.classList.add('sidebar-open'); $('#backdrop')?.classList.add('active'); }
@@ -1080,24 +1051,14 @@ await db.collection('roles').doc(uid).set({ uid, role }, { merge: true });</code
     $('#backdrop')?.addEventListener('click', closeSidebar);
     $('#brand')?.addEventListener('click', closeSidebar);
 
-    // click to change route
-    $('#side-nav')?.addEventListener('click', e=>{
-      const it=e.target.closest?.('.item[data-route]'); if(it){ go(it.getAttribute('data-route')); }
-    });
-    // keyboard (Enter/Space) for a11y
-    $('#side-nav')?.addEventListener('keydown', e=>{
-      const it=e.target.closest?.('.item[data-route]');
-      if(!it) return;
-      if(e.key==='Enter' || e.key===' '){
-        e.preventDefault();
-        go(it.getAttribute('data-route'));
-      }
-    });
-
     $('#main')?.addEventListener('click', (e)=>{
       const goEl = e.target.closest?.('[data-go]');
       if (goEl) { go(goEl.getAttribute('data-go')); return; }
       closeSidebar();
+    });
+
+    $('#side-nav')?.addEventListener('click', e=>{
+      const it=e.target.closest?.('.item[data-route]'); if(it){ go(it.getAttribute('data-route')); }
     });
 
     $('#btnLogout')?.addEventListener('click', ()=> auth.signOut());
@@ -1131,13 +1092,16 @@ await db.collection('roles').doc(uid).set({ uid, role }, { merge: true });</code
         },120);
       });
 
-      document.addEventListener('click', e=>{
-        try{
-          if(results && typeof results.contains==='function' && e.target!==input && !results.contains(e.target)){
-            results.classList.remove('active');
-          }
-        }catch(_e){}
-      }, { capture:true });
+      if(!_docClickBound){
+        document.addEventListener('click', e=>{
+          try{
+            if(results && typeof results.contains==='function' && e.target!==input && !results.contains(e.target)){
+              results.classList.remove('active');
+            }
+          }catch(_e){}
+        });
+        _docClickBound = true;
+      }
     }
 
     // theme instant
@@ -1194,16 +1158,6 @@ await db.collection('roles').doc(uid).set({ uid, role }, { merge: true });</code
 
   // ---- Courses
   function wireCourses(){
-      // seed demo when there are no courses (button exists in the list header)
-  $('#seed-demo')?.addEventListener('click', async ()=>{
-    try {
-      await window.seedDemoCourses();
-      notify('Demo courses added');
-    } catch (e) {
-      console.error(e);
-      notify((e && (e.code + ': ' + e.message)) || 'Failed to seed', 'danger');
-    }
-  });
     $('#add-course')?.addEventListener('click', ()=>{
       if(!canTeach()) return notify('Instructors/Admins only','warn');
       $('#mm-title').textContent='New Course';

@@ -4,13 +4,10 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b0d10",
-  "theme_color": "#7ad3ff",
+  "theme_color": "#0b0d10",
   "icons": [
-    {
-      "src": "/icons/learnhub-cap.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    }
+    { "src": "/icons/learnhub-cap-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/learnhub-cap-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/learnhub-cap-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
