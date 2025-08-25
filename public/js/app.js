@@ -874,6 +874,47 @@
             </ul>
           </div>
         </details>
+        <details open>
+  <summary><i class="ri-lock-2-line"></i> Permission denied when adding course — role case mismatch</summary>
+  <div class="row mini" style="margin-top:8px">
+    <div><b>Symptoms</b></div>
+    <ul>
+      <li>UI shows <code>permission denied, insufficient permission</code></li>
+      <li>Console shows <code>...Firestore/Write/channel... 400 (Bad Request)</code> / <code>TYPE=terminate</code></li>
+    </ul>
+
+    <div style="margin-top:6px"><b>Root cause</b></div>
+    <div>Your <code>roles/{uid}.role</code> is capitalized (e.g. <code>"Admin"</code>) but rules check <code>"admin"</code>. Same for <code>"instructor"</code>.</div>
+
+    <div style="margin-top:6px"><b>Quick fix</b></div>
+    <ol>
+      <li>Open Firestore → <code>roles/{yourUid}</code></li>
+      <li>Set <code>role</code> to lowercase: <code>"admin"</code> or <code>"instructor"</code></li>
+      <li>Reload the app</li>
+    </ol>
+
+    <div style="margin-top:6px"><b>Prevent it (rules + UI)</b></div>
+    <div class="code-card">
+      <pre><code>// Firestore rules — enforce allowed values
+match /roles/{uid} {
+  allow read: if request.auth != null;
+  allow write: if isAdmin()
+               && request.resource.data.role in ["student","instructor","admin"];
+}</code></pre>
+    </div>
+    <div class="code-card" style="margin-top:6px">
+      <pre><code>// UI — normalize to lowercase before saving
+const raw = document.getElementById('rm-role').value || 'student';
+const role = (raw + '').toLowerCase();
+await db.collection('roles').doc(uid).set({ uid, role }, { merge: true });</code></pre>
+    </div>
+
+    <div style="margin-top:6px"><b>Optional</b> (reduce console noise after debugging)</div>
+    <div class="code-card">
+      <pre><code>try { firebase.firestore.setLogLevel('error'); } catch {}</code></pre>
+    </div>
+  </div>
+</details>
         <details>
           <summary><i class="ri-lock-2-line"></i> Permission / rules errors</summary>
           <div class="mini">Check Firestore rules for writes to <code>courses</code>, <code>messages</code>, <code>announcements</code>, <code>tasks</code>, etc. Admin actions require admin-authorized rules.</div>
