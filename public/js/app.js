@@ -50,10 +50,10 @@
   const money = x => (x===0 ? 'Free' : `$${Number(x).toFixed(2)}`);
 
   // ---- Theme palettes (built-ins + new) ----
-const THEME_PALETTES = [
-  'sunrise', 'light', 'dark',      // existing
-  'ocean', 'forest', 'grape', 'lavender', 'sunset', 'sand', 'mono', 'midnight' // new
-];
+  const THEME_PALETTES = [
+    'sunrise', 'light', 'dark',
+    'ocean', 'forest', 'grape', 'lavender', 'sunset', 'sand', 'mono', 'midnight'
+  ];
 
   // ---- Chat helpers (DM roster)
   function profileKey(p){ return p.uid || p.id; }
@@ -87,23 +87,23 @@ const THEME_PALETTES = [
   }
 
   // ---- Theme (instant) ----
-function applyTheme(){
-  if (!document.body) return;
+  function applyTheme(){
+    if (!document.body) return;
 
-  // remove ANY previous theme-* class so we don’t need to keep a manual list
-  Array.from(document.body.classList)
-    .filter(c => c.startsWith('theme-'))
-    .forEach(c => document.body.classList.remove(c));
+    // remove ANY previous theme-* class so we don’t need to keep a manual list
+    Array.from(document.body.classList)
+      .filter(c => c.startsWith('theme-'))
+      .forEach(c => document.body.classList.remove(c));
 
-  document.body.classList.add(`theme-${state.theme.palette}`);
+    document.body.classList.add(`theme-${state.theme.palette}`);
 
-  // font size
-  document.body.classList.remove('font-small','font-medium','font-large');
-  document.body.classList.add(`font-${state.theme.font}`);
-}
+    // font size
+    document.body.classList.remove('font-small','font-medium','font-large');
+    document.body.classList.add(`font-${state.theme.font}`);
+  }
   onReady(applyTheme);
 
-  // ---- Modal + Sidebar helpers (placed early to avoid any hoist/init surprises) ----
+  // ---- Modal + Sidebar helpers ----
   function openModal(id){ $('#'+id)?.classList.add('active'); }
   function closeModal(id){ $('#'+id)?.classList.remove('active'); }
   const closeSidebar=()=>{ document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
@@ -508,149 +508,62 @@ function applyTheme(){
   }
 
   function vGuide(){
-  return `
+    return `
   <section class="guide">
     <style>
-      /* ===============================
-         High-contrast, theme-aware tokens
-         =============================== */
       .guide{
         --g-bg: linear-gradient(135deg,#0ea5e9 0%, #22c55e 100%);
-
-        /* LIGHT defaults */
-        --g-text:#0a0a0a;          /* primary text */
-        --g-muted:#475569;         /* secondary text */
-        --g-border:#e5e7eb;        /* card borders */
-        --g-surface:#ffffff;       /* cards */
-        --g-surface-2:#f8fafc;     /* subtle surfaces */
-
-        --g-chip-bg:#111827;       /* chip */
-        --g-chip-text:#f8fafc;
-
-        /* Code block (force readable) */
-        --g-code-bg:#0f172a;       /* slate-900 */
-        --g-code-text:#f8fafc;     /* white */
-
-        --g-link:#1d4ed8;          /* links, ensure visible */
-        --g-link-visited:#7c3aed;
-
-        --g-ok-bg:#ecfdf5;     --g-ok-text:#064e3b;
-        --g-warn-bg:#fff7ed;   --g-warn-text:#7c2d12;
-        --g-danger-bg:#fef2f2; --g-danger-text:#7f1d1d;
+        --g-text:#0a0a0a; --g-muted:#475569; --g-border:#e5e7eb; --g-surface:#ffffff; --g-surface-2:#f8fafc;
+        --g-chip-bg:#111827; --g-chip-text:#f8fafc;
+        --g-code-bg:#0f172a; --g-code-text:#f8fafc;
+        --g-link:#1d4ed8; --g-link-visited:#7c3aed;
+        --g-ok-bg:#ecfdf5; --g-ok-text:#064e3b; --g-warn-bg:#fff7ed; --g-warn-text:#7c2d12; --g-danger-bg:#fef2f2; --g-danger-text:#7f1d1d;
       }
-      /* DARK overrides */
       .theme-dark .guide{
-        --g-text:#e5e7eb;
-        --g-muted:#94a3b8;
-        --g-border:#334155;
-        --g-surface:#0f172a;
-        --g-surface-2:#111827;
-
-        --g-chip-bg:#1f2937;
-        --g-chip-text:#f8fafc;
-
-        --g-code-bg:#0b1220;      /* slightly darker than card */
-        --g-code-text:#e5e7eb;
-
-        --g-link:#93c5fd;         /* lighter link for dark bg */
-        --g-link-visited:#c4b5fd;
-
-        --g-ok-bg:#052e16;     --g-ok-text:#bbf7d0;
-        --g-warn-bg:#451a03;   --g-warn-text:#fed7aa;
-        --g-danger-bg:#450a0a; --g-danger-text:#fecaca;
+        --g-text:#e5e7eb; --g-muted:#94a3b8; --g-border:#334155; --g-surface:#0f172a; --g-surface-2:#111827;
+        --g-chip-bg:#1f2937; --g-chip-text:#f8fafc;
+        --g-code-bg:#0b1220; --g-code-text:#e5e7eb;
+        --g-link:#93c5fd; --g-link-visited:#c4b5fd;
+        --g-ok-bg:#052e16; --g-ok-text:#bbf7d0; --g-warn-bg:#451a03; --g-warn-text:#fed7aa; --g-danger-bg:#450a0a; --g-danger-text:#fecaca;
       }
-
-      /* ===== base ===== */
       .guide, .guide * { color: var(--g-text); }
       .guide a { color: var(--g-link); text-underline-offset: 2px; }
       .guide a:visited { color: var(--g-link-visited); }
       .guide .mini, .guide .muted { color: var(--g-muted); }
       .guide ::selection{ background:#fde68a; color:#111827; }
-
-      .guide .hero {
-        background: var(--g-bg);
-        border-radius: 16px;
-        padding: 26px 20px;
-        display: grid;
-        gap: 6px;
-        box-shadow: 0 6px 24px rgba(0,0,0,.15);
-      }
+      .guide .hero { background: var(--g-bg); border-radius: 16px; padding: 26px 20px; display: grid; gap: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.15); }
       .guide .hero, .guide .hero * { color:#fff; }
       .guide .hero .title { font-size: 22px; font-weight: 800; letter-spacing:.3px; }
       .guide .hero .subtitle { opacity:.95; font-size: 13px }
-
       .guide .nav { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 6px 0; }
-      .guide .nav a {
-        text-decoration:none;
-        background:var(--g-chip-bg);
-        color:var(--g-chip-text);
-        border:1px solid transparent;
-        padding:8px 10px; border-radius:999px; font-size:12px;
-      }
-
+      .guide .nav a { text-decoration:none; background:var(--g-chip-bg); color:var(--g-chip-text); border:1px solid transparent; padding:8px 10px; border-radius:999px; font-size:12px; }
       .guide .section { margin-top:14px }
       .guide .section .h { display:flex; align-items:center; gap:8px; margin:0 0 6px 0; font-size:16px; font-weight:800; }
-
       .guide .kpis { display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:8px; }
       .guide .kpi { border:1px solid var(--g-border); border-radius:12px; padding:12px; background:var(--g-surface) }
       .guide .kpi .lbl { font-size:12px; color:var(--g-muted); }
       .guide .kpi .val { font-weight:800; font-size:18px; }
-
       .guide .gcard { border:1px solid var(--g-border); border-radius:16px; background:var(--g-surface); padding:14px; display:grid; gap:10px; }
       .guide .row { display:grid; gap:10px }
       .guide .grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px }
       .guide .grid3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px }
-
-      .guide .badge {
-        display:inline-flex; align-items:center; gap:6px;
-        padding:5px 8px; border-radius:999px; font-size:12px;
-        background:var(--g-surface-2); border:1px solid var(--g-border); color:var(--g-text);
-      }
-
-      .guide .step {
-        display:flex; gap:10px; align-items:flex-start; padding:10px; border-radius:12px;
-        border:1px dashed var(--g-border); background:var(--g-surface-2);
-      }
+      .guide .badge { display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border-radius:999px; font-size:12px; background:var(--g-surface-2); border:1px solid var(--g-border); color:var(--g-text); }
+      .guide .step { display:flex; gap:10px; align-items:flex-start; padding:10px; border-radius:12px; border:1px dashed var(--g-border); background:var(--g-surface-2); }
       .guide .step i { font-size:18px; opacity:.75; margin-top:2px }
-
-      .guide .callout {
-        border-left:4px solid #10b981;
-        background:var(--g-ok-bg);
-        color:var(--g-ok-text);
-        padding:10px; border-radius:10px; font-size:13px;
-      }
+      .guide .callout { border-left:4px solid #10b981; background:var(--g-ok-bg); color:var(--g-ok-text); padding:10px; border-radius:10px; font-size:13px; }
       .guide .callout.warn { border-left-color:#f59e0b; background:var(--g-warn-bg); color:var(--g-warn-text); }
       .guide .callout.danger { border-left-color:#ef4444; background:var(--g-danger-bg); color:var(--g-danger-text); }
-
       .guide code, .guide pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace }
-
-      /* >>> HARD-FORCE code block readability <<< */
-      .guide pre{
-        background:var(--g-code-bg) !important;
-        color:var(--g-code-text) !important;
-        padding:12px; border-radius:12px; overflow:auto; border:1px solid #1f2937;
-        white-space:pre; tab-size:2;
-      }
-      .guide pre, .guide pre *, .guide code, .guide code *{
-        color:var(--g-code-text) !important; /* fixes "black screen" text-invisible issue */
-      }
+      .guide pre{ background:var(--g-code-bg) !important; color:var(--g-code-text) !important; padding:12px; border-radius:12px; overflow:auto; border:1px solid #1f2937; white-space:pre; tab-size:2; }
+      .guide pre, .guide pre *, .guide code, .guide code *{ color:var(--g-code-text) !important; }
       .guide .code-card { position:relative }
-      .guide .copy-btn {
-        position:absolute; right:10px; top:10px;
-        border:1px solid #334155; background:var(--g-code-bg); color:var(--g-code-text);
-        font-size:12px; border-radius:8px; padding:6px 8px; cursor:pointer;
-      }
-
+      .guide .copy-btn { position:absolute; right:10px; top:10px; border:1px solid #334155; background:var(--g-code-bg); color:var(--g-code-text); font-size:12px; border-radius:8px; padding:6px 8px; cursor:pointer; }
       .guide details { border:1px solid var(--g-border); border-radius:12px; background:var(--g-surface); padding:8px 10px; }
       .guide details + details { margin-top:8px }
       .guide summary { cursor:pointer; font-weight:700; display:flex; align-items:center; gap:8px }
       .guide summary::-webkit-details-marker { display:none }
       .guide .pill { background:#eef2ff; color:#3730a3; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid #c7d2fe }
-
-      /* responsive */
-      @media (max-width: 840px){
-        .guide .grid2, .guide .grid3 { grid-template-columns: 1fr; }
-      }
+      @media (max-width: 840px){ .guide .grid2, .guide .grid3 { grid-template-columns: 1fr; } }
     </style>
 
     <div class="hero">
@@ -678,7 +591,6 @@ function applyTheme(){
       <div class="kpi"><div class="lbl">Content Hosting</div><div class="val">/public/data/*.json</div></div>
     </div>
 
-    <!-- Dashboard -->
     <div id="dashboard" class="section">
       <div class="h"><i class="ri-dashboard-line"></i> Dashboard</div>
       <div class="gcard row">
@@ -694,7 +606,6 @@ function applyTheme(){
       </div>
     </div>
 
-    <!-- Courses -->
     <div id="courses" class="section">
       <div class="h"><i class="ri-book-2-line"></i> Courses</div>
       <div class="gcard row">
@@ -711,7 +622,6 @@ function applyTheme(){
       </div>
     </div>
 
-    <!-- My Learning -->
     <div id="learning" class="section">
       <div class="h"><i class="ri-graduation-cap-line"></i> My Learning</div>
       <div class="gcard row">
@@ -719,7 +629,6 @@ function applyTheme(){
       </div>
     </div>
 
-    <!-- Finals -->
     <div id="assessments" class="section">
       <div class="h"><i class="ri-file-list-3-line"></i> Final Exams</div>
       <div class="gcard row">
@@ -739,7 +648,6 @@ function applyTheme(){
       </div>
     </div>
 
-    <!-- Chat -->
     <div id="chat" class="section">
       <div class="h"><i class="ri-chat-3-line"></i> Course Chat (Course-wide, Direct, Group/Batch)</div>
       <div class="gcard row">
@@ -778,7 +686,6 @@ function applyTheme(){
       </div>
     </div>
 
-    <!-- Tasks -->
     <div id="tasks" class="section">
       <div class="h"><i class="ri-list-check-2"></i> Tasks (Personal Kanban)</div>
       <div class="gcard row">
@@ -795,7 +702,6 @@ function applyTheme(){
       </div>
     </div>
 
-    <!-- Profile -->
     <div id="profile" class="section">
       <div class="h"><i class="ri-user-3-line"></i> Profile & Certificates</div>
       <div class="gcard row">
@@ -811,7 +717,6 @@ function applyTheme(){
       </div>
     </div>
 
-    <!-- Admin -->
     <div id="admin" class="section">
       <div class="h"><i class="ri-shield-star-line"></i> Admin Toolkit</div>
       <div class="gcard row">
@@ -828,7 +733,6 @@ function applyTheme(){
       </div>
     </div>
 
-    <!-- Settings -->
     <div id="settings" class="section">
       <div class="h"><i class="ri-settings-3-line"></i> Settings</div>
       <div class="gcard row">
@@ -836,7 +740,6 @@ function applyTheme(){
       </div>
     </div>
 
-    <!-- Search -->
     <div id="search" class="section">
       <div class="h"><i class="ri-search-line"></i> Search</div>
       <div class="gcard row">
@@ -844,7 +747,6 @@ function applyTheme(){
       </div>
     </div>
 
-    <!-- Public JSON -->
     <div id="datajson" class="section">
       <div class="h"><i class="ri-file-json-line"></i> Hosting course JSON in <code>/public/data</code></div>
       <div class="gcard row">
@@ -910,7 +812,6 @@ function applyTheme(){
       </div>
     </div>
 
-    <!-- Troubleshooting -->
     <div id="troubleshoot" class="section">
       <div class="h"><i class="ri-tools-line"></i> Troubleshooting</div>
       <div class="gcard row">
@@ -932,31 +833,31 @@ function applyTheme(){
     </div>
 
   </section>`;
-}
+  }
 
   function vSettings(){
-  const opts = THEME_PALETTES
-    .map(p => `<option value="${p}" ${state.theme.palette===p?'selected':''}>${p}</option>`)
-    .join('');
-  return `
-    <div class="card"><div class="card-body">
-      <h3 style="margin:0 0 8px 0">Theme</h3>
-      <div class="grid cols-2">
-        <div><label>Palette</label>
-          <select id="theme-palette" class="input">${opts}</select>
+    const opts = THEME_PALETTES
+      .map(p => `<option value="${p}" ${state.theme.palette===p?'selected':''}>${p}</option>`)
+      .join('');
+    return `
+      <div class="card"><div class="card-body">
+        <h3 style="margin:0 0 8px 0">Theme</h3>
+        <div class="grid cols-2">
+          <div><label>Palette</label>
+            <select id="theme-palette" class="input">${opts}</select>
+          </div>
+          <div><label>Font size</label>
+            <select id="theme-font" class="input">
+              <option value="small" ${state.theme.font==='small'?'selected':''}>small</option>
+              <option value="medium" ${state.theme.font==='medium'?'selected':''}>medium</option>
+              <option value="large" ${state.theme.font==='large'?'selected':''}>large</option>
+            </select>
+          </div>
         </div>
-        <div><label>Font size</label>
-          <select id="theme-font" class="input">
-            <option value="small" ${state.theme.font==='small'?'selected':''}>small</option>
-            <option value="medium" ${state.theme.font==='medium'?'selected':''}>medium</option>
-            <option value="large" ${state.theme.font==='large'?'selected':''}>large</option>
-          </select>
-        </div>
-      </div>
-      <div class="muted" style="margin-top:8px">Changes apply instantly.</div>
-    </div></div>
-  `;
-}
+        <div class="muted" style="margin-top:8px">Changes apply instantly.</div>
+      </div></div>
+    `;
+  }
 
   const vSearch=()=>`<div class="card"><div class="card-body"><h3>Search</h3><div class="muted">Type in the top bar.</div></div></div>`;
 
@@ -1077,19 +978,19 @@ function applyTheme(){
   }
 
   function wireRoute(){
-  switch(state.route){
-    case 'courses': wireCourses(); break;
-    case 'learning': wireLearning(); break;
-    case 'assessments': wireAssessments(); break;
-    case 'chat': wireChat(); break;
-    case 'tasks': wireTasks(); break;
-    case 'profile': wireProfile(); break;
-    case 'admin': wireAdmin(); break;
-    case 'guide': wireGuide(); break;     // ← add this line
-    case 'settings': break;
-    case 'dashboard': wireAnnouncements(); break;
+    switch(state.route){
+      case 'courses': wireCourses(); break;
+      case 'learning': wireLearning(); break;
+      case 'assessments': wireAssessments(); break;
+      case 'chat': wireChat(); break;
+      case 'tasks': wireTasks(); break;
+      case 'profile': wireProfile(); break;
+      case 'admin': wireAdmin(); break;
+      case 'guide': wireGuide(); break;
+      case 'settings': break;
+      case 'dashboard': wireAnnouncements(); break;
+    }
   }
-}
 
   // ---- Login
   function wireLogin(){
@@ -1140,18 +1041,35 @@ function applyTheme(){
         </div>`;
       $('#mm-foot').innerHTML=`<button class="btn" id="c-save">Save</button>`;
       openModal('m-modal');
+
+      // >>> FIX: safer metadata + instant highlight + navigate
       $('#c-save').onclick=async ()=>{
         const t=$('#c-title')?.value.trim(); if(!t) return notify('Title required','warn');
         const goals=($('#c-goals')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
         const obj={
-          title:t, category:$('#c-category')?.value.trim(), credits:+($('#c-credits')?.value||0), price:+($('#c-price')?.value||0),
-          short:$('#c-short')?.value.trim(), goals, coverImage:$('#c-cover')?.value.trim(),
-          outlineUrl:$('#c-outlineUrl')?.value.trim(), quizzesUrl:$('#c-quizzesUrl')?.value.trim(),
-          ownerUid:auth.currentUser.uid, ownerEmail:auth.currentUser.email,
+          title:t,
+          titleLower:t.toLowerCase(),
+          category:$('#c-category')?.value.trim(),
+          credits:+($('#c-credits')?.value||0),
+          price:+($('#c-price')?.value||0),
+          short:$('#c-short')?.value.trim(),
+          goals,
+          coverImage:$('#c-cover')?.value.trim(),
+          outlineUrl:$('#c-outlineUrl')?.value.trim(),
+          quizzesUrl:$('#c-quizzesUrl')?.value.trim(),
+          ownerUid:auth.currentUser.uid,
+          ownerEmail:auth.currentUser.email,
           participants:[auth.currentUser.uid],
-          createdAt:firebase.firestore.FieldValue.serverTimestamp()
+          createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+          createdAtMs:Date.now()
         };
-        try{ await col('courses').add(obj); closeModal('m-modal'); notify('Saved'); }catch(e){ notify(e.message,'danger'); }
+        try{
+          const ref = await col('courses').add(obj);
+          closeModal('m-modal');
+          notify('Saved');
+          state.highlightId = ref.id;
+          if (state.route !== 'courses') { go('courses'); } else { render(); }
+        }catch(e){ notify(e.message,'danger'); }
       };
     });
 
@@ -1216,7 +1134,9 @@ function applyTheme(){
         $('#c-save').onclick=async ()=>{
           const goals=($('#c-goals')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
           await doc('courses', id).set({
-            title:$('#c-title')?.value.trim(), category:$('#c-category')?.value.trim(),
+            title:$('#c-title')?.value.trim(),
+            titleLower:($('#c-title')?.value.trim()||'').toLowerCase(),
+            category:$('#c-category')?.value.trim(),
             credits:+($('#c-credits')?.value||0), price:+($('#c-price')?.value||0),
             short:$('#c-short')?.value.trim(), goals,
             coverImage:$('#c-cover')?.value.trim(), outlineUrl:$('#c-outlineUrl')?.value.trim(), quizzesUrl:$('#c-quizzesUrl')?.value.trim(),
@@ -1300,7 +1220,6 @@ function applyTheme(){
         openModal('m-modal');
         const bodyEl = $('#mm-body');
 
-        // Single delegated change handler (prevents stacking multiple listeners)
         bodyEl.onchange = (ev)=>{
           const t = ev.target;
           if(!t?.name?.startsWith('q')) return;
@@ -1411,7 +1330,7 @@ function applyTheme(){
 
     courseSel?.addEventListener('change', ()=>{ populateDmUserSelect(); sub(); });
     dmSel?.addEventListener('change', sub);
-    groupInp?.addEventListener('input', sub);          // refresh on group id typing
+    groupInp?.addEventListener('input', sub);
     groupInp?.addEventListener('keydown', (e)=>{ if(e.key==='Enter') sub(); });
 
     send?.addEventListener('click', async ()=>{
@@ -1670,38 +1589,37 @@ function applyTheme(){
   }
 
   // ---- Guide
-function wireGuide(){
-  const root = document.querySelector('.guide');
-  if (!root || root.__wired) return;
-  root.__wired = true;
+  function wireGuide(){
+    const root = document.querySelector('.guide');
+    if (!root || root.__wired) return;
+    root.__wired = true;
 
-  // smooth-scroll for in-page anchors
-  root.querySelectorAll('.nav a[href^="#"]').forEach(a=>{
-    a.addEventListener('click', (e)=>{
-      e.preventDefault();
-      const id = a.getAttribute('href').slice(1);
-      const el = document.getElementById(id);
-      if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+    // smooth-scroll for in-page anchors
+    root.querySelectorAll('.nav a[href^="#"]').forEach(a=>{
+      a.addEventListener('click', (e)=>{
+        e.preventDefault();
+        const id = a.getAttribute('href').slice(1);
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+      });
     });
-  });
 
-  // copy buttons for code samples
-  root.addEventListener('click', (e)=>{
-    const btn = e.target.closest('.copy-btn');
-    if(!btn) return;
-    const target = btn.getAttribute('data-copy');
-    const pre = target ? document.getElementById(target) : btn.closest('.code-card')?.querySelector('pre');
-    const text = pre ? pre.innerText : '';
-    if(!text) return;
-    (navigator.clipboard?.writeText(text) || Promise.reject()).then(()=>{
-      const old = btn.textContent;
-      btn.textContent = 'Copied!';
-      setTimeout(()=> btn.textContent = old || 'Copy', 1200);
-      // optional toast if you have #notification in your HTML
-      try { notify('Copied to clipboard'); } catch {}
-    }).catch(()=>{ /* ignore */ });
-  });
-}
+    // copy buttons for code samples
+    root.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.copy-btn');
+      if(!btn) return;
+      const target = btn.getAttribute('data-copy');
+      const pre = target ? document.getElementById(target) : btn.closest('.code-card')?.querySelector('pre');
+      const text = pre ? pre.innerText : '';
+      if(!text) return;
+      (navigator.clipboard?.writeText(text) || Promise.reject()).then(()=>{
+        const old = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(()=> btn.textContent = old || 'Copy', 1200);
+        try { notify('Copied to clipboard'); } catch {}
+      }).catch(()=>{ /* ignore */ });
+    });
+  }
 
   // ---- Transcript
   function buildTranscript(uid){
@@ -1715,8 +1633,28 @@ function wireGuide(){
     return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
   }
 
-  // ---- Firestore sync (no composite indexes)
+  // ---- Firestore sync (robust, client-sort for courses)
   function clearUnsubs(){ state.unsub.forEach(u=>{try{u()}catch{}}); state.unsub=[]; }
+
+  // FIX: robust course listener (no orderBy, client sort, includes pending writes)
+  function listenCourses(){
+    const unsub = col('courses').onSnapshot(
+      { includeMetadataChanges: true },
+      s => {
+        const rows = s.docs.map(d=>({id:d.id, ...d.data()}));
+        rows.sort((a,b)=>{
+          const am = a.createdAt?.toMillis?.() ?? a.createdAtMs ?? 0;
+          const bm = b.createdAt?.toMillis?.() ?? b.createdAtMs ?? 0;
+          return bm - am || (a.titleLower||'').localeCompare(b.titleLower||'');
+        });
+        state.courses = rows;
+        if (['dashboard','courses','learning','assessments','chat'].includes(state.route)) render();
+      },
+      err => console.warn('courses listener error:', err)
+    );
+    state.unsub.push(unsub);
+  }
+
   function sync(){
     clearUnsubs();
     const uid=auth.currentUser.uid;
@@ -1741,16 +1679,8 @@ function wireGuide(){
       })
     );
 
-    state.unsub.push(
-      col('courses').orderBy('createdAt','desc').onSnapshot(
-        s => {
-          state.courses = s.docs.map(d=>({id:d.id, ...d.data()}));
-          if (state.route === 'chat') populateDmUserSelect();
-          if (['dashboard','courses','learning','assessments','chat'].includes(state.route)) render();
-        },
-        err => console.warn('courses listener error:', err)
-      )
-    );
+    // COURSES — robust listener
+    listenCourses();
 
     state.unsub.push(
       col('quizzes').orderBy('createdAt','desc').onSnapshot(
@@ -1822,7 +1752,14 @@ function wireGuide(){
       {title:'Modern Web Bootcamp',category:'CS',credits:5,price:0,short:'HTML, CSS, JS, and tooling.',goals:['Responsive sites','Deploy to Hosting','APIs basics'],coverImage:'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&q=80'}
     ];
     for(const c of list){
-      await col('courses').add({...c, ownerUid:u.uid, ownerEmail:u.email, participants:[u.uid], createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+      await col('courses').add({
+        ...c,
+        titleLower: c.title.toLowerCase(),
+        ownerUid:u.uid, ownerEmail:u.email,
+        participants:[u.uid],
+        createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+        createdAtMs:Date.now()
+      });
     }
     alert('Demo courses added');
   };
