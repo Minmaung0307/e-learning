@@ -268,11 +268,24 @@
     `;
   }
 
-  function courseCard(c){
+    function courseCard(c){
     const img = c.coverImage || '/icons/learnhub-cap.svg';
     const goals = (c.goals||[]).slice(0,3).map(g=>`<li>${g}</li>`).join('');
+
+    // NEW: per-card style via CSS variables or a class
+    const s = c.style || {};
+    const styleVars = [];
+    if (s.bg)        styleVars.push(`--cc-bg:${s.bg}`);
+    if (s.text)      styleVars.push(`--cc-text:${s.text}`);
+    if (s.badgeBg)   styleVars.push(`--cc-badge-bg:${s.badgeBg}`);
+    if (s.badgeText) styleVars.push(`--cc-badge-text:${s.badgeText}`);
+    if (s.font)      styleVars.push(`--cc-font:${s.font}`);
+    if (s.imgFilter) styleVars.push(`--cc-img-filter:${s.imgFilter}`);
+    const styleAttr = styleVars.length ? ` style="${styleVars.join(';')}"` : '';
+    const extraClass = s.cardClass ? ` ${s.cardClass}` : '';
+
     return `
-      <div class="card course-card ${state.highlightId===c.id?'highlight':''}" id="${c.id}">
+      <div class="card course-card${extraClass} ${state.highlightId===c.id?'highlight':''}" id="${c.id}"${styleAttr}>
         <div class="img"><img src="${img}" alt="${c.title}"/></div>
         <div class="card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
@@ -287,8 +300,9 @@
           </div>
           <div style="display:flex;gap:8px;margin-top:10px">
             <button class="btn" data-open="${c.id}"><i class="ri-external-link-line"></i> Details</button>
-            ${canTeach()? `<button class="btn ghost" data-edit="${c.id}"><i class="ri-edit-line"></i></button>
-            <button class="btn danger" data-del="${c.id}"><i class="ri-delete-bin-6-line"></i></button>`:''}
+            ${canTeach()? `
+              <button class="btn ghost" data-edit="${c.id}"><i class="ri-edit-line"></i></button>
+              <button class="btn danger" data-del="${c.id}"><i class="ri-delete-bin-6-line"></i></button>`:''}
           </div>
         </div>
       </div>`;
@@ -1920,7 +1934,21 @@ await db.collection('roles').doc(uid).set({ uid, role }, { merge: true });</code
   window.seedDemoCourses = async function(){
     const u=auth.currentUser; if(!u) return alert('Sign in first');
     const list=[
-      {title:'Advanced Digital Marketing',category:'Marketing',credits:4,price:250,short:'Master SEO, social media, content strategy.',goals:['Get certified','Hands-on project','Career guidance'],coverImage:'https://images.unsplash.com/photo-1554774853-b415df9eeb92?w=1200&q=80'},
+      {title:'Advanced Digital Marketing',category:'Marketing',credits:4,price:250,short:'Master SEO, social media, content strategy.',goals:['Get certified','Hands-on project','Career guidance'],coverImage:'https://images.unsplash.com/photo-1554774853-b415df9eeb92?w=1200&q=80', style: { cardClass: 'theme-gold' }}, // <- uses the preset class},
+      {
+    title:'Modern Web Bootcamp',
+    category:'CS', credits:5, price:0,
+    short:'HTML, CSS, JS, and tooling.',
+    goals:['Responsive sites','Deploy to Hosting','APIs basics'],
+    coverImage:'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&q=80',
+    style: {
+      bg:'linear-gradient(135deg,#0ea5e9,#22c55e)',
+      text:'#0b1220',
+      badgeBg:'rgba(255,255,255,.4)',
+      badgeText:'#0b1220',
+      imgFilter:'saturate(1.05)'
+    }
+  },
       {title:'Modern Web Bootcamp',category:'CS',credits:5,price:0,short:'HTML, CSS, JS, and tooling.',goals:['Responsive sites','Deploy to Hosting','APIs basics'],coverImage:'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&q=80'}
     ];
     for(const c of list){

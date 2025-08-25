@@ -230,3 +230,32 @@ img{ max-width:100% }
 }
 
 .lane-row.highlight{ outline:2px dashed var(--primary) }
+
+/* Per-course theming via CSS variables */
+.course-card{
+  background: var(--cc-bg, var(--panel));
+  color: var(--cc-text, var(--text));
+  font-family: var(--cc-font, inherit);
+}
+.course-card .badge{
+  background: var(--cc-badge-bg, var(--tint-15));
+  color: var(--cc-badge-text, var(--primary));
+}
+.course-card .img img{
+  filter: var(--cc-img-filter, none);
+}
+
+/* Optional: ready-made classes you can use via style.cardClass */
+.course-card.theme-gold{
+  --cc-bg: linear-gradient(135deg,#f59e0b,#fbbf24);
+  --cc-text:#1a1408;
+  --cc-badge-bg: rgba(0,0,0,.15);
+  --cc-badge-text:#1a1408;
+  --cc-img-filter: saturate(1.05) contrast(1.05);
+}
+.course-card.theme-ice{
+  --cc-bg: linear-gradient(135deg,#e0f2fe,#e9d5ff);
+  --cc-text:#0b1220;
+  --cc-badge-bg: rgba(0,0,0,.08);
+  --cc-badge-text:#0b1220;
+}

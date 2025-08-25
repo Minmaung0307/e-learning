@@ -1,0 +1,122 @@
+{
+  "id": "modern-web-bootcamp",
+  "version": 1,
+  "title": "Modern Web Bootcamp",
+  "category": "CS",
+  "credits": 5,
+  "summary": "HTML, CSS, JS and modern tooling with hands-on projects.",
+  "coverImage": "/images/modern-web-cover.jpg",
+  "resources": [
+    { "label": "Syllabus PDF", "url": "/files/bootcamp-syllabus.pdf" },
+    { "label": "Starter Repo", "url": "https://example.com/repo" }
+  ],
+  "chapters": [
+    {
+      "title": "Chapter 1 · Foundations",
+      "sections": [
+        {
+          "title": "1.1 · HTML Essentials",
+          "lessons": [
+            {
+              "id": "html-essentials-intro",
+              "title": "Intro to the Web & HTML",
+              "duration": 12,
+              "content": [
+                { "type": "h2", "text": "What is the Web?" },
+                {
+                  "type": "text",
+                  "html": "The Web is a network of documents linked by URLs. Browsers request documents and render them for users. HTML describes the structure of those documents."
+                },
+                { "type": "h3", "text": "HTML = Structure" },
+                {
+                  "type": "image",
+                  "src": "/media/html-dom.png",
+                  "alt": "Diagram of HTML elements forming a DOM tree",
+                  "caption": "HTML nodes and the DOM"
+                },
+                {
+                  "type": "video",
+                  "src": "/media/intro-web.mp4",
+                  "poster": "/media/intro-web-poster.jpg",
+                  "caption": "Short overview of how the web works"
+                },
+                {
+                  "type": "callout",
+                  "flavor": "tip",
+                  "text": "Use semantic tags like <header>, <main>, and <footer> to improve accessibility."
+                }
+              ]
+            },
+            {
+              "id": "html-essentials-elements",
+              "title": "Common Elements",
+              "duration": 18,
+              "content": [
+                { "type": "h2", "text": "Core Elements" },
+                {
+                  "type": "text",
+                  "html": "<ul><li>Headings: <code>&lt;h1&gt;-&lt;h6&gt;</code></li><li>Paragraphs: <code>&lt;p&gt;</code></li><li>Links: <code>&lt;a&gt;</code></li><li>Lists: <code>&lt;ul&gt;, &lt;ol&gt;, &lt;li&gt;</code></li></ul>"
+                },
+                {
+                  "type": "audio",
+                  "src": "/media/semantics.mp3",
+                  "caption": "Audio: Why semantics matter"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "1.2 · CSS Basics",
+          "lessons": [
+            {
+              "id": "css-basics-selectors",
+              "title": "Selectors & Specificity",
+              "duration": 15,
+              "content": [
+                { "type": "h2", "text": "Selecting Elements" },
+                {
+                  "type": "text",
+                  "html": "Selectors target elements by tag, class, id, attribute, etc. Specificity decides which rules win."
+                },
+                {
+                  "type": "image",
+                  "src": "/media/selectors-cheatsheet.png",
+                  "alt": "CSS selectors cheat sheet",
+                  "caption": "Quick reference"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Chapter 2 · JavaScript",
+      "sections": [
+        {
+          "title": "2.1 · Language & Runtime",
+          "lessons": [
+            {
+              "id": "js-language-values",
+              "title": "Values, Types & Control Flow",
+              "duration": 20,
+              "content": [
+                { "type": "h2", "text": "Types" },
+                {
+                  "type": "text",
+                  "html": "JavaScript has primitives like string, number, boolean, null, undefined, symbol, and bigint."
+                },
+                {
+                  "type": "video",
+                  "src": "/media/js-types.mp4",
+                  "caption": "Walkthrough of primitives and objects"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
