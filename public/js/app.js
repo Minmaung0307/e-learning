@@ -269,9 +269,16 @@
     return `
       <div class="card"><div class="card-body">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <h3 style="margin:0">Courses</h3>
-          ${canTeach()? `<button class="btn" id="add-course"><i class="ri-add-line"></i> New Course</button>`:''}
-        </div>
+  <h3 style="margin:0">Courses</h3>
+  ${canTeach() ? `
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="add-course"><i class="ri-add-line"></i> New Course</button>
+      ${state.courses.length ? '' : `
+        <button class="btn ghost" id="seed-demo"><i class="ri-sparkling-2-line"></i> Add Demo Courses</button>
+      `}
+    </div>` : ''
+  }
+</div>
         <div class="grid cols-2" data-sec="courses">
           ${state.courses.map(courseCard).join('')}
           ${!state.courses.length? `<div class="muted" style="padding:10px">No courses yet.</div>`:''}
@@ -450,16 +457,432 @@
   }
 
   // --- Guide view (unchanged from your last) ---
-  function vGuide(){ /* (same as your current guide markup) */ 
-    // to save space here, keep your existing vGuide function body
-    // If you need me to paste it verbatim again, say the word.
-    return `
-      <div class="card"><div class="card-body">
-        <h3 style="margin:0">Guide</h3>
-        <div class="muted">See the full guide content you added earlier.</div>
-      </div></div>
-    `;
-  }
+  function vGuide(){
+  return `
+  <section class="guide">
+    <style>
+      /* ===============================
+         High-contrast, theme-aware tokens
+         =============================== */
+      .guide{
+        --g-bg: linear-gradient(135deg,#0ea5e9 0%, #22c55e 100%);
+
+        /* LIGHT defaults */
+        --g-text:#0a0a0a;          /* primary text */
+        --g-muted:#475569;         /* secondary text */
+        --g-border:#e5e7eb;        /* card borders */
+        --g-surface:#ffffff;       /* cards */
+        --g-surface-2:#f8fafc;     /* subtle surfaces */
+
+        --g-chip-bg:#111827;       /* chip */
+        --g-chip-text:#f8fafc;
+
+        /* Code block (force readable) */
+        --g-code-bg:#0f172a;       /* slate-900 */
+        --g-code-text:#f8fafc;     /* white */
+
+        --g-link:#1d4ed8;          /* links, ensure visible */
+        --g-link-visited:#7c3aed;
+
+        --g-ok-bg:#ecfdf5;     --g-ok-text:#064e3b;
+        --g-warn-bg:#fff7ed;   --g-warn-text:#7c2d12;
+        --g-danger-bg:#fef2f2; --g-danger-text:#7f1d1d;
+      }
+      /* DARK overrides */
+      .theme-dark .guide{
+        --g-text:#e5e7eb;
+        --g-muted:#94a3b8;
+        --g-border:#334155;
+        --g-surface:#0f172a;
+        --g-surface-2:#111827;
+
+        --g-chip-bg:#1f2937;
+        --g-chip-text:#f8fafc;
+
+        --g-code-bg:#0b1220;      /* slightly darker than card */
+        --g-code-text:#e5e7eb;
+
+        --g-link:#93c5fd;         /* lighter link for dark bg */
+        --g-link-visited:#c4b5fd;
+
+        --g-ok-bg:#052e16;     --g-ok-text:#bbf7d0;
+        --g-warn-bg:#451a03;   --g-warn-text:#fed7aa;
+        --g-danger-bg:#450a0a; --g-danger-text:#fecaca;
+      }
+
+      /* ===== base ===== */
+      .guide, .guide * { color: var(--g-text); }
+      .guide a { color: var(--g-link); text-underline-offset: 2px; }
+      .guide a:visited { color: var(--g-link-visited); }
+      .guide .mini, .guide .muted { color: var(--g-muted); }
+      .guide ::selection{ background:#fde68a; color:#111827; }
+
+      .guide .hero {
+        background: var(--g-bg);
+        border-radius: 16px;
+        padding: 26px 20px;
+        display: grid;
+        gap: 6px;
+        box-shadow: 0 6px 24px rgba(0,0,0,.15);
+      }
+      .guide .hero, .guide .hero * { color:#fff; }
+      .guide .hero .title { font-size: 22px; font-weight: 800; letter-spacing:.3px; }
+      .guide .hero .subtitle { opacity:.95; font-size: 13px }
+
+      .guide .nav { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 6px 0; }
+      .guide .nav a {
+        text-decoration:none;
+        background:var(--g-chip-bg);
+        color:var(--g-chip-text);
+        border:1px solid transparent;
+        padding:8px 10px; border-radius:999px; font-size:12px;
+      }
+
+      .guide .section { margin-top:14px }
+      .guide .section .h { display:flex; align-items:center; gap:8px; margin:0 0 6px 0; font-size:16px; font-weight:800; }
+
+      .guide .kpis { display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:8px; }
+      .guide .kpi { border:1px solid var(--g-border); border-radius:12px; padding:12px; background:var(--g-surface) }
+      .guide .kpi .lbl { font-size:12px; color:var(--g-muted); }
+      .guide .kpi .val { font-weight:800; font-size:18px; }
+
+      .guide .gcard { border:1px solid var(--g-border); border-radius:16px; background:var(--g-surface); padding:14px; display:grid; gap:10px; }
+      .guide .row { display:grid; gap:10px }
+      .guide .grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px }
+      .guide .grid3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px }
+
+      .guide .badge {
+        display:inline-flex; align-items:center; gap:6px;
+        padding:5px 8px; border-radius:999px; font-size:12px;
+        background:var(--g-surface-2); border:1px solid var(--g-border); color:var(--g-text);
+      }
+
+      .guide .step {
+        display:flex; gap:10px; align-items:flex-start; padding:10px; border-radius:12px;
+        border:1px dashed var(--g-border); background:var(--g-surface-2);
+      }
+      .guide .step i { font-size:18px; opacity:.75; margin-top:2px }
+
+      .guide .callout {
+        border-left:4px solid #10b981;
+        background:var(--g-ok-bg);
+        color:var(--g-ok-text);
+        padding:10px; border-radius:10px; font-size:13px;
+      }
+      .guide .callout.warn { border-left-color:#f59e0b; background:var(--g-warn-bg); color:var(--g-warn-text); }
+      .guide .callout.danger { border-left-color:#ef4444; background:var(--g-danger-bg); color:var(--g-danger-text); }
+
+      .guide code, .guide pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace }
+
+      /* >>> HARD-FORCE code block readability <<< */
+      .guide pre{
+        background:var(--g-code-bg) !important;
+        color:var(--g-code-text) !important;
+        padding:12px; border-radius:12px; overflow:auto; border:1px solid #1f2937;
+        white-space:pre; tab-size:2;
+      }
+      .guide pre, .guide pre *, .guide code, .guide code *{
+        color:var(--g-code-text) !important; /* fixes "black screen" text-invisible issue */
+      }
+      .guide .code-card { position:relative }
+      .guide .copy-btn {
+        position:absolute; right:10px; top:10px;
+        border:1px solid #334155; background:var(--g-code-bg); color:var(--g-code-text);
+        font-size:12px; border-radius:8px; padding:6px 8px; cursor:pointer;
+      }
+
+      .guide details { border:1px solid var(--g-border); border-radius:12px; background:var(--g-surface); padding:8px 10px; }
+      .guide details + details { margin-top:8px }
+      .guide summary { cursor:pointer; font-weight:700; display:flex; align-items:center; gap:8px }
+      .guide summary::-webkit-details-marker { display:none }
+      .guide .pill { background:#eef2ff; color:#3730a3; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid #c7d2fe }
+
+      /* responsive */
+      @media (max-width: 840px){
+        .guide .grid2, .guide .grid3 { grid-template-columns: 1fr; }
+      }
+    </style>
+
+    <div class="hero">
+      <div class="title"><i class="ri-compass-3-line"></i> LearnHub — Complete Guide</div>
+      <div class="subtitle">Everything you need: Rosters, Chat, Users/Roles, Hosted JSON, plus step-by-steps for every menu.</div>
+      <div class="nav">
+        <a href="#dashboard"><i class="ri-dashboard-line"></i> Dashboard</a>
+        <a href="#courses"><i class="ri-book-2-line"></i> Courses</a>
+        <a href="#learning"><i class="ri-graduation-cap-line"></i> My Learning</a>
+        <a href="#assessments"><i class="ri-file-list-3-line"></i> Finals</a>
+        <a href="#chat"><i class="ri-chat-3-line"></i> Chat</a>
+        <a href="#tasks"><i class="ri-list-check-2"></i> Tasks</a>
+        <a href="#profile"><i class="ri-user-3-line"></i> Profile</a>
+        <a href="#admin"><i class="ri-shield-star-line"></i> Admin</a>
+        <a href="#settings"><i class="ri-settings-3-line"></i> Settings</a>
+        <a href="#search"><i class="ri-search-line"></i> Search</a>
+        <a href="#datajson"><i class="ri-file-json-line"></i> Public JSON</a>
+        <a href="#troubleshoot"><i class="ri-tools-line"></i> Troubleshooting</a>
+      </div>
+    </div>
+
+    <div class="kpis" style="margin-top:10px">
+      <div class="kpi"><div class="lbl">Roles</div><div class="val">student • instructor • admin</div></div>
+      <div class="kpi"><div class="lbl">Chat Channels</div><div class="val">course_* • dm_*_* • group_*</div></div>
+      <div class="kpi"><div class="lbl">Content Hosting</div><div class="val">/public/data/*.json</div></div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="section">
+      <div class="h"><i class="ri-dashboard-line"></i> Dashboard</div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-megaphone-line"></i><div><b>Announcements:</b> Admins can <i>New Announcement</i>, edit, or delete. Students see the feed here.</div></div>
+            <div class="step"><i class="ri-pie-chart-2-line"></i><div><b>KPIs:</b> Quick glance at course count, your enrollments, finals, and attempts.</div></div>
+          </div>
+          <div class="row">
+            <div class="callout">Click the cards to jump to Courses, My Learning, or Finals.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Courses -->
+    <div id="courses" class="section">
+      <div class="h"><i class="ri-book-2-line"></i> Courses</div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-add-line"></i><div><b>New Course (Instructor/Admin):</b> fill Title, Category, Credits, Price; optional Goals, Cover, and JSON URLs (Outline & Lesson Quizzes).</div></div>
+            <div class="step"><i class="ri-external-link-line"></i><div><b>Details:</b> open a course → Enroll (free/paid demo) → quick link to its Finals.</div></div>
+            <div class="step"><i class="ri-edit-2-line"></i><div><b>Edit/Delete:</b> available to course owners and admins.</div></div>
+          </div>
+          <div class="row">
+            <div class="callout warn">Paid flow is a demo (writes to <code>payments</code>). Adjust to your gateway later.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- My Learning -->
+    <div id="learning" class="section">
+      <div class="h"><i class="ri-graduation-cap-line"></i> My Learning</div>
+      <div class="gcard row">
+        <div class="step"><i class="ri-login-circle-line"></i><div>Shows courses you’re enrolled in. Click <b>Open</b> to review Outline / Lesson Quizzes links.</div></div>
+      </div>
+    </div>
+
+    <!-- Finals -->
+    <div id="assessments" class="section">
+      <div class="h"><i class="ri-file-list-3-line"></i> Final Exams</div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-add-box-line"></i><div><b>New Final (Instructor/Admin):</b> choose course, pass score, and paste Items JSON.</div></div>
+            <div class="step"><i class="ri-play-line"></i><div><b>Take Final:</b> students must be enrolled. Live feedback per question when selecting answers.</div></div>
+            <div class="step"><i class="ri-check-double-line"></i><div><b>Scoring:</b> result stored in <code>attempts</code>; transcript computed under Profile.</div></div>
+          </div>
+          <div class="row">
+            <details open>
+              <summary><span class="pill">Items JSON (per question)</span></summary>
+              <div class="mini">Each item: <code>{ "q": "...", "choices":[...], "answer": index, "feedbackOk":"...", "feedbackNo":"..." }</code></div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div id="chat" class="section">
+      <div class="h"><i class="ri-chat-3-line"></i> Course Chat (Course-wide, Direct, Group/Batch)</div>
+      <div class="gcard row">
+        <div class="grid3">
+          <div class="gcard" style="gap:8px">
+            <div class="badge"><i class="ri-megaphone-line"></i> Course-wide</div>
+            <div class="mini">Mode = <b>Course</b> → pick a course. Channel key: <code>course_{courseId}</code>.</div>
+          </div>
+          <div class="gcard" style="gap:8px">
+            <div class="badge"><i class="ri-user-3-line"></i> Direct (DM)</div>
+            <div class="mini">Mode = <b>Direct</b> → pick a user (roster-aware). Channel key: <code>dm_{minUid}_{maxUid}</code>.</div>
+          </div>
+          <div class="gcard" style="gap:8px">
+            <div class="badge"><i class="ri-group-line"></i> Group/Batch</div>
+            <div class="mini">Mode = <b>Group</b> → type ID (e.g., <code>Diploma-2025</code>). Channel key: <code>group_{id}</code>.</div>
+          </div>
+        </div>
+
+        <div class="callout warn">
+          <b>Pick a channel:</b> If you see “Pick a channel…”, complete the Course/User/Group selection so a concrete channel key is formed.
+        </div>
+
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-arrow-right-s-line"></i><div>Open <b>Chat</b>, choose a <b>Mode</b>.</div></div>
+            <div class="step"><i class="ri-hashtag"></i><div>Course: select course • DM: select user • Group: type group id.</div></div>
+            <div class="step"><i class="ri-send-plane-2-line"></i><div>Type a message and <b>Send</b>. Firestore collection: <code>messages</code> with <code>channel</code>, <code>type</code>, <code>uid</code>, <code>email</code>, <code>name</code>, <code>text</code>, <code>createdAt</code>, and helper (<code>courseId</code>/<code>peerUid</code>/<code>groupId</code>).</div></div>
+          </div>
+          <div class="row">
+            <details open>
+              <summary><span class="pill">How the DM user list is built</span></summary>
+              <div class="mini">If a course is selected, DM list shows its <b>participants</b> (synced from enrollments). If none, it falls back to <b>all profiles</b> except you.</div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tasks -->
+    <div id="tasks" class="section">
+      <div class="h"><i class="ri-list-check-2"></i> Tasks (Personal Kanban)</div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-add-line"></i><div><b>Add Task:</b> in <i>To do</i> column → <b>Add Task</b>.</div></div>
+            <div class="step"><i class="ri-drag-move-2-line"></i><div><b>Drag & drop</b> cards to <i>In progress</i> or <i>Done</i>.</div></div>
+            <div class="step"><i class="ri-edit-2-line"></i><div>Edit/Delete via card actions.</div></div>
+          </div>
+          <div class="row">
+            <div class="callout">All tasks are stored under your user in <code>tasks</code>.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile -->
+    <div id="profile" class="section">
+      <div class="h"><i class="ri-user-3-line"></i> Profile & Certificates</div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-image-add-line"></i><div>Update name, portfolio, bio. Upload Avatar & Signature (image files).</div></div>
+            <div class="step"><i class="ri-award-line"></i><div><b>Certificates:</b> After passing a course final (≥ passScore), download the certificate from your Transcript.</div></div>
+          </div>
+          <div class="row">
+            <div class="callout">Transcript calculates your best score per course from <code>attempts</code>.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin -->
+    <div id="admin" class="section">
+      <div class="h"><i class="ri-shield-star-line"></i> Admin Toolkit</div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-shield-user-line"></i><div><b>Role Manager:</b> paste UID, choose role (<code>student</code>/<code>instructor</code>/<code>admin</code>), Save.</div></div>
+            <div class="step"><i class="ri-team-line"></i><div><b>Users (profiles):</b> quick table to edit/delete profiles.</div></div>
+            <div class="step"><i class="ri-user-add-line"></i><div><b>Course Roster Tools:</b> pick course → <b>Sync from Enrollments</b> → <b>View Roster</b>.</div></div>
+          </div>
+          <div class="row">
+            <div class="callout warn">If sync fails, check rules on <code>courses/{id}</code> and that <code>enrollments</code> exist. Owner is auto-added.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div id="settings" class="section">
+      <div class="h"><i class="ri-settings-3-line"></i> Settings</div>
+      <div class="gcard row">
+        <div class="step"><i class="ri-brush-line"></i><div>Change <b>Palette</b> and <b>Font size</b>. Colors update instantly site-wide.</div></div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div id="search" class="section">
+      <div class="h"><i class="ri-search-line"></i> Search</div>
+      <div class="gcard row">
+        <div class="step"><i class="ri-keyboard-line"></i><div>Use the top bar. Live suggestions show Courses, Finals, and Profiles. Press <b>Enter</b> to open the Search view, or click a row to jump directly.</div></div>
+      </div>
+    </div>
+
+    <!-- Public JSON -->
+    <div id="datajson" class="section">
+      <div class="h"><i class="ri-file-json-line"></i> Hosting course JSON in <code>/public/data</code></div>
+      <div class="gcard row">
+        <div class="grid2">
+          <div class="row">
+            <div class="step"><i class="ri-folder-2-line"></i><div>Put files under hosting root <code>public/data</code>.</div></div>
+            <div class="step"><i class="ri-upload-2-line"></i><div>Deploy, then use URLs like <code>/data/outlines/marketing-101.json</code> and <code>/data/lesson-quizzes/marketing-101.json</code>.</div></div>
+            <div class="step"><i class="ri-edit-2-line"></i><div>Course form → paste into <b>Outline JSON URL</b> and <b>Lesson Quizzes JSON URL</b>.</div></div>
+            <div class="callout warn">Open each URL in a browser: you must see raw JSON (not HTML). HTML indicates a bad path and will cause “Unexpected token &lt;”.</div>
+          </div>
+          <div class="row">
+            <div class="badge"><i class="ri-layout-2-line"></i> Outline JSON — example</div>
+            <div class="code-card">
+              <button class="copy-btn" data-copy="outline-json">Copy</button>
+              <pre id="outline-json"><code>{
+  "title": "Advanced Digital Marketing",
+  "category": "Marketing",
+  "credits": 4,
+  "short": "Master SEO, social media, content strategy.",
+  "coverImage": "/images/marketing-cover.jpg",
+  "chapters": [
+    {
+      "title": "SEO Foundations",
+      "lessons": [
+        { "title": "How Search Works", "duration": 12 },
+        { "title": "Keyword Research", "duration": 16 }
+      ]
+    },
+    {
+      "title": "Social Media Strategy",
+      "lessons": [
+        { "title": "Content Planning", "duration": 18 },
+        { "title": "Analytics Basics", "duration": 20 }
+      ]
+    }
+  ]
+}</code></pre>
+            </div>
+
+            <div class="badge"><i class="ri-question-answer-line"></i> Lesson Quizzes JSON — example</div>
+            <div class="code-card">
+              <button class="copy-btn" data-copy="lesson-json">Copy</button>
+              <pre id="lesson-json"><code>{
+  "seo-foundations-how-search-works": [
+    {
+      "q": "What does SERP stand for?",
+      "choices": ["Search Engine Result Page", "Search Engine Ranking Position", "Search Entry Result Place"],
+      "answer": 1,
+      "feedbackOk": "Correct! It’s the ranking position.",
+      "feedbackNo": "SERP is the ranking position number."
+    }
+  ],
+  "seo-foundations-keyword-research": [
+    { "q": "Which metric indicates how often a term is searched?",
+      "choices": ["CPC", "Search Volume", "CTR"],
+      "answer": 1
+    }
+  ]
+}</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Troubleshooting -->
+    <div id="troubleshoot" class="section">
+      <div class="h"><i class="ri-tools-line"></i> Troubleshooting</div>
+      <div class="gcard row">
+        <details>
+          <summary><i class="ri-error-warning-line"></i> “Unexpected token &lt;” on JS/JSON</summary>
+          <div class="row mini" style="margin-top:8px">
+            <div>This means the browser fetched <b>HTML</b> instead of JavaScript/JSON (usually a 404 page). Fix the path:</div>
+            <ul>
+              <li>Script tag must point to an existing file, e.g. <code>&lt;script src="/app.js" defer&gt;&lt;/script&gt;</code>.</li>
+              <li>Open your JSON URL directly — it must show raw JSON.</li>
+            </ul>
+          </div>
+        </details>
+        <details>
+          <summary><i class="ri-lock-2-line"></i> Permission / rules errors</summary>
+          <div class="mini">Check Firestore rules for writes to <code>courses</code>, <code>messages</code>, <code>announcements</code>, <code>tasks</code>, etc. Admin actions require admin-authorized rules.</div>
+        </details>
+      </div>
+    </div>
+
+  </section>`;
+}
 
   function vAdmin(){
     if(!canManageUsers()) return `<div class="card"><div class="card-body">Admins only.</div></div>`;
@@ -712,27 +1135,32 @@
       $('#mm-foot').innerHTML=`<button class="btn" id="c-save">Save</button>`;
       openModal('m-modal');
 
-      $('#c-save').onclick=async ()=>{
-        const t=$('#c-title')?.value.trim(); if(!t) return notify('Title required','warn');
-        const goals=($('#c-goals')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-        const obj=clean({
-          title:t, category:$('#c-category')?.value.trim(), credits:+($('#c-credits')?.value||0), price:+($('#c-price')?.value||0),
-          short:$('#c-short')?.value.trim(), goals, coverImage:$('#c-cover')?.value.trim(),
-          outlineUrl:$('#c-outlineUrl')?.value.trim(), quizzesUrl:$('#c-quizzesUrl')?.value.trim(),
-          ownerUid:auth.currentUser.uid, ownerEmail:auth.currentUser.email,
-          participants:[auth.currentUser.uid],
-          createdAt:firebase.firestore.FieldValue.serverTimestamp()
-        });
-        try{
-          const ref = await col('courses').add(obj);
-          closeModal('m-modal'); notify('Saved');
-          state.highlightId = ref.id;
-          if (state.route !== 'courses') { go('courses'); } else { render(); }
-        }catch(e){
-          console.error('Add course failed:', e);
-          notify(e?.message||'Failed to save','danger');
-        }
-      };
+      $('#c-save').onclick = async ()=>{
+  const t = $('#c-title')?.value.trim(); if(!t) return notify('Title required','warn');
+  const goals = ($('#c-goals')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const obj = {
+    title:t,
+    category: $('#c-category')?.value.trim(),
+    credits: +($('#c-credits')?.value||0),
+    price: +($('#c-price')?.value||0),
+    short: $('#c-short')?.value.trim(),
+    goals,
+    coverImage: $('#c-cover')?.value.trim(),
+    outlineUrl: $('#c-outlineUrl')?.value.trim(),
+    quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
+    ownerUid: auth.currentUser.uid,                 // REQUIRED by rules
+    ownerEmail: auth.currentUser.email,
+    participants: [auth.currentUser.uid],
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  try {
+    await col('courses').add(obj);
+    closeModal('m-modal'); notify('Saved');
+  } catch (e) {
+    console.error('Failed to create course:', e);
+    notify((e && (e.code + ': ' + e.message)) || 'Failed to create course', 'danger');
+  }
+};
     });
 
     const sec=$('[data-sec="courses"]'); if(!sec||sec.__wired) return; sec.__wired=true;
@@ -804,6 +1232,15 @@
           }),{merge:true});
           closeModal('m-modal'); notify('Saved');
         };
+        $('#seed-demo')?.addEventListener('click', async ()=>{
+  try {
+    await window.seedDemoCourses();
+    notify('Demo courses added');
+  } catch (e) {
+    console.error(e);
+    notify((e && (e.code + ': ' + e.message)) || 'Failed to seed', 'danger');
+  }
+});
       }
       if(delBtn){
         if(!canTeach()) return notify('No permission','warn');
@@ -1150,11 +1587,16 @@
   // ---- Admin
   function wireAdmin(){
     $('#rm-save')?.addEventListener('click', async ()=>{
-      const uid=$('#rm-uid')?.value.trim(); const role=$('#rm-role')?.value||'student';
-      if(!uid || !VALID_ROLES.includes(role)) return notify('Enter UID + valid role','warn');
-      await doc('roles',uid).set({ uid, role, updatedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true});
-      notify('Role saved');
-    });
+  const uid = $('#rm-uid')?.value.trim();
+  const raw = $('#rm-role')?.value || 'student';
+  const role = (raw + '').toLowerCase(); // <-- normalize
+  if(!uid) return notify('Enter UID + valid role','warn');
+  await doc('roles', uid).set({
+    uid, role,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  notify('Role saved');
+});
 
     $('#main')?.addEventListener('click', async (e)=>{
       const ed=e.target.closest?.('button[data-admin-edit]'); const del=e.target.closest?.('button[data-admin-del]');
@@ -1246,34 +1688,36 @@
 
   // ---- Guide wiring (kept minimal)
   function wireGuide(){
-    const root = document.querySelector('.guide');
-    if (!root || root.__wired) return;
-    root.__wired = true;
+  const root = document.querySelector('.guide');
+  if (!root || root.__wired) return;
+  root.__wired = true;
 
-    root.querySelectorAll('.nav a[href^="#"]').forEach(a=>{
-      a.addEventListener('click', (e)=>{
-        e.preventDefault();
-        const id = a.getAttribute('href').slice(1);
-        const el = document.getElementById(id);
-        if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
-      });
+  // smooth-scroll for in-page anchors
+  root.querySelectorAll('.nav a[href^="#"]').forEach(a=>{
+    a.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const id = a.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
     });
+  });
 
-    root.addEventListener('click', (e)=>{
-      const btn = e.target.closest('.copy-btn');
-      if(!btn) return;
-      const target = btn.getAttribute('data-copy');
-      const pre = target ? document.getElementById(target) : btn.closest('.code-card')?.querySelector('pre');
-      const text = pre ? pre.innerText : '';
-      if(!text) return;
-      (navigator.clipboard?.writeText(text) || Promise.reject()).then(()=>{
-        const old = btn.textContent;
-        btn.textContent = 'Copied!';
-        setTimeout(()=> btn.textContent = old || 'Copy', 1200);
-        try { notify('Copied to clipboard'); } catch {}
-      }).catch(()=>{});
-    });
-  }
+  // copy buttons for code samples
+  root.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.copy-btn');
+    if(!btn) return;
+    const targetId = btn.getAttribute('data-copy');
+    const pre = targetId ? document.getElementById(targetId) : btn.closest('.code-card')?.querySelector('pre');
+    const text = pre ? pre.innerText : '';
+    if(!text) return;
+    (navigator.clipboard?.writeText(text) || Promise.reject()).then(()=>{
+      const old = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(()=> btn.textContent = old || 'Copy', 1200);
+      try { notify('Copied to clipboard'); } catch {}
+    }).catch(()=>{ /* ignore */ });
+  });
+}
 
   // ---- Transcript
   function buildTranscript(uid){
