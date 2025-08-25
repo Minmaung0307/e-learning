@@ -1,0 +1,69 @@
+{
+  "title": "Modern Web Bootcamp",
+  "category": "CS",
+  "credits": 5,
+  "coverImage": "/images/modern-web-cover.jpg",
+  "chapters": [
+    {
+      "title": "HTML Essentials",
+      "sections": [
+        {
+          "title": "Intro & Setup",
+          "lessons": [
+            {
+              "slug": "html-how-the-web-works",
+              "title": "How the Web Works",
+              "type": "text",
+              "duration": 8,
+              "content": "Browsers request HTML/CSS/JS from servers over HTTP(S)."
+            },
+            {
+              "slug": "editor-setup",
+              "title": "Editor Setup",
+              "type": "video",
+              "duration": 6,
+              "src": "/videos/editor-setup.mp4"
+            }
+          ]
+        },
+        {
+          "title": "HTML Basics",
+          "lessons": [
+            {
+              "slug": "semantic-html",
+              "title": "Semantic HTML",
+              "type": "image",
+              "duration": 5,
+              "src": "/images/semantic-cheatsheet.png",
+              "caption": "Common semantic tags"
+            },
+            {
+              "slug": "audio-video",
+              "title": "Audio & Video",
+              "type": "audio",
+              "duration": 4,
+              "src": "/audio/media-tags-intro.mp3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "CSS Foundations",
+      "sections": [
+        {
+          "title": "Selectors & Cascade",
+          "lessons": [
+            {
+              "slug": "css-selectors",
+              "title": "CSS Selectors",
+              "type": "text",
+              "duration": 10,
+              "content": "Class, ID, attribute selectors; specificity basics."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

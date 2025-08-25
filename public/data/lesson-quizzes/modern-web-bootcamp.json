@@ -1,0 +1,48 @@
+{
+  "html-how-the-web-works": [
+    {
+      "q": "Which protocol does the browser typically use to request web pages?",
+      "choices": ["FTP", "HTTP/HTTPS", "SSH"],
+      "answer": 1,
+      "feedbackOk": "Correct — HTTP(S) is used for web requests.",
+      "feedbackNo": "Not quite. Web pages are fetched over HTTP or HTTPS."
+    },
+    {
+      "q": "Which files are the core trio sent to the browser?",
+      "choices": ["HTML, CSS, JS", "PHP, SQL, XML", "BMP, WAV, EXE"],
+      "answer": 0
+    }
+  ],
+  "editor-setup": [
+    {
+      "q": "What’s one benefit of using an editor with Emmet?",
+      "choices": [
+        "Faster HTML authoring with expansions",
+        "Direct database connections",
+        "Hosting your site automatically"
+      ],
+      "answer": 0
+    }
+  ],
+  "semantic-html": [
+    {
+      "q": "Which tag is most appropriate for a page footer?",
+      "choices": ["<div>", "<footer>", "<section>"],
+      "answer": 1
+    }
+  ],
+  "audio-video": [
+    {
+      "q": "Which tag is used for embedding audio?",
+      "choices": ["<sound>", "<audio>", "<voice>"],
+      "answer": 1
+    }
+  ],
+  "css-selectors": [
+    {
+      "q": "Which selector targets elements by class?",
+      "choices": ["#", ".", ":"],
+      "answer": 1
+    }
+  ]
+}
