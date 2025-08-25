@@ -54,6 +54,113 @@
   const clean = (obj) => Object.fromEntries(Object.entries(obj)
     .filter(([_, v]) => v !== undefined && !(typeof v === 'number' && Number.isNaN(v))));
 
+    // ---- JSON fetcher (for outline & lesson quizzes) ----
+async function fetchJSON(url){
+  const r = await fetch(url, { cache: 'no-store' });
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  return await r.json();
+}
+
+// ---- Render outline JSON into HTML ----
+function renderOutlineBox(data){
+  if(!data || !Array.isArray(data.chapters)) return `<div class="muted">No chapters found.</div>`;
+  return data.chapters.map(ch=>{
+    const lessons = Array.isArray(ch.lessons) ? `<ul class="list-tight">${
+      ch.lessons.map(l=>`<li>${(l.title||'').replace(/</g,'&lt;')}${l.duration?` <span class="muted">(${l.duration} min)</span>`:''}</li>`).join('')
+    }</ul>` : '';
+    return `<details open>
+      <summary><strong>${(ch.title||'Chapter').replace(/</g,'&lt;')}</strong></summary>
+      ${lessons}
+    </details>`;
+  }).join('');
+}
+
+// ---- Render lesson quizzes JSON into HTML ----
+function renderLessonQuizzesBox(data){
+  if(!data || typeof data!=='object') return `<div class="muted">No lesson quizzes JSON.</div>`;
+  const keys = Object.keys(data);
+  if(!keys.length) return `<div class="muted">No quizzes found.</div>`;
+  return keys.map(k=>{
+    const items = Array.isArray(data[k]) ? data[k] : [];
+    return `<details>
+      <summary><strong>${k.replace(/[-_]/g,' ')}</strong> <span class="muted">• ${items.length} Q</span></summary>
+      ${items.map((it,i)=>`
+        <div style="margin:6px 0">
+          <div><b>Q${i+1}.</b> ${(it.q||'').replace(/</g,'&lt;')}</div>
+          ${Array.isArray(it.choices)? `<ul class="list-tight">${it.choices.map(c=>`<li>${(c||'').replace(/</g,'&lt;')}</li>`).join('')}</ul>`:''}
+        </div>
+      `).join('')}
+    </details>`;
+  }).join('');
+}
+
+// ---- PayPal setup (client-side capture) ----
+async function setupPayPalForCourse(c){
+  const zone = document.getElementById('paypal-zone');
+  const btns = document.getElementById('paypal-buttons');
+  if(!zone || !btns) return;
+  zone.classList.remove('hidden');
+  btns.innerHTML = '';
+
+  if(!window.paypal || !paypal.Buttons){
+    zone.innerHTML = `<div class="card"><div class="card-body">PayPal SDK missing — set your Client ID in <code>index.html</code>.</div></div>`;
+    return;
+  }
+
+  const price = Number(c.price||0).toFixed(2);
+  paypal.Buttons({
+    style: { shape: 'pill', layout: 'vertical', label: 'paypal' },
+    createOrder: (data, actions) => actions.order.create({
+      purchase_units: [{
+        description: c.title || 'Course',
+        amount: { value: price }
+      }]
+    }),
+    onApprove: async (data, actions) => {
+      try{
+        const details = await actions.order.capture();
+
+        // Optional: record a payment doc
+        try{
+          await col('payments').add({
+            uid: auth.currentUser.uid,
+            courseId: c.id,
+            amount: +price,
+            provider: 'paypal',
+            orderId: data.orderID,
+            captureId: details?.purchase_units?.[0]?.payments?.captures?.[0]?.id || '',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }catch(_e){ /* ok if rules block or you skip saving */ }
+
+        // Enroll after successful capture
+        await col('enrollments').add({
+          uid: auth.currentUser.uid,
+          courseId: c.id,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          course: { id:c.id, title:c.title, category:c.category, credits:c.credits, coverImage:c.coverImage }
+        });
+        try{
+          await doc('courses', c.id).set(
+            { participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) },
+            { merge:true }
+          );
+        }catch(_e){}
+
+        closeModal('m-modal');
+        notify('Payment complete — enrolled');
+      }catch(e){
+        console.error(e);
+        notify('Payment capture failed','danger');
+      }
+    },
+    onError: (err) => {
+      console.error(err);
+      notify('PayPal error','danger');
+    }
+  }).render('#paypal-buttons');
+}
+
   // ---- Theme palettes (built-ins + new) ----
   const THEME_PALETTES = [
     'sunrise','light','dark','ocean','forest','grape','lavender','sunset','sand','mono','midnight'
@@ -1271,38 +1378,96 @@ await db.collection('roles').doc(uid).set({ uid, role }, { merge: true });</code
       const editBtn=e.target.closest?.('button[data-edit]');
       const delBtn =e.target.closest?.('button[data-del]');
       if(openBtn){
-        const id=openBtn.getAttribute('data-open'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
-        const c={id:snap.id, ...snap.data()};
-        const enrolled=isEnrolled(c.id);
-        $('#mm-title').textContent=c.title;
-        $('#mm-body').innerHTML=`
-          <div class="grid">
-            <img src="${c.coverImage||'/icons/learnhub-cap.svg'}" alt="${c.title}" style="width:100%;border-radius:12px"/>
-            <div class="muted">${c.category||'General'} • Credits ${c.credits||0}</div>
-            <p>${c.short||''}</p>
-            <ul>${(c.goals||[]).map(g=>`<li>${g}</li>`).join('')}</ul>
-            ${c.price>0? `<div><strong>Price:</strong> ${money(c.price)}</div>`:''}
-          </div>`;
-        $('#mm-foot').innerHTML=`
-          <div style="display:flex;gap:8px;justify-content:flex-end">
-            ${!enrolled? `<button class="btn" id="enroll">${c.price>0? 'Pay & Enroll':'Enroll'}</button>` : `<button class="btn ok" disabled>Enrolled</button>`}
-            <button class="btn ghost" id="open-quiz"><i class="ri-question-line"></i> Finals</button>
-          </div>`;
-        openModal('m-modal');
+  const id = openBtn.getAttribute('data-open');
+  const snap = await doc('courses', id).get(); if(!snap.exists) return;
+  const c = { id: snap.id, ...snap.data() };
+  const enrolled = isEnrolled(c.id);
 
-        $('#enroll')?.addEventListener('click', async ()=>{
-          if(c.price>0){
-            await col('payments').add({ uid:auth.currentUser.uid, courseId:c.id, amount:c.price, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
-            notify('Demo payment successful');
-          }
-          await col('enrollments').add({ uid:auth.currentUser.uid, courseId:c.id, createdAt:firebase.firestore.FieldValue.serverTimestamp(), course:{id:c.id,title:c.title,category:c.category,credits:c.credits,coverImage:c.coverImage} });
-          try{
-            await doc('courses', c.id).set({ participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) }, { merge:true });
-          }catch(_e){ /* ignore permission errors (ok if rules block) */ }
-          closeModal('m-modal'); notify('Enrolled');
-        });
-        $('#open-quiz')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
+  $('#mm-title').textContent = c.title;
+
+  // Body: full-width layout + outline + lesson quizzes
+  $('#mm-body').innerHTML = `
+    <div class="course-full">
+      <div>
+        <img class="course-cover-thumb" src="${c.coverImage||'/icons/learnhub-cap.svg'}" alt="${c.title}"/>
+      </div>
+      <div>
+        <div class="muted">${c.category||'General'} • Credits ${c.credits||0}</div>
+        <p>${c.short||''}</p>
+        ${(c.goals?.length ? `<ul class="list-tight">${c.goals.map(g=>`<li>${g}</li>`).join('')}</ul>` : '')}
+        ${c.price>0 ? `<div style="margin-top:6px"><strong>Price:</strong> ${money(c.price)}</div>` : ''}
+      </div>
+    </div>
+
+    <div class="section-box" style="margin-top:12px">
+      <h4><i class="ri-layout-2-line"></i> Outline</h4>
+      <div id="outline-box"><div class="muted">Loading…</div></div>
+    </div>
+
+    <div class="section-box" style="margin-top:12px">
+      <h4><i class="ri-question-answer-line"></i> Lesson Quizzes</h4>
+      <div id="lesson-quizzes-box"><div class="muted">Loading…</div></div>
+    </div>
+
+    <div id="paypal-zone" class="paypal-zone hidden">
+      <div id="paypal-buttons"></div>
+    </div>
+  `;
+
+  // Foot: free enroll or PayPal; finals jump
+  $('#mm-foot').innerHTML = `
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      ${
+        enrolled
+        ? `<button class="btn ok" disabled>Enrolled</button>`
+        : (c.price>0
+            ? `<button class="btn" id="show-pay"><i class="ri-bank-card-line"></i> Pay & Enroll (${money(c.price)})</button>`
+            : `<button class="btn" id="enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>`
+          )
       }
+      <button class="btn ghost" id="open-quiz"><i class="ri-question-line"></i> Finals</button>
+    </div>
+  `;
+
+  openModal('m-modal');
+
+  // Load outline JSON inline
+  const outlineBox = document.getElementById('outline-box');
+  if(c.outlineUrl){
+    fetchJSON(c.outlineUrl)
+      .then(d => { outlineBox.innerHTML = renderOutlineBox(d); })
+      .catch(err => { outlineBox.innerHTML = `<div class="muted">Could not load outline (${(err&&err.message)||'error'}).</div>`; });
+  }else{
+    outlineBox.innerHTML = `<div class="muted">No outline URL for this course.</div>`;
+  }
+
+  // Load lesson quizzes JSON inline
+  const lessonBox = document.getElementById('lesson-quizzes-box');
+  if(c.quizzesUrl){
+    fetchJSON(c.quizzesUrl)
+      .then(d => { lessonBox.innerHTML = renderLessonQuizzesBox(d); })
+      .catch(err => { lessonBox.innerHTML = `<div class="muted">Could not load lesson quizzes (${(err&&err.message)||'error'}).</div>`; });
+  }else{
+    lessonBox.innerHTML = `<div class="muted">No lesson quizzes URL for this course.</div>`;
+  }
+
+  // Actions
+  document.getElementById('open-quiz')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
+
+  document.getElementById('enroll')?.addEventListener('click', async ()=>{
+    await col('enrollments').add({
+      uid:auth.currentUser.uid, courseId:c.id,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+      course:{ id:c.id,title:c.title,category:c.category,credits:c.credits,coverImage:c.coverImage }
+    });
+    try{
+      await doc('courses', c.id).set({ participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) }, { merge:true });
+    }catch(_e){}
+    closeModal('m-modal'); notify('Enrolled');
+  });
+
+  document.getElementById('show-pay')?.addEventListener('click', ()=> setupPayPalForCourse(c));
+}
       if(editBtn){
         if(!canTeach()) return notify('No permission','warn');
         const id=editBtn.getAttribute('data-edit'); const snap=await doc('courses',id).get(); if(!snap.exists) return;

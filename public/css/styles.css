@@ -170,7 +170,9 @@ img{ max-width:100% }
 
 .modal{ position:fixed; inset:0; display:none; place-items:center; padding:16px; z-index:50 }
 .modal.active{ display:grid }
-.modal .dialog{ width:min(920px,96vw); max-height:90vh; background:var(--panel); border:1px solid var(--border); border-radius:14px; display:flex; flex-direction:column }
+/* Make modals nearly full-width */
+.modal .dialog{ width:min(1200px,98vw); max-height:90vh; background:var(--panel); border:1px solid var(--border); border-radius:14px; display:flex; flex-direction:column }
+
 .modal .head,.modal .foot{ padding:10px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between }
 .modal .foot{ border-top:1px solid var(--border); border-bottom:none }
 .modal .body{ padding:10px 12px; overflow:auto; -webkit-overflow-scrolling:touch; }
@@ -263,9 +265,22 @@ img{ max-width:100% }
 /* small cover in course Details modal */
 .course-details{ display:flex; gap:12px; align-items:flex-start }
 .course-details .left{ flex:0 0 17% }        /* ~17% of modal width */
-.course-cover-thumb{ width:100%; border-radius:12px; display:block }
+/* Course details layout */
+.course-full{ display:grid; grid-template-columns:250px 1fr; gap:16px; align-items:flex-start }
+.course-cover-thumb{ width:250px; height:auto; border-radius:12px; display:block }
+
 
 @media (max-width:860px){
   .course-details{ flex-direction:column }
   .course-details .left{ flex:none; width:40% } /* a bit larger on phones */
+    .course-full{ grid-template-columns:1fr }
+  .course-cover-thumb{ width:60% } /* a bit larger on phones */
 }
+
+.section-box{ border:1px solid var(--border); border-radius:12px; padding:10px; background:var(--panel) }
+.section-box h4{ margin:0 0 6px 0 }
+.list-tight{ margin:6px 0; padding-left:18px }
+.list-tight li{ margin:4px 0 }
+
+.paypal-zone{ margin-top:10px; padding:10px; border:1px dashed var(--border); border-radius:12px; background:var(--panel) }
+.hidden{ display:none !important }
