@@ -2,87 +2,89 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isSignedIn() {
-      return request.auth != null;
+    // ---- helpers ----
+    function isAuthed() { return request.auth != null; }
+    function userRole() {
+      return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role;
     }
-    function roleOf(uid) {
-      return get(/databases/$(database)/documents/roles/$(uid)).data.role;
-    }
-    function isAdmin() {
-      return isSignedIn() && roleOf(request.auth.uid) == 'admin';
-    }
-    function isInstructor() {
-      return isSignedIn() && (roleOf(request.auth.uid) == 'instructor' || roleOf(request.auth.uid) == 'admin');
-    }
-    function isOwner(resourceData) {
-      return isSignedIn() && resourceData.ownerUid == request.auth.uid;
+    function isAdmin() { return isAuthed() && userRole() == "admin"; }
+    function isInstructor() { return isAuthed() && userRole() == "instructor"; }
+    function isTeacher() { return isAdmin() || isInstructor(); }
+    function isOwnerUidNew() { return isAuthed() && request.resource.data.uid == request.auth.uid; }
+    function isOwnerUid(res) { return isAuthed() && res.data.uid == request.auth.uid; }
+
+    // ---- courses ----
+    match /courses/{courseId} {
+      allow read: if true;
+
+      // Only instructors/admins can create courses, and the ownerUid must be themselves
+      allow create: if isTeacher() && request.resource.data.ownerUid == request.auth.uid;
+
+      // Owner instructor can update/delete their own course; admins can update anything
+      allow update, delete:
+        if isAdmin() ||
+           (isInstructor() && resource.data.ownerUid == request.auth.uid);
     }
 
-    // roles — only admins can write; anyone signed in can read (optional)
-    match /roles/{uid} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    // profiles — user can read all; write only own; admins can write all
+    // ---- profiles ----
     match /profiles/{uid} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.auth.uid == uid;
-      allow update, delete: if (isSignedIn() && request.auth.uid == uid) || isAdmin();
+      allow read: if isAuthed();
+      allow create, update, delete: if isAdmin() || request.auth.uid == uid;
     }
 
-    // courses — read for all signed-in; create by instructor/admin; update by owner or instructor/admin
-    match /courses/{id} {
-      allow read: if isSignedIn();
-      allow create: if isInstructor();
-      allow update: if isInstructor() || isOwner(resource.data);
-      allow delete: if isInstructor() || isOwner(resource.data);
+    // ---- roles ----
+    match /roles/{uid} {
+      allow read: if isAuthed();
+      allow write: if isAdmin(); // manage roles through admin only
     }
 
-    // enrollments — user creates/reads own; admin/instructor can read all
+    // ---- enrollments ----
     match /enrollments/{id} {
-      allow read: if isSignedIn() && (isInstructor() || request.resource == null || resource.data.uid == request.auth.uid);
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow read: if isAuthed();
+      // users can create their own enrollment; teachers may also create (e.g. batch add)
+      allow create: if isOwnerUidNew() || isTeacher();
+      allow update, delete: if isAdmin() || isOwnerUid(resource);
     }
 
-    // quizzes — instructors/admins manage; everyone can read to take
+    // ---- quizzes (finals) ----
     match /quizzes/{id} {
-      allow read: if isSignedIn();
-      allow create: if isInstructor();
-      allow update, delete: if isInstructor() || isOwner(resource.data);
+      allow read: if true;
+      allow create: if isTeacher() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete:
+        if isAdmin() || (isInstructor() && resource.data.ownerUid == request.auth.uid);
     }
 
-    // attempts — user writes own attempt; reads own; admin/instructor can read
+    // ---- attempts ----
     match /attempts/{id} {
-      allow read: if isSignedIn() && (isInstructor() || resource.data.uid == request.auth.uid);
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow read: if isAuthed(); // keep it simple; tighten later if needed
+      allow create: if isOwnerUidNew();
+      allow update, delete: if isAdmin() || isOwnerUid(resource);
     }
 
-    // tasks — private per user
+    // ---- tasks ----
     match /tasks/{id} {
-      allow read, update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isAuthed() && (resource.data.uid == request.auth.uid || isTeacher());
+      allow create: if isOwnerUidNew();
+      allow update, delete: if isOwnerUid(resource) || isAdmin();
     }
 
-    // messages — chat
+    // ---- chat messages ----
     match /messages/{id} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow read: if isAuthed();
+      allow create: if isAuthed() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin() || resource.data.uid == request.auth.uid;
     }
 
-    // announcements — admins only write, all signed-in can read
+    // ---- announcements ----
     match /announcements/{id} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin();
+      allow read: if true;
+      allow create, update, delete: if isTeacher();
     }
 
-    // payments (demo)
+    // ---- demo payments ----
     match /payments/{id} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isAdmin() || isOwnerUid(resource);
+      allow create: if isOwnerUidNew();
       allow update, delete: if isAdmin();
     }
   }

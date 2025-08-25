@@ -1,23 +1,29 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function isSignedIn(){ return request.auth != null; }
+    function isAuthed() { return request.auth != null; }
 
-    // Avatars: users can read all (public profile), write only their own path
-    match /avatars/{uid}/{fileName} {
+    // Publicly readable avatars; users can write only into their own path; images only; <=10MB
+    match /avatars/{uid}/{file=**} {
       allow read: if true;
-      allow write: if isSignedIn() && request.auth.uid == uid;
+      allow write: if isAuthed()
+                   && request.auth.uid == uid
+                   && request.resource.contentType.matches('image/.*')
+                   && request.resource.size < 10 * 1024 * 1024;
     }
 
-    // Signatures: readable by signed-in users; write only own path
-    match /signatures/{uid}/{fileName} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == uid;
+    // Publicly readable signatures with same constraints
+    match /signatures/{uid}/{file=**} {
+      allow read: if true;
+      allow write: if isAuthed()
+                   && request.auth.uid == uid
+                   && request.resource.contentType.matches('image/.*')
+                   && request.resource.size < 10 * 1024 * 1024;
     }
 
-    // Default deny
+    // Everything else: read-only public; no writes unless you add a rule above
     match /{allPaths=**} {
-      allow read, write: if false;
+      allow read: if true;
     }
   }
 }
