@@ -1,64 +1,91 @@
-// Firestore security rules (example baseline — tighten as needed)
+// Firestore security rules (fixed)
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---- Helpers ----
+    function roleOf(uid) {
+      return get(/databases/$(database)/documents/roles/$(uid)).data.role;
+    }
+    function isAdmin() { return roleOf(request.auth.uid) == 'admin'; }
+    function isInstructor() { return roleOf(request.auth.uid) == 'instructor'; }
+    function isStaff() { return isAdmin() || isInstructor(); }
+
+    // ---- Courses ----
     match /courses/{id} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && (
-        resource.data.ownerUid == request.auth.uid ||
-        get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role in ['admin','instructor']
-      );
+      // On create, check request.resource (new data); on update/delete, check resource (existing)
+      allow create: if request.auth != null && ( isStaff() || request.resource.data.ownerUid == request.auth.uid );
+      allow update, delete: if request.auth != null && ( isStaff() || resource.data.ownerUid == request.auth.uid );
     }
 
+    // ---- Quizzes (finals) ----
     match /quizzes/{id} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && (
-        request.auth.uid == resource.data.ownerUid ||
-        get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role in ['admin','instructor']
-      );
+      allow create: if request.auth != null && ( isStaff() || request.resource.data.ownerUid == request.auth.uid );
+      allow update, delete: if request.auth != null && ( isStaff() || resource.data.ownerUid == request.auth.uid );
     }
 
+    // ---- Attempts (per-user) ----
     match /attempts/{id} {
-      allow read, write: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      // app only creates attempts; block edits/deletes (or relax if you want)
+      allow update, delete: if false;
     }
 
+    // ---- Enrollments (per-user) ----
     match /enrollments/{id} {
-      allow read, write: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
     }
 
+    // ---- Lesson progress (per-user) ----
     match /progress/{id} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
     }
 
-    match /messages/{id} {
-      allow read, write: if request.auth != null;
-    }
-
+    // ---- Tasks (per-user) ----
     match /tasks/{id} {
-      allow read, write: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
     }
 
+    // ---- Chat messages ----
+    match /messages/{id} {
+      // Everyone signed-in can read/send; only author or staff can modify/delete
+      allow read, create: if request.auth != null;
+      allow update, delete: if request.auth != null && (resource.data.uid == request.auth.uid || isStaff());
+    }
+
+    // ---- Profiles ----
     match /profiles/{uid} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && (
-        request.auth.uid == uid ||
-        get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin'
-      );
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update, delete: if request.auth != null && (request.auth.uid == uid || isAdmin());
     }
 
+    // ---- Roles ----
     match /roles/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin';
+      // user can read their own role; admins can read/write roles
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow write: if request.auth != null && isAdmin();
     }
 
+    // ---- Announcements ----
     match /announcements/{id} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin';
+      allow write: if request.auth != null && isAdmin();
     }
 
+    // ---- Payments (per-user) ----
     match /payments/{id} {
-      allow read, write: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
     }
   }
 }
