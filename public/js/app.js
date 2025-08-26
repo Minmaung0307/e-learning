@@ -1,4 +1,4 @@
-/* LearnHub — E-Learning (fixed build) */
+/* LearnHub — E-Learning (polished build) */
 (() => {
   'use strict';
 
@@ -115,7 +115,7 @@
     }).join('');
   }
 
-  // ---- PayPal setup (robust) ----
+  // ---- PayPal setup ----
   async function setupPayPalForCourse(c){
     const zone = document.getElementById('paypal-zone');
     const btns = document.getElementById('paypal-buttons');
@@ -222,11 +222,12 @@
             ['chat','Course Chat','ri-chat-3-line'],
             ['tasks','Tasks','ri-list-check-2'],
             ['profile','Profile','ri-user-3-line'],
+            // Admin visible to instructors and admins in the menu
             ['admin','Admin','ri-shield-star-line'],
             ['guide','Guide','ri-compass-3-line'],
             ['settings','Settings','ri-settings-3-line']
           ].map(([r,label,ic])=>`
-            <div class="item ${state.route===r?'active':''} ${r==='admin'&&!canManageUsers()?'hidden':''}"
+            <div class="item ${state.route===r?'active':''} ${r==='admin' && !(['admin','instructor'].includes(state.role)) ? 'hidden' : ''}"
                  role="button" tabindex="0" data-route="${r}">
               <i class="${ic}"></i><span>${label}</span>
             </div>`).join('')}
@@ -293,7 +294,6 @@
       </div>
     </div>`;
 
-  // === Dashboard ===
   const dashTile=(label,value,route,icon)=>`
     <div class="card clickable" data-go="${route}">
       <div class="card-body" style="display:flex;align-items:center;justify-content:space-between">
@@ -327,7 +327,7 @@
                   <div class="muted" style="font-size:12px">${new Date(a.createdAt?.toDate?.()||a.createdAt||Date.now()).toLocaleString()}</div>
                   <div style="margin-top:6px">${(a.body||'').replace(/</g,'&lt;')}</div>
                 </div>
-                ${canManageUsers()?`<div style="display:flex;gap:6px">
+                ${(canTeach()||canManageUsers())?`<div style="display:flex;gap:6px">
                   <button class="btn ghost" data-edit-ann="${a.id}"><i class="ri-edit-line"></i></button>
                   <button class="btn danger" data-del-ann="${a.id}"><i class="ri-delete-bin-6-line"></i></button>
                 </div>`:''}
@@ -336,7 +336,7 @@
           `).join('')}
           ${!state.announcements.length? `<div class="muted">No announcements.</div>`:''}
         </div>
-        ${canManageUsers()? `<div style="margin-top:10px"><button class="btn" id="add-ann"><i class="ri-megaphone-line"></i> New Announcement</button></div>`:''}
+        ${(canTeach()||canManageUsers())? `<div style="margin-top:10px"><button class="btn" id="add-ann"><i class="ri-megaphone-line"></i> New Announcement</button></div>`:''}
       </div></div>
     `;
   }
@@ -345,7 +345,6 @@
   function courseCard(c){
     const img = c.coverImage || '/icons/learnhub-cap.svg';
     const goals = (c.goals||[]).slice(0,3).map(g=>`<li>${g}</li>`).join('');
-    const isLong = (c.short||'').length > 160;
     const st = c.style||{};
     const styleStr = [
       st.bg ? `--cc-bg:${st.bg}` : '',
@@ -355,21 +354,20 @@
       st.badgeText ? `--cc-badge-text:${st.badgeText}` : ''
     ].filter(Boolean).join(';');
 
+    const isOwner = (c.ownerUid && auth.currentUser?.uid && c.ownerUid === auth.currentUser.uid);
+    const canEdit = canTeach() || isOwner;
+
     return `
     <div class="card course-card ${st.cardClass||''} ${state.highlightId===c.id?'highlight':''}" id="${c.id}" style="${styleStr}">
       <div class="top-media"><img src="${img}" alt="${c.title}"/></div>
       <div class="card-body">
-        <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <div style="font-weight:800">${c.title}</div>
           <span class="badge">${c.category||'General'}</span>
         </div>
 
-        <div class="short-wrap">
-          <div class="muted short ${isLong?'clamp':''}">${(c.short||'').replace(/</g,'&lt;')}</div>
-          ${isLong? `<button class="short-toggle" data-short-toggle>Read more</button>`:''}
-        </div>
-
-        ${goals?`<ul style="margin-top:8px">${goals}</ul>`:''}
+        <div class="muted short">${(c.short||'').replace(/</g,'&lt;')}</div>
+        ${goals?`<ul style="margin-top:6px">${goals}</ul>`:''}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
           <div class="muted">Credits: <strong>${c.credits||0}</strong></div>
           <div style="font-weight:800">${money(c.price||0)}</div>
@@ -377,8 +375,8 @@
 
         <div class="footer-actions">
           <button class="btn" data-open="${c.id}"><i class="ri-external-link-line"></i> Details</button>
-          ${canTeach()? `<button class="btn ghost" data-edit="${c.id}"><i class="ri-edit-line"></i></button>
-          <button class="btn danger" data-del="${c.id}"><i class="ri-delete-bin-6-line"></i></button>`:''}
+          ${canEdit? `<button class="btn ghost" data-edit="${c.id}" title="Edit"><i class="ri-edit-line"></i></button>
+          <button class="btn danger" data-del="${c.id}" title="Delete"><i class="ri-delete-bin-6-line"></i></button>`:''}
         </div>
       </div>
     </div>`;
@@ -411,10 +409,7 @@
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">My Learning</h3>
         <div class="grid cols-4 cards-uniform">
-          ${list.map(c=>{
-            const isLong = (c.short||'').length > 160;
-            const txt = (c.short||'').replace(/</g,'&lt;');
-            return `
+          ${list.map(c=>`
             <div class="card course-card">
               <div class="top-media"><img src="${c.coverImage||'/icons/learnhub-cap.svg'}" alt="${c.title||''}"/></div>
               <div class="card-body">
@@ -422,16 +417,12 @@
                   <div style="font-weight:800">${c.title||'(deleted course)'}</div>
                   <span class="badge">${c.category||'General'}</span>
                 </div>
-                <div class="short-wrap">
-                  <div class="muted short ${isLong?'clamp':''}">${txt}</div>
-                  ${isLong? `<button class="short-toggle" data-short-toggle>Read more</button>`:''}
-                </div>
+                <div class="muted short">${(c.short||'').replace(/</g,'&lt;')}</div>
                 <div class="footer-actions">
                   <button class="btn" data-open-course="${c.id}">Open</button>
                 </div>
               </div>
-            </div>`;
-          }).join('')}
+            </div>`).join('')}
           ${!list.length? `<div class="muted" style="padding:10px">You’re not enrolled yet.</div>`:''}
         </div>
       </div></div>`;
@@ -454,7 +445,7 @@
                 </div>
                 <div class="actions" style="display:flex;gap:6px">
                   <button class="btn" data-take="${q.id}"><i class="ri-play-line"></i> Take</button>
-                  ${canTeach()||q.ownerUid===auth.currentUser?.uid? `<button class="btn ghost" data-edit="${q.id}"><i class="ri-edit-line"></i></button>`:''}
+                  ${(canTeach()||q.ownerUid===auth.currentUser?.uid)? `<button class="btn ghost" data-edit="${q.id}"><i class="ri-edit-line"></i></button>`:''}
                 </div>
               </div>
             </div>`).join('')}
@@ -481,7 +472,6 @@
     `;
   }
 
-  // === Chat ===
   const vChat=()=>`
   <div class="card"><div class="card-body">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between">
@@ -514,7 +504,6 @@
     </div>
   </div></div>`;
 
-  // === Tasks ===
   function vTasks(){
     const my=auth.currentUser?.uid;
     const lane=(key,label,color)=>{
@@ -543,7 +532,7 @@
     return `<div data-sec="tasks">${lane('todo','To do','#f59e0b')}${lane('inprogress','In progress','#3b82f6')}${lane('done','Done','#10b981')}</div>`;
   }
 
-  // === Guide (unchanged) ===
+    // === Guide (unchanged) ===
   function vGuide(){ /* same big guide as you shared */ return `
   <section class="guide">
     <style>
@@ -759,16 +748,15 @@
     return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
   }
 
-  // === Profile (SINGLE COLUMN as requested) ===
   function vProfile(){
     const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {name:'',bio:'',portfolio:'',avatar:'',signature:''};
     return `
-      <div>
+      <div class="grid cols-2">
         <div class="card"><div class="card-body">
           <h3 style="margin:0 0 8px 0">My Profile</h3>
           <div class="grid">
             <input id="pf-name" class="input" placeholder="Name" value="${me.name||''}"/>
-            <input id="pf-portfolio" class="input" placeholder="Portfolio URL" value="${me.portfolio||''}"/>
+            <input id="pf-portfolio" class="input" placeholder="Portfolio URL (https://…)" value="${me.portfolio||''}"/>
             <textarea id="pf-bio" class="input" placeholder="Short bio">${me.bio||''}</textarea>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <input id="pf-avatar" type="file" accept="image/*" style="display:none"/>
@@ -803,9 +791,14 @@
   }
 
   function vAdmin(){
-    if(!canManageUsers()) return `<div class="card"><div class="card-body">Admins only.</div></div>`;
+    // Instructors can access roster/transcript tools; only admins can manage roles & delete users
+    const canSee = ['admin','instructor'].includes(state.role);
+    if(!canSee) return `<div class="card"><div class="card-body">Admins/Instructors only.</div></div>`;
+    const isAdmin = canManageUsers();
+
     return `
       <div class="grid cols-2">
+        ${isAdmin ? `
         <div class="card"><div class="card-body">
           <h3 style="margin:0 0 8px 0">Role Manager</h3>
           <div class="grid">
@@ -815,6 +808,7 @@
             <div class="muted" style="font-size:12px">Tip: Create roles/{yourUid} with role “admin”.</div>
           </div>
         </div></div>
+        `:''}
 
         <div class="card"><div class="card-body">
           <h3 style="margin:0 0 8px 0">Users (profiles)</h3>
@@ -824,7 +818,7 @@
               <td>${p.name||'—'}</td><td>${p.email||'—'}</td><td>${p.role||'student'}</td>
               <td>
                 <button class="btn ghost" data-admin-edit="${p.uid}"><i class="ri-edit-line"></i></button>
-                <button class="btn danger" data-admin-del="${p.uid}"><i class="ri-delete-bin-6-line"></i></button>
+                ${isAdmin ? `<button class="btn danger" data-admin-del="${p.uid}"><i class="ri-delete-bin-6-line"></i></button>`:''}
               </td></tr>`).join('')}
             </tbody></table>
           </div>
@@ -851,9 +845,8 @@
           <div id="roster-out" class="muted" style="margin-top:8px"></div>
         </div></div>
 
-        <!-- Transcript Viewer (Admin) -->
         <div class="card" style="grid-column:1/-1"><div class="card-body">
-          <h3 style="margin:0 0 8px 0">Transcript Viewer (Admin)</h3>
+          <h3 style="margin:0 0 8px 0">Transcript Viewer</h3>
           <div class="grid cols-3">
             <div>
               <label class="muted">User</label>
@@ -955,12 +948,6 @@
 
     $('#main')?.addEventListener('click', (e)=>{
       const goEl = e.target.closest?.('[data-go]'); if (goEl) { go(goEl.getAttribute('data-go')); return; }
-      const tg = e.target.closest?.('[data-short-toggle]');
-      if(tg){
-        const wrap = tg.closest('.card-body') || tg.parentElement;
-        const block = wrap.querySelector('.short');
-        if(block){ const isClamped = block.classList.toggle('clamp'); tg.textContent = isClamped ? 'Read more' : 'Read less'; }
-      }
       closeSidebar();
     });
 
@@ -1173,7 +1160,7 @@
         `;
         openModal('m-modal');
 
-        // ---- Outline / Progress
+        // Outline / Progress
         const outlineBox = document.getElementById('outline-box');
         let outlineData = null;
         try { if(c.outlineUrl){ outlineData = await fetchJSON(c.outlineUrl); } } catch(err){ console.warn('outline load failed:', err); }
@@ -1197,7 +1184,7 @@
           }catch(e){ console.warn('toggleLessonProgress failed:', e); }
         });
 
-        // ---- Lesson Quizzes
+        // Lesson Quizzes
         const lessonBox = document.getElementById('lesson-quizzes-box');
         if(c.quizzesUrl){
           try{ const d = await fetchJSON(c.quizzesUrl); lessonBox.innerHTML = renderLessonQuizzesBox(d); }
@@ -1206,7 +1193,7 @@
           lessonBox.innerHTML = `<div class="muted">No lesson quizzes URL for this course.</div>`;
         }
 
-        // ---- Actions
+        // Actions
         $('#open-quiz')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
         $('#enroll')?.addEventListener('click', async ()=>{
           await col('enrollments').add({
@@ -1219,10 +1206,13 @@
         });
         $('#show-pay')?.addEventListener('click', ()=> setupPayPalForCourse(c));
       }
+
       if(editBtn){
-        if(!canTeach()) return notify('No permission','warn');
         const id=editBtn.getAttribute('data-edit'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
         const c={id:snap.id, ...snap.data()};
+        const isOwner = (c.ownerUid && auth.currentUser?.uid && c.ownerUid === auth.currentUser.uid);
+        if(!(canTeach() || isOwner)) return notify('No permission','warn');
+
         $('#mm-title').textContent='Edit Course';
         $('#mm-body').innerHTML=`
           <div class="grid">
@@ -1240,7 +1230,7 @@
         openModal('m-modal');
         $('#c-save').onclick=async ()=>{
           const goals=($('#c-goals')?.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-          await doc('courses', id).set(clean({
+          await doc('courses',id).set(clean({
             title:$('#c-title')?.value.trim(), category:$('#c-category')?.value.trim(),
             credits:+($('#c-credits')?.value||0), price:+($('#c-price')?.value||0),
             short:$('#c-short')?.value.trim(), goals,
@@ -1250,9 +1240,12 @@
           closeModal('m-modal'); notify('Saved');
         };
       }
+
       if(delBtn){
-        if(!canTeach()) return notify('No permission','warn');
-        const id=delBtn.getAttribute('data-del');
+        const id=delBtn.getAttribute('data-del'); const snap=await doc('courses',id).get(); if(!snap.exists) return;
+        const c={id:snap.id, ...snap.data()};
+        const isOwner = (c.ownerUid && auth.currentUser?.uid && c.ownerUid === auth.currentUser.uid);
+        if(!(canTeach() || isOwner)) return notify('No permission','warn');
         await doc('courses',id).delete();
         notify('Course deleted');
       }
@@ -1297,7 +1290,6 @@
       $('#open-quiz')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
       $('#mm-close2')?.addEventListener('click', ()=> closeModal('m-modal'));
 
-      // ---- Outline / Progress
       const outlineBox = document.getElementById('outline-box');
       let outlineData = null;
       try { if(c.outlineUrl){ outlineData = await fetchJSON(c.outlineUrl); } } catch(err){ console.warn('outline load failed:', err); }
@@ -1550,7 +1542,7 @@
     });
   }
 
-  // ---- Profile wiring (uploads + certificate)
+  // ---- Profile wiring (uploads + certificate + view card)
   function wireProfile(){
     $('#pf-pick')?.addEventListener('click', ()=> $('#pf-avatar')?.click());
     $('#pf-pick-sign')?.addEventListener('click', ()=> $('#pf-sign')?.click());
@@ -1585,6 +1577,10 @@
 
     $('#pf-view')?.addEventListener('click', ()=>{
       const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {};
+      const safeBio = (me.bio||'').replace(/</g,'&lt;');
+      const safeUrl = (me.portfolio||'').replace(/</g,'&lt;');
+      const clickable = safeUrl ? `<a href="${safeUrl}" target="_blank" rel="noopener">Visit portfolio</a>` : '<span class="muted">No portfolio URL</span>';
+
       $('#mm-title').textContent='Profile Card';
       $('#mm-body').innerHTML=`
         <div class="grid">
@@ -1595,7 +1591,8 @@
               <div class="muted">${me.email||''}</div>
             </div>
           </div>
-          <div>${(me.bio||'').replace(/</g,'&lt;')}</div>
+          <div>${safeBio}</div>
+          <div><strong>Portfolio:</strong> ${clickable}</div>
           ${me.signature? `<div class="muted">Signature:</div><img src="${me.signature}" alt="signature" style="max-height:48px">`:''}
         </div>`;
       $('#mm-foot').innerHTML=`<button class="btn ghost" id="mm-ok">Close</button>`; openModal('m-modal');
@@ -1660,6 +1657,7 @@
         };
       }
       if(del){
+        if(!canManageUsers()) return notify('Admins only','warn');
         const uid=del.getAttribute('data-admin-del');
         await doc('profiles',uid).delete();
         notify('Profile deleted');
@@ -1757,7 +1755,7 @@
 
   // ---- Announcements
   function wireAnnouncements(){
-    if(!canManageUsers()) return;
+    if(!(canTeach()||canManageUsers())) return;
     $('#add-ann')?.addEventListener('click', ()=>{
       $('#mm-title').textContent='Announcement';
       $('#mm-body').innerHTML=`<div class="grid">
@@ -1790,11 +1788,19 @@
     });
   }
 
-  // ---- Firestore sync
+  // ---- Firestore sync (live role listener added)
   function clearUnsubs(){ state.unsub.forEach(u=>{try{u()}catch{}}); state.unsub=[]; }
   function sync(){
     clearUnsubs();
     const uid=auth.currentUser.uid;
+
+    // Live role updates ensure Admin menu/buttons appear without reload
+    state.unsub.push(
+      doc('roles', uid).onSnapshot(
+        s => { const r=(s.data()?.role||'student').toLowerCase(); state.role = VALID_ROLES.includes(r)?r:'student'; render(); },
+        _=>{}
+      )
+    );
 
     state.unsub.push(
       col('profiles').onSnapshot(
@@ -1881,9 +1887,9 @@
     const u=auth.currentUser; if(!u) return alert('Sign in first');
     const list=[
       {title:'Advanced Digital Marketing',category:'Marketing',credits:4,price:250,short:'Master SEO, social media, content strategy.',goals:['Get certified','Hands-on project','Career guidance'],coverImage:'https://images.unsplash.com/photo-1554774853-b415df9eeb92?w=1200&q=80', style: { cardClass: 'theme-gold' }},
-      {title:'Modern Web Bootcamp',category:'CS',credits:5,price:0,short:'HTML, CSS, JS, and tooling.',goals:['Responsive sites','Deploy to Hosting','APIs basics'],coverImage:'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&q=80',
+      {title:'Modern Web Bootcamp',category:'CS',credits:5,price:0,short:'HTML, CSS, JS, and tooling. Build responsive sites and deploy to hosting.',goals:['Responsive sites','Deploy to Hosting','APIs basics'],coverImage:'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&q=80',
         style:{ bg:'linear-gradient(135deg,#0ea5e9,#22c55e)', text:'#0b1220', badgeBg:'rgba(255,255,255,.4)', badgeText:'#0b1220' } },
-      {title:'Data Visualization 101',category:'Analytics',credits:3,price:120,short:'Chart design, data literacy, storytelling with visuals.',goals:['Good chart choices','Avoid mislead','Tell impact'],coverImage:'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1200&q=80',style:{cardClass:'theme-ice'}}
+      {title:'Data Visualization 101 (Cat Edition)',category:'Analytics',credits:3,price:120,short:'Chart design, data literacy, storytelling with visuals. Cute cat cover shows FULL cat thanks to object-fit: contain.',goals:['Good chart choices','Avoid mislead','Tell impact'],coverImage:'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=1200&q=80',style:{cardClass:'theme-ice'}}
     ];
     for(const c of list){
       await col('courses').add({...c, ownerUid:u.uid, ownerEmail:u.email, participants:[u.uid], createdAt:firebase.firestore.FieldValue.serverTimestamp()});
