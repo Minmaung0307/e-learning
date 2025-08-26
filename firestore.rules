@@ -1,91 +1,59 @@
-// Firestore security rules (fixed)
+// Firestore security rules (essentials for this app)
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
+  match /databases/{db}/documents {
 
-    // ---- Helpers ----
-    function roleOf(uid) {
-      return get(/databases/$(database)/documents/roles/$(uid)).data.role;
-    }
-    function isAdmin() { return roleOf(request.auth.uid) == 'admin'; }
-    function isInstructor() { return roleOf(request.auth.uid) == 'instructor'; }
-    function isStaff() { return isAdmin() || isInstructor(); }
-
-    // ---- Courses ----
-    match /courses/{id} {
-      allow read: if request.auth != null;
-      // On create, check request.resource (new data); on update/delete, check resource (existing)
-      allow create: if request.auth != null && ( isStaff() || request.resource.data.ownerUid == request.auth.uid );
-      allow update, delete: if request.auth != null && ( isStaff() || resource.data.ownerUid == request.auth.uid );
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() &&
+             get(/databases/$(db)/documents/roles/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // ---- Quizzes (finals) ----
-    match /quizzes/{id} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && ( isStaff() || request.resource.data.ownerUid == request.auth.uid );
-      allow update, delete: if request.auth != null && ( isStaff() || resource.data.ownerUid == request.auth.uid );
-    }
+    /* Publicly readable content */
+    match /courses/{id}  { allow read: if true; allow write: if isAdmin(); }
+    match /quizzes/{id}  { allow read: if true; allow write: if isAdmin(); }
+    match /announcements/{id} { allow read: if true; allow write: if isAdmin(); }
 
-    // ---- Attempts (per-user) ----
-    match /attempts/{id} {
-      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
-      // app only creates attempts; block edits/deletes (or relax if you want)
-      allow update, delete: if false;
-    }
-
-    // ---- Enrollments (per-user) ----
-    match /enrollments/{id} {
-      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
-    }
-
-    // ---- Lesson progress (per-user) ----
-    match /progress/{id} {
-      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
-    }
-
-    // ---- Tasks (per-user) ----
-    match /tasks/{id} {
-      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
-    }
-
-    // ---- Chat messages ----
-    match /messages/{id} {
-      // Everyone signed-in can read/send; only author or staff can modify/delete
-      allow read, create: if request.auth != null;
-      allow update, delete: if request.auth != null && (resource.data.uid == request.auth.uid || isStaff());
-    }
-
-    // ---- Profiles ----
+    /* User-scoped docs — user can only see their own */
     match /profiles/{uid} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && request.auth.uid == uid;
-      allow update, delete: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow read: if signedIn();
+      allow create, update, delete: if signedIn() && request.auth.uid == uid || isAdmin();
     }
 
-    // ---- Roles ----
+    match /enrollments/{docId} {
+      allow read, create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid || isAdmin();
+    }
+
+    match /attempts/{docId} {
+      allow read, create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid || isAdmin();
+    }
+
+    match /tasks/{docId} {
+      allow read, create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid || isAdmin();
+    }
+
+    match /progress/{docId} {
+      // docId looks like "<uid>_<courseId>", but we check the stored uid field
+      allow read, create:  if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid || isAdmin();
+    }
+
+    match /messages/{docId} {
+      allow read, create: if signedIn();
+      allow update, delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    match /payments/{docId} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isAdmin();   // or false if you prefer private
+    }
+
     match /roles/{uid} {
-      // user can read their own role; admins can read/write roles
-      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
-      allow write: if request.auth != null && isAdmin();
-    }
-
-    // ---- Announcements ----
-    match /announcements/{id} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && isAdmin();
-    }
-
-    // ---- Payments (per-user) ----
-    match /payments/{id} {
-      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
     }
   }
 }
