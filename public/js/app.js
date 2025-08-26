@@ -2,7 +2,6 @@
 (() => {
   'use strict';
 
-  // ---- DOM ready ----
   const onReady = (fn)=> (document.readyState==='loading'? document.addEventListener('DOMContentLoaded', fn, {once:true}) : fn());
 
   // ---- Firebase ----
@@ -38,15 +37,9 @@
   const isEnrolled = (courseId)=> state.myEnrolledIds.has(courseId);
   const money = x => (x===0 ? 'Free' : `$${Number(x).toFixed(2)}`);
   const clean = (obj) => Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined && !(typeof v === 'number' && Number.isNaN(v))));
-
   const fetchJSON = async (url)=>{ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return await r.json(); };
-
-  const slug = s => (s||'').toString().toLowerCase()
-    .normalize('NFKD').replace(/[\u0300-\u036f]/g,'')
-    .replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
-  function lessonId(chIdx, chTitle, lIdx, lTitle){
-    return `${String(chIdx+1).padStart(2,'0')}-${slug(chTitle||`chapter-${chIdx+1}`)}__${String(lIdx+1).padStart(2,'0')}-${slug(lTitle||`lesson-${lIdx+1}`)}`;
-  }
+  const slug = s => (s||'').toString().toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+  function lessonId(chIdx, chTitle, lIdx, lTitle){ return `${String(chIdx+1).padStart(2,'0')}-${slug(chTitle||`chapter-${chIdx+1}`)}__${String(lIdx+1).padStart(2,'0')}-${slug(lTitle||`lesson-${lIdx+1}`)}`; }
   function countLessons(outline){ let n=0; (outline?.chapters||[]).forEach(ch=>{ n += Array.isArray(ch.lessons) ? ch.lessons.length : 0; }); return n; }
   async function getProgressLessons(courseId){ const uid=auth.currentUser.uid; const s=await doc('progress',`${uid}_${courseId}`).get(); return s.exists ? (s.data().lessons||{}) : {}; }
   async function ensureProgressTotal(courseId, total){ if(!total) return; const uid=auth.currentUser.uid; await doc('progress',`${uid}_${courseId}`).set({ uid, courseId, total }, { merge:true }); }
@@ -55,6 +48,7 @@
     const payload = checked ? { [`lessons.${id}`]: true } : { [`lessons.${id}`]: firebase.firestore.FieldValue.delete() };
     await ref.set({ uid, courseId, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), ...payload }, { merge:true });
   }
+
   function renderCourseProgressHeader(course, outline, progressLessons){
     const total = countLessons(outline);
     const done = Object.keys(progressLessons||{}).length;
@@ -189,7 +183,6 @@
   const routes=['dashboard','courses','learning','assessments','chat','tasks','profile','admin','guide','settings','search'];
   function go(route){
     state.route = routes.includes(route)?route:'dashboard';
-    // ensure modals/backdrops never block nav (fix for Profile not clickable if modal open)
     closeModal('m-modal'); closeSidebar();
     if (state._unsubChat && route!=='chat') { try{ state._unsubChat(); }catch{} state._unsubChat = null; }
     render();
@@ -284,9 +277,9 @@
       </div>
     </div>`;
 
-  const dashCard=(label,value,route,icon)=>`
+  // === Dashboard (restored previous minimal KPI tiles — no big header image inside) ===
+  const dashTile=(label,value,route,icon)=>`
     <div class="card clickable" data-go="${route}">
-      <div class="top-media"><img src="/icons/learnhub-cap.svg" alt=""></div>
       <div class="card-body" style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <div class="muted">${label}</div>
@@ -302,18 +295,17 @@
     const myAttempts = state.attempts.filter(a=>a.uid===my).length;
     return `
       <div class="grid cols-4">
-        ${dashCard('Courses', state.courses.length,'courses','ri-book-2-line')}
-        ${dashCard('My Learning', myEnroll,'learning','ri-graduation-cap-line')}
-        ${dashCard('Finals', state.quizzes.filter(q=>q.isFinal).length,'assessments','ri-file-list-3-line')}
-        ${dashCard('My Attempts', myAttempts,'assessments','ri-checkbox-circle-line')}
+        ${dashTile('Courses', state.courses.length,'courses','ri-book-2-line')}
+        ${dashTile('My Learning', myEnroll,'learning','ri-graduation-cap-line')}
+        ${dashTile('Finals', state.quizzes.filter(q=>q.isFinal).length,'assessments','ri-file-list-3-line')}
+        ${dashTile('My Attempts', myAttempts,'assessments','ri-checkbox-circle-line')}
       </div>
 
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">Announcements</h3>
         <div id="ann-list">
           ${state.announcements.map(a=>`
-            <div class="card"><div class="top-media"><img src="/icons/learnhub-cap.svg" alt=""></div>
-              <div class="card-body" style="display:flex;justify-content:space-between;gap:10px">
+            <div class="card"><div class="card-body" style="display:flex;justify-content:space-between;gap:10px">
                 <div>
                   <div style="font-weight:700">${a.title||'—'}</div>
                   <div class="muted" style="font-size:12px">${new Date(a.createdAt?.toDate?.()||a.createdAt||Date.now()).toLocaleString()}</div>
@@ -333,6 +325,7 @@
     `;
   }
 
+  // === Course/My Learning cards (equal height + buttons at bottom + full image fit) ===
   function courseCard(c){
     const img = c.coverImage || '/icons/learnhub-cap.svg';
     const goals = (c.goals||[]).slice(0,3).map(g=>`<li>${g}</li>`).join('');
@@ -361,11 +354,12 @@
         </div>
 
         ${goals?`<ul style="margin-top:8px">${goals}</ul>`:''}
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
           <div class="muted">Credits: <strong>${c.credits||0}</strong></div>
           <div style="font-weight:800">${money(c.price||0)}</div>
         </div>
-        <div style="display:flex;gap:8px;margin-top:10px">
+
+        <div class="footer-actions">
           <button class="btn" data-open="${c.id}"><i class="ri-external-link-line"></i> Details</button>
           ${canTeach()? `<button class="btn ghost" data-edit="${c.id}"><i class="ri-edit-line"></i></button>
           <button class="btn danger" data-del="${c.id}"><i class="ri-delete-bin-6-line"></i></button>`:''}
@@ -386,7 +380,7 @@
             </div>` : ''
           }
         </div>
-        <div class="grid cols-4" data-sec="courses">
+        <div class="grid cols-4 cards-uniform" data-sec="courses">
           ${state.courses.map(courseCard).join('')}
           ${!state.courses.length? `<div class="muted" style="padding:10px">No courses yet.</div>`:''}
         </div>
@@ -400,7 +394,7 @@
     return `
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">My Learning</h3>
-        <div class="grid cols-4">
+        <div class="grid cols-4 cards-uniform">
           ${list.map(c=>{
             const isLong = (c.short||'').length > 160;
             const txt = (c.short||'').replace(/</g,'&lt;');
@@ -416,8 +410,7 @@
                   <div class="muted short ${isLong?'clamp':''}">${txt}</div>
                   ${isLong? `<button class="short-toggle" data-short-toggle>Read more</button>`:''}
                 </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-                  <div class="muted">Credits: <strong>${c.credits||0}</strong></div>
+                <div class="footer-actions">
                   <button class="btn" data-open-course="${c.id}">Open</button>
                 </div>
               </div>
@@ -438,7 +431,6 @@
         <div class="grid" data-sec="quizzes">
           ${state.quizzes.filter(q=>q.isFinal).map(q=>`
             <div class="card ${state.highlightId===q.id?'highlight':''}" id="${q.id}">
-              <div class="top-media"><img src="/icons/learnhub-cap.svg" alt=""></div>
               <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
                 <div>
                   <div style="font-weight:800">${q.title}</div>
@@ -473,16 +465,17 @@
     `;
   }
 
+  // === Chat (restored: Course / DM / Group modes visible) ===
   const vChat=()=>`
   <div class="card"><div class="card-body">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between">
       <h3 style="margin:0">Chat</h3>
+      <div id="chat-modes" style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn ghost" data-mode="course">Course</button>
+        <button class="btn ghost" data-mode="dm">DM</button>
+        <button class="btn ghost" data-mode="group">Group</button>
+      </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <select id="chat-mode" class="input">
-          <option value="course">Course-wide</option>
-          <option value="dm">Direct</option>
-          <option value="group">Group/Batch</option>
-        </select>
         <select id="chat-course" class="input">
           <option value="">Select course…</option>
           ${state.courses.map(c=>`<option value="${c.id}">${c.title}</option>`).join('')}
@@ -505,6 +498,7 @@
     </div>
   </div></div>`;
 
+  // === Tasks (restored minimal lanes; no image headers) ===
   function vTasks(){
     const my=auth.currentUser?.uid;
     const lane=(key,label,color)=>{
@@ -518,7 +512,6 @@
           <div class="grid lane-grid" id="lane-${key}">
             ${cards.map(t=>`
               <div class="card task-card" id="${t.id}" draggable="true" data-task="${t.id}" style="cursor:grab">
-                <div class="top-media"><img src="/icons/learnhub-cap.svg" alt=""></div>
                 <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
                   <div>${t.title}</div>
                   <div class="actions">
@@ -535,247 +528,23 @@
   }
 
   function vGuide(){
-  return `
-  <section class="guide">
-    <style>
-      /* compact, readable styles for the Guide page only */
-      .guide{
-        --g-bg: linear-gradient(135deg,#0ea5e9 0%, #22c55e 100%);
-        --g-text: var(--text);
-        --g-muted: var(--muted);
-        --g-border: var(--border);
-        --g-surface: var(--panel);
-        --g-surface-2: color-mix(in srgb, var(--panel) 90%, #fff 10%);
-        --g-link: var(--primary);
-        --g-code-bg:#0b1220; --g-code-text:#e5e7eb;
-      }
-      .theme-light .guide{ --g-code-bg:#0f172a; --g-code-text:#e5e7eb; }
-
-      .guide, .guide *{ color:var(--g-text) }
-      .guide a{ color:var(--g-link); text-underline-offset:2px }
-      .guide .muted{ color:var(--g-muted) }
-
-      .guide .hero{ background:var(--g-bg); color:#fff; border-radius:16px; padding:24px 18px; box-shadow:0 6px 24px rgba(0,0,0,.15); }
-      .guide .hero .title{ font-size:22px; font-weight:800 }
-      .guide .hero .subtitle{ opacity:.95; font-size:13px }
-      .guide .nav{ display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 0 }
-      .guide .nav a{ text-decoration:none; background:rgba(0,0,0,.18); color:#fff; padding:7px 10px; border-radius:999px; font-size:12px; border:1px solid rgba(255,255,255,.25); }
-
-      .guide .section{ margin-top:14px }
-      .guide .h{ display:flex; align-items:center; gap:8px; margin:0 0 6px 0; font-size:16px; font-weight:800 }
-      .guide .gcard{ border:1px solid var(--g-border); border-radius:14px; background:var(--g-surface); padding:12px; display:grid; gap:10px }
-      .guide .grid2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px }
-      .guide .grid3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px }
-      .guide .step{ display:flex; gap:10px; align-items:flex-start; padding:10px; border-radius:12px; border:1px dashed var(--g-border); background:var(--g-surface-2); }
-      .guide .badge{ display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border-radius:999px; font-size:12px; background:var(--g-surface-2); border:1px solid var(--g-border); }
-      .guide pre{ background:var(--g-code-bg)!important; color:var(--g-code-text)!important; padding:10px 12px; border-radius:12px; overflow:auto; border:1px solid #1f2937; white-space:pre; tab-size:2; }
-      .guide code{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace }
-      .guide ul{ margin:6px 0 0 18px }
-      @media(max-width:840px){ .guide .grid2,.guide .grid3{ grid-template-columns:1fr } }
-    </style>
-
-    <div class="hero">
-      <div class="title"><i class="ri-compass-3-line"></i> LearnHub — Complete Guide</div>
-      <div class="subtitle">Everything in the left sidebar, plus payments, styling, hosted JSON, and fixes.</div>
-      <div class="nav">
-        <a href="#menus">Menus</a>
-        <a href="#dashboard">Dashboard</a>
-        <a href="#courses">Courses</a>
-        <a href="#learning">My&nbsp;Learning</a>
-        <a href="#assessments">Finals</a>
-        <a href="#chat">Chat</a>
-        <a href="#tasks">Tasks</a>
-        <a href="#profile">Profile</a>
-        <a href="#admin">Admin</a>
-        <a href="#settings">Settings</a>
-        <a href="#search">Search</a>
-        <a href="#payments">Payments</a>
-        <a href="#styling">Styling</a>
-        <a href="#datajson">Hosting JSON</a>
-        <a href="#troubleshoot">Troubleshooting</a>
-        <a href="#guide">About&nbsp;Guide</a>
-      </div>
-    </div>
-
-    <!-- MENUS OVERVIEW -->
-    <div id="menus" class="section">
-      <div class="h"><i class="ri-layout-2-line"></i> Sidebar Menus (at a glance)</div>
-      <div class="gcard grid3">
-        <div class="gcard"><div class="badge"><i class="ri-dashboard-line"></i> Dashboard</div><div class="muted">KPIs + Announcements</div></div>
-        <div class="gcard"><div class="badge"><i class="ri-book-2-line"></i> Courses</div><div class="muted">Create, style, JSON outline & lesson quizzes, enroll/pay</div></div>
-        <div class="gcard"><div class="badge"><i class="ri-graduation-cap-line"></i> My Learning</div><div class="muted">Open enrolled course, inline outline/quizzes</div></div>
-        <div class="gcard"><div class="badge"><i class="ri-file-list-3-line"></i> Finals</div><div class="muted">Create/Take final exams; attempts</div></div>
-        <div class="gcard"><div class="badge"><i class="ri-chat-3-line"></i> Chat</div><div class="muted">Course / DM / Group channels</div></div>
-        <div class="gcard"><div class="badge"><i class="ri-list-check-2"></i> Tasks</div><div class="muted">Personal kanban</div></div>
-        <div class="gcard"><div class="badge"><i class="ri-user-3-line"></i> Profile</div><div class="muted">Bio, avatar, signature, certificate</div></div>
-        <div class="gcard"><div class="badge"><i class="ri-shield-star-line"></i> Admin</div><div class="muted">Roles, Users, Roster, Announcements</div></div>
-        <div class="gcard"><div class="badge"><i class="ri-settings-3-line"></i> Settings</div><div class="muted">Theme palette & font size</div></div>
-        <div class="gcard"><div class="badge"><i class="ri-search-line"></i> Search</div><div class="muted">Global search with live suggestions</div></div>
-        <div class="gcard"><div class="badge"><i class="ri-compass-3-line"></i> Guide</div><div class="muted">You’re here</div></div>
-      </div>
-    </div>
-
-    <!-- DASHBOARD -->
-    <div id="dashboard" class="section">
-      <div class="h"><i class="ri-dashboard-line"></i> Dashboard</div>
-      <div class="gcard grid2">
-        <div class="step"><i class="ri-megaphone-line"></i><div><b>Announcements</b>: Admins can post/edit/delete. Everyone sees the feed.</div></div>
-        <div class="step"><i class="ri-pie-chart-2-line"></i><div><b>KPIs</b>: Courses, your enrollments, finals count, attempts.</div></div>
-      </div>
-    </div>
-
-    <!-- COURSES -->
-    <div id="courses" class="section">
-      <div class="h"><i class="ri-book-2-line"></i> Courses</div>
-      <div class="gcard">
-        <div class="grid2">
-          <div class="step"><i class="ri-add-line"></i><div><b>New Course</b>: Fill Title, Category, Credits, Price, Short; optional Goals, Cover, Outline JSON URL, Lesson Quizzes JSON URL.</div></div>
-          <div class="step"><i class="ri-brush-line"></i><div><b>Per-course Style</b>: Add a <code>style</code> map (Firestore or JSON import) — see <a href="#styling">Styling</a>.</div></div>
-          <div class="step"><i class="ri-image-line"></i><div><b>Cover</b>: Use a full HTTPS image URL or a deployed path (e.g. <code>/images/cover.jpg</code>).</div></div>
-          <div class="step"><i class="ri-external-link-line"></i><div><b>Details</b>: Opens a full-width sheet. Cover image is shown at ~250px wide; Outline & Lesson Quizzes are rendered inline (no extra “view” clicks).</div></div>
-          <div class="step"><i class="ri-bank-card-line"></i><div><b>Pay & Enroll</b>: If <code>price&gt;0</code>, PayPal button appears — see <a href="#payments">Payments</a>.</div></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- MY LEARNING -->
-    <div id="learning" class="section">
-      <div class="h"><i class="ri-graduation-cap-line"></i> My Learning</div>
-      <div class="gcard">
-        <div class="step"><i class="ri-open-arm-line"></i><div>Shows your enrolled courses. Click <b>Open</b> to view the same inline outline/quizzes layout.</div></div>
-      </div>
-    </div>
-
-    <!-- FINALS -->
-    <div id="assessments" class="section">
-      <div class="h"><i class="ri-file-list-3-line"></i> Finals (Assessments)</div>
-      <div class="gcard grid2">
-        <div class="step"><i class="ri-add-box-line"></i><div><b>Create Final</b>: Choose course, set pass score, paste Items JSON (array of {q, choices, answer, feedbackOk, feedbackNo}).</div></div>
-        <div class="step"><i class="ri-play-line"></i><div><b>Take Final</b>: Students must be enrolled. Live per-answer feedback; score saved to <code>attempts</code>.</div></div>
-      </div>
-    </div>
-
-    <!-- CHAT -->
-    <div id="chat" class="section">
-      <div class="h"><i class="ri-chat-3-line"></i> Chat</div>
-      <div class="gcard grid3">
-        <div class="gcard"><div class="badge"><i class="ri-megaphone-line"></i> Course</div><div class="muted">Channel <code>course_{courseId}</code></div></div>
-        <div class="gcard"><div class="badge"><i class="ri-user-3-line"></i> Direct</div><div class="muted">Channel <code>dm_{minUid}_{maxUid}</code></div></div>
-        <div class="gcard"><div class="badge"><i class="ri-group-line"></i> Group/Batch</div><div class="muted">Channel <code>group_{id}</code></div></div>
-      </div>
-    </div>
-
-    <!-- TASKS -->
-    <div id="tasks" class="section">
-      <div class="h"><i class="ri-list-check-2"></i> Tasks</div>
-      <div class="gcard grid2">
-        <div class="step"><i class="ri-add-line"></i><div><b>Add Task</b> in “To do”.</div></div>
-        <div class="step"><i class="ri-drag-move-2-line"></i><div>Drag cards to “In progress” / “Done”.</div></div>
-      </div>
-    </div>
-
-    <!-- PROFILE -->
-    <div id="profile" class="section">
-      <div class="h"><i class="ri-user-3-line"></i> Profile</div>
-      <div class="gcard grid2">
-        <div class="step"><i class="ri-image-add-line"></i><div>Update Name, Portfolio, Bio; upload Avatar & Signature.</div></div>
-        <div class="step"><i class="ri-award-line"></i><div>Certificates: after you pass a course final, download from Transcript.</div></div>
-      </div>
-    </div>
-
-    <!-- ADMIN -->
-    <div id="admin" class="section">
-      <div class="h"><i class="ri-shield-star-line"></i> Admin</div>
-      <div class="gcard grid2">
-        <div class="step"><i class="ri-shield-user-line"></i><div><b>Roles</b>: write <code>roles/{uid}.role</code> as <code>student</code>|<code>instructor</code>|<code>admin</code> <b>(lowercase)</b>.</div></div>
-        <div class="step"><i class="ri-team-line"></i><div><b>Users</b>: edit/delete profiles.</div></div>
-        <div class="step"><i class="ri-user-add-line"></i><div><b>Roster</b>: select course → <b>Sync from Enrollments</b> (fills <code>courses/{id}.participants</code>), or <b>View</b>.</div></div>
-        <div class="step"><i class="ri-megaphone-line"></i><div><b>Announcements</b>: post site-wide messages.</div></div>
-      </div>
-    </div>
-
-    <!-- SETTINGS -->
-    <div id="settings" class="section">
-      <div class="h"><i class="ri-settings-3-line"></i> Settings</div>
-      <div class="gcard">
-        <div class="step"><i class="ri-brush-line"></i><div>Change color palette and font size instantly (saved in localStorage).</div></div>
-      </div>
-    </div>
-
-    <!-- SEARCH -->
-    <div id="search" class="section">
-      <div class="h"><i class="ri-search-line"></i> Search</div>
-      <div class="gcard">
-        <div class="step"><i class="ri-keyboard-line"></i><div>Use the top bar. Live results show Courses, Finals, Profiles. Press Enter to open the Search view.</div></div>
-      </div>
-    </div>
-
-    <!-- PAYMENTS -->
-    <div id="payments" class="section">
-      <div class="h"><i class="ri-bank-card-line"></i> Payments (PayPal)</div>
-      <div class="gcard">
-        <div class="step"><i class="ri-code-box-line"></i><div>Add the PayPal SDK in <code>index.html</code> (replace client id & currency):</div></div>
-        <pre><code>&lt;script src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&amp;currency=USD"&gt;&lt;/script&gt;</code></pre>
-        <div class="muted">Find your Client ID in PayPal Developer &gt; <b>Apps &amp; Credentials</b> &gt; Create app &gt; Copy <b>Client ID</b>.</div>
-        <div class="muted">When a paid course is opened, click <b>Pay &amp; Enroll</b> to render PayPal buttons; on capture we save to <code>payments</code> (optional) then create an enrollment.</div>
-      </div>
-    </div>
-
-    <!-- STYLING -->
-    <div id="styling" class="section">
-      <div class="h"><i class="ri-palette-line"></i> Styling (Per-course card)</div>
-      <div class="gcard">
-        <div class="step"><i class="ri-paint-fill"></i><div>Add a <code>style</code> map on the course doc (Firestore) or in your JSON import:</div></div>
-        <pre><code>"style": {
-  "bg": "linear-gradient(135deg,#0ea5e9,#22c55e)",
-  "text": "#0b1220",
-  "badgeBg": "rgba(255,255,255,.4)",
-  "badgeText": "#0b1220",
-  "font": "Georgia, serif",
-  "imgFilter": "saturate(1.05)",
-  "cardClass": "theme-gold"   // optional, uses CSS preset
-}</code></pre>
-        <div class="muted">These map to CSS custom properties on the card (fallbacks are defined in <code>styles.css</code>):</div>
-        <ul class="muted">
-          <li><code>bg</code> → <code>--card-bg</code>/<code>--cc-bg</code></li>
-          <li><code>text</code> → <code>--card-text</code>/<code>--cc-text</code></li>
-          <li><code>badgeBg</code>/<code>badgeText</code> → badge colors</li>
-          <li><code>font</code> → <code>--card-font</code>/<code>--cc-font</code></li>
-          <li><code>imgFilter</code> → <code>--card-img-filter</code>/<code>--cc-img-filter</code></li>
-          <li><code>cardClass</code> → adds preset look (e.g. <code>theme-gold</code>)</li>
+    return `
+      <div class="card"><div class="card-body">
+        <h3 style="margin:0 0 8px 0">Guide</h3>
+        <ul class="list-tight">
+          <li><b>Dashboard</b> — KPIs & announcements.</li>
+          <li><b>Courses</b> — Browse/create. Course page shows outline, lesson checkboxes, <b>top progress bar + best score + credits</b>, PayPal enroll.</li>
+          <li><b>My Learning</b> — Clean vertical cards. Open a course to see progress header.</li>
+          <li><b>Finals</b> — Take final exams; best scores recorded.</li>
+          <li><b>Course Chat</b> — Course-wide, <b>DM</b>, <b>Group</b> channels (restored).</li>
+          <li><b>Tasks</b> — Personal Kanban (restored minimal style).</li>
+          <li><b>Profile</b> — Bio, avatar, signature; download certificates after passing.</li>
+          <li><b>Admin</b> — Roles, roster sync; transcript viewer + certificate downloads.</li>
+          <li><b>Settings</b> — Theme palette & fonts.</li>
         </ul>
-      </div>
-    </div>
-
-    <!-- HOSTED JSON -->
-    <div id="datajson" class="section">
-      <div class="h"><i class="ri-file-json-line"></i> Hosting course JSON</div>
-      <div class="gcard">
-        <div class="step"><i class="ri-folder-2-line"></i><div>Place files under Hosting root, e.g. <code>/public/data/outlines/*.json</code>, <code>/public/data/lesson-quizzes/*.json</code>.</div></div>
-        <div class="step"><i class="ri-link-m"></i><div>Use URLs like <code>/data/outlines/your-course.json</code> in the course form (Outline JSON URL / Lesson Quizzes JSON URL).</div></div>
-        <div class="step"><i class="ri-checkbox-circle-line"></i><div>Open the URL in your browser — you must see raw JSON (not HTML).</div></div>
-      </div>
-    </div>
-
-    <!-- TROUBLESHOOTING -->
-    <div id="troubleshoot" class="section">
-      <div class="h"><i class="ri-tools-line"></i> Troubleshooting</div>
-      <div class="gcard">
-        <div class="step"><i class="ri-error-warning-line"></i><div><b>“Unexpected token &lt;”</b>: URL returns HTML (404). Fix the path to your JSON or JS.</div></div>
-        <div class="step"><i class="ri-lock-2-line"></i><div><b>Permissions</b>: roles must be lowercase; check Firestore rules for writes to <code>courses</code>, <code>payments</code>, <code>enrollments</code>, etc.</div></div>
-        <div class="step"><i class="ri-image-line"></i><div><b>Cover too large</b>: we force ~250px width in the Details sheet; confirm you didn’t override with custom CSS.</div></div>
-      </div>
-    </div>
-
-    <!-- ABOUT GUIDE -->
-    <div id="guide" class="section">
-      <div class="h"><i class="ri-compass-3-line"></i> About this Guide</div>
-      <div class="gcard">
-        <div class="muted">This page mirrors every left-sidebar menu and the extra flows (payments, styling, hosting). Use the chip nav at the top to jump around.</div>
-      </div>
-    </div>
-  </section>`;
-}
+      </div></div>
+    `;
+  }
 
   function buildTranscript(uid){
     const byCourse = {};
@@ -949,6 +718,7 @@
       wireLogin();
       return;
     }
+    const hero = heroForRoute(state.route);
     root.innerHTML = layout( safeView(state.route) );
     wireShell(); wireRoute();
     if (state.route === 'chat') populateDmUserSelect();
@@ -968,7 +738,6 @@
     $('#backdrop')?.addEventListener('click', closeSidebar);
     $('#brand')?.addEventListener('click', closeSidebar);
 
-    // Make sure nav works even if modal/backdrop was open
     const goFromNav = (route)=>{ go(route); };
     $('#side-nav')?.addEventListener('click', e=>{
       const it=e.target.closest?.('.item[data-route]'); if(it){ goFromNav(it.getAttribute('data-route')); }
@@ -1006,7 +775,7 @@
         t=setTimeout(()=>{
           const ix=[];
           state.courses.forEach(c=> ix.push({label:c.title, section:'Courses', route:'courses', id:c.id, text:`${c.title} ${c.category||''}`}));
-          state.quizzes.forEach(qz=> ix.push({label:qz.title, section:'Finals', route:'assessments', id:qz.id, text:qz.courseTitle||''}));
+          state.quizzes.forEach(qz=> ix.push({label=qz.title, section:'Finals', route:'assessments', id:qz.id, text:qz.courseTitle||''}));
           state.profiles.forEach(p=> ix.push({label:p.name||p.email, section:'Profiles', route:'profile', id:p.uid, text:(p.bio||'')}));
           const tokens=q.toLowerCase().split(/\s+/).filter(Boolean);
           const out=ix.map(item=>{
@@ -1064,7 +833,7 @@
       case 'tasks': wireTasks(); break;
       case 'profile': wireProfile(); break;
       case 'admin': wireAdmin(); break;
-      case 'guide': /* none */ break;
+      case 'guide': break;
       case 'settings': break;
       case 'dashboard': wireAnnouncements(); break;
     }
@@ -1440,41 +1209,59 @@
     });
   }
 
-  // ---- Chat
+  // ---- Chat wiring (segmented modes)
   function wireChat(){
     const box=$('#chat-box');
-    const modeSel=$('#chat-mode');
+    const modeBtns=$$('#chat-modes [data-mode]');
     const courseSel=$('#chat-course');
     const dmSel=$('#chat-dm');
     const groupInp=$('#chat-group');
     const input=$('#chat-input');
     const send=$('#chat-send');
 
-    populateDmUserSelect();
-
-    let unsub=null;
-    const uiByMode=()=>{
-      const m=modeSel.value;
+    // default mode
+    let mode='course';
+    function setMode(m){
+      mode=m;
+      modeBtns.forEach(b=> b.classList.toggle('secondary', b.getAttribute('data-mode')!==m));
       courseSel.classList.toggle('hidden', m!=='course');
       dmSel.classList.toggle('hidden', m!=='dm');
       groupInp.classList.toggle('hidden', m!=='group');
-      if (m==='dm') populateDmUserSelect();
-    };
-    uiByMode();
-    modeSel?.addEventListener('change', ()=>{ uiByMode(); sub(); });
+      if(m==='dm') populateDmUserSelect();
+      sub();
+    }
+    modeBtns.forEach(b=> b.addEventListener('click', ()=> setMode(b.getAttribute('data-mode')) ));
+    setMode('course');
 
+    function profileKey(p){ return p.uid || p.id; }
+    function getCourseRecipients(cid){
+      const me = auth.currentUser?.uid;
+      const course = state.courses?.find(c => c.id === cid);
+      const byId = new Map((state.profiles||[]).map(p => [profileKey(p), p]));
+      let ids = Array.isArray(course?.participants) && course.participants.length
+        ? course.participants
+        : (state.profiles||[]).map(profileKey);
+      return ids.filter(id => id && id !== me).map(id => byId.get(id)).filter(Boolean)
+        .sort((a,b) => (a.name||a.email||'').localeCompare(b.name||b.email||''));
+    }
+    function populateDmUserSelect(){
+      const sel = document.getElementById('chat-dm'); if (!sel) return;
+      const cid = document.getElementById('chat-course')?.value || '';
+      const users = getCourseRecipients(cid);
+      sel.innerHTML = '<option value="">Select user…</option>' + users.map(p => `<option value="${profileKey(p)}">${p.name || p.email}</option>`).join('');
+    }
+
+    let unsub=null;
     function channelKey(){
-      const m=modeSel.value;
-      if(m==='course'){
+      if(mode==='course'){
         const c=courseSel.value; return c?`course_${c}`:'';
-      } else if(m==='dm'){
+      } else if(mode==='dm'){
         const peer=dmSel.value; if(!peer) return '';
         const pair=[auth.currentUser.uid, peer].sort(); return `dm_${pair[0]}_${pair[1]}`;
       } else {
         const gid=(groupInp.value||'').trim(); return gid?`group_${gid}`:'';
       }
     }
-
     function paint(msgs){
       box.innerHTML = msgs.sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0))
         .map(m=>`
@@ -1484,10 +1271,8 @@
           </div>`).join('');
       box.scrollTop=box.scrollHeight;
     }
-
     function sub(){
       if(unsub){ try{unsub()}catch{} unsub=null; }
-      if(state._unsubChat){ try{ state._unsubChat(); }catch{} state._unsubChat=null; }
       const ch = channelKey(); if(!ch){ box.innerHTML='<div class="muted">Pick a channel…</div>'; return; }
       unsub = col('messages').where('channel','==',ch).onSnapshot(
         s=> paint(s.docs.map(d=>({id:d.id,...d.data()}))),
@@ -1505,20 +1290,21 @@
       const ch=channelKey(); const text=input.value.trim(); if(!ch||!text) return;
       const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {};
       const payload = clean({
-        channel: ch, type: modeSel.value, uid: auth.currentUser.uid, email: auth.currentUser.email, name: me.name||'',
+        channel: ch, type: mode, uid: auth.currentUser.uid, email: auth.currentUser.email, name: me.name||'',
         text, createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-        courseId: modeSel.value==='course' ? courseSel.value : undefined,
-        peerUid: modeSel.value==='dm' ? dmSel.value : undefined,
-        groupId: modeSel.value==='group' ? groupInp.value.trim() : undefined
+        courseId: mode==='course' ? courseSel.value : undefined,
+        peerUid: mode==='dm' ? dmSel.value : undefined,
+        groupId: mode==='group' ? groupInp.value.trim() : undefined
       });
       await col('messages').add(payload);
       input.value='';
     });
 
+    populateDmUserSelect();
     sub();
   }
 
-  // ---- Tasks
+  // ---- Tasks (drag/drop)
   function wireTasks(){
     const root=$('[data-sec="tasks"]'); if(!root) return;
 
@@ -1711,6 +1497,16 @@
     });
 
     // Transcript viewer
+    function buildTranscript(uid){
+      const byCourse = {};
+      (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
+        byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId, best:0, completed:false};
+        byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score||0);
+        const q = state.quizzes.find(q=>q.courseId===a.courseId && q.isFinal);
+        byCourse[a.courseId].completed = q ? (byCourse[a.courseId].best >= (q.passScore||70)) : false;
+      });
+      return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
+    }
     function adminRenderTranscript(uid){
       const rows = buildTranscript(uid);
       const html = `
