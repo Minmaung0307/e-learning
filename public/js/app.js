@@ -277,7 +277,7 @@
       </div>
     </div>`;
 
-  // === Dashboard (restored previous minimal KPI tiles — no big header image inside) ===
+  // Dashboard (restored)
   const dashTile=(label,value,route,icon)=>`
     <div class="card clickable" data-go="${route}">
       <div class="card-body" style="display:flex;align-items:center;justify-content:space-between">
@@ -325,7 +325,7 @@
     `;
   }
 
-  // === Course/My Learning cards (equal height + buttons at bottom + full image fit) ===
+  // Course/My Learning cards
   function courseCard(c){
     const img = c.coverImage || '/icons/learnhub-cap.svg';
     const goals = (c.goals||[]).slice(0,3).map(g=>`<li>${g}</li>`).join('');
@@ -353,7 +353,7 @@
           ${isLong? `<button class="short-toggle" data-short-toggle>Read more</button>`:''}
         </div>
 
-        ${goals?`<ul style="margin-top:8px">${goals}</ul>`:''}
+        ${goals?`<ul style="margin-top:4px">${goals}</ul>`:''}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
           <div class="muted">Credits: <strong>${c.credits||0}</strong></div>
           <div style="font-weight:800">${money(c.price||0)}</div>
@@ -465,7 +465,6 @@
     `;
   }
 
-  // === Chat (restored: Course / DM / Group modes visible) ===
   const vChat=()=>`
   <div class="card"><div class="card-body">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between">
@@ -498,7 +497,7 @@
     </div>
   </div></div>`;
 
-  // === Tasks (restored minimal lanes; no image headers) ===
+  // Tasks (restored)
   function vTasks(){
     const my=auth.currentUser?.uid;
     const lane=(key,label,color)=>{
@@ -528,23 +527,247 @@
   }
 
   function vGuide(){
-    return `
-      <div class="card"><div class="card-body">
-        <h3 style="margin:0 0 8px 0">Guide</h3>
-        <ul class="list-tight">
-          <li><b>Dashboard</b> — KPIs & announcements.</li>
-          <li><b>Courses</b> — Browse/create. Course page shows outline, lesson checkboxes, <b>top progress bar + best score + credits</b>, PayPal enroll.</li>
-          <li><b>My Learning</b> — Clean vertical cards. Open a course to see progress header.</li>
-          <li><b>Finals</b> — Take final exams; best scores recorded.</li>
-          <li><b>Course Chat</b> — Course-wide, <b>DM</b>, <b>Group</b> channels (restored).</li>
-          <li><b>Tasks</b> — Personal Kanban (restored minimal style).</li>
-          <li><b>Profile</b> — Bio, avatar, signature; download certificates after passing.</li>
-          <li><b>Admin</b> — Roles, roster sync; transcript viewer + certificate downloads.</li>
-          <li><b>Settings</b> — Theme palette & fonts.</li>
+  return `
+  <section class="guide">
+    <style>
+      /* compact, readable styles for the Guide page only */
+      .guide{
+        --g-bg: linear-gradient(135deg,#0ea5e9 0%, #22c55e 100%);
+        --g-text: var(--text);
+        --g-muted: var(--muted);
+        --g-border: var(--border);
+        --g-surface: var(--panel);
+        --g-surface-2: color-mix(in srgb, var(--panel) 90%, #fff 10%);
+        --g-link: var(--primary);
+        --g-code-bg:#0b1220; --g-code-text:#e5e7eb;
+      }
+      .theme-light .guide{ --g-code-bg:#0f172a; --g-code-text:#e5e7eb; }
+
+      .guide, .guide *{ color:var(--g-text) }
+      .guide a{ color:var(--g-link); text-underline-offset:2px }
+      .guide .muted{ color:var(--g-muted) }
+
+      .guide .hero{ background:var(--g-bg); color:#fff; border-radius:16px; padding:24px 18px; box-shadow:0 6px 24px rgba(0,0,0,.15); }
+      .guide .hero .title{ font-size:22px; font-weight:800 }
+      .guide .hero .subtitle{ opacity:.95; font-size:13px }
+      .guide .nav{ display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 0 }
+      .guide .nav a{ text-decoration:none; background:rgba(0,0,0,.18); color:#fff; padding:7px 10px; border-radius:999px; font-size:12px; border:1px solid rgba(255,255,255,.25); }
+
+      .guide .section{ margin-top:14px }
+      .guide .h{ display:flex; align-items:center; gap:8px; margin:0 0 6px 0; font-size:16px; font-weight:800 }
+      .guide .gcard{ border:1px solid var(--g-border); border-radius:14px; background:var(--g-surface); padding:12px; display:grid; gap:10px }
+      .guide .grid2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px }
+      .guide .grid3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px }
+      .guide .step{ display:flex; gap:10px; align-items:flex-start; padding:10px; border-radius:12px; border:1px dashed var(--g-border); background:var(--g-surface-2); }
+      .guide .badge{ display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border-radius:999px; font-size:12px; background:var(--g-surface-2); border:1px solid var(--g-border); }
+      .guide pre{ background:var(--g-code-bg)!important; color:var(--g-code-text)!important; padding:10px 12px; border-radius:12px; overflow:auto; border:1px solid #1f2937; white-space:pre; tab-size:2; }
+      .guide code{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace }
+      .guide ul{ margin:6px 0 0 18px }
+      @media(max-width:840px){ .guide .grid2,.guide .grid3{ grid-template-columns:1fr } }
+    </style>
+
+    <div class="hero">
+      <div class="title"><i class="ri-compass-3-line"></i> LearnHub — Complete Guide</div>
+      <div class="subtitle">Everything in the left sidebar, plus payments, styling, hosted JSON, and fixes.</div>
+      <div class="nav">
+        <a href="#menus">Menus</a>
+        <a href="#dashboard">Dashboard</a>
+        <a href="#courses">Courses</a>
+        <a href="#learning">My&nbsp;Learning</a>
+        <a href="#assessments">Finals</a>
+        <a href="#chat">Chat</a>
+        <a href="#tasks">Tasks</a>
+        <a href="#profile">Profile</a>
+        <a href="#admin">Admin</a>
+        <a href="#settings">Settings</a>
+        <a href="#search">Search</a>
+        <a href="#payments">Payments</a>
+        <a href="#styling">Styling</a>
+        <a href="#datajson">Hosting JSON</a>
+        <a href="#troubleshoot">Troubleshooting</a>
+        <a href="#guide">About&nbsp;Guide</a>
+      </div>
+    </div>
+
+    <!-- MENUS OVERVIEW -->
+    <div id="menus" class="section">
+      <div class="h"><i class="ri-layout-2-line"></i> Sidebar Menus (at a glance)</div>
+      <div class="gcard grid3">
+        <div class="gcard"><div class="badge"><i class="ri-dashboard-line"></i> Dashboard</div><div class="muted">KPIs + Announcements</div></div>
+        <div class="gcard"><div class="badge"><i class="ri-book-2-line"></i> Courses</div><div class="muted">Create, style, JSON outline & lesson quizzes, enroll/pay</div></div>
+        <div class="gcard"><div class="badge"><i class="ri-graduation-cap-line"></i> My Learning</div><div class="muted">Open enrolled course, inline outline/quizzes</div></div>
+        <div class="gcard"><div class="badge"><i class="ri-file-list-3-line"></i> Finals</div><div class="muted">Create/Take final exams; attempts</div></div>
+        <div class="gcard"><div class="badge"><i class="ri-chat-3-line"></i> Chat</div><div class="muted">Course / DM / Group channels</div></div>
+        <div class="gcard"><div class="badge"><i class="ri-list-check-2"></i> Tasks</div><div class="muted">Personal kanban</div></div>
+        <div class="gcard"><div class="badge"><i class="ri-user-3-line"></i> Profile</div><div class="muted">Bio, avatar, signature, certificate</div></div>
+        <div class="gcard"><div class="badge"><i class="ri-shield-star-line"></i> Admin</div><div class="muted">Roles, Users, Roster, Announcements</div></div>
+        <div class="gcard"><div class="badge"><i class="ri-settings-3-line"></i> Settings</div><div class="muted">Theme palette & font size</div></div>
+        <div class="gcard"><div class="badge"><i class="ri-search-line"></i> Search</div><div class="muted">Global search with live suggestions</div></div>
+        <div class="gcard"><div class="badge"><i class="ri-compass-3-line"></i> Guide</div><div class="muted">You’re here</div></div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="section">
+      <div class="h"><i class="ri-dashboard-line"></i> Dashboard</div>
+      <div class="gcard grid2">
+        <div class="step"><i class="ri-megaphone-line"></i><div><b>Announcements</b>: Admins can post/edit/delete. Everyone sees the feed.</div></div>
+        <div class="step"><i class="ri-pie-chart-2-line"></i><div><b>KPIs</b>: Courses, your enrollments, finals count, attempts.</div></div>
+      </div>
+    </div>
+
+    <!-- COURSES -->
+    <div id="courses" class="section">
+      <div class="h"><i class="ri-book-2-line"></i> Courses</div>
+      <div class="gcard">
+        <div class="grid2">
+          <div class="step"><i class="ri-add-line"></i><div><b>New Course</b>: Fill Title, Category, Credits, Price, Short; optional Goals, Cover, Outline JSON URL, Lesson Quizzes JSON URL.</div></div>
+          <div class="step"><i class="ri-brush-line"></i><div><b>Per-course Style</b>: Add a <code>style</code> map (Firestore or JSON import) — see <a href="#styling">Styling</a>.</div></div>
+          <div class="step"><i class="ri-image-line"></i><div><b>Cover</b>: Use a full HTTPS image URL or a deployed path (e.g. <code>/images/cover.jpg</code>).</div></div>
+          <div class="step"><i class="ri-external-link-line"></i><div><b>Details</b>: Opens a full-width sheet. Cover image is shown at ~250px wide; Outline & Lesson Quizzes are rendered inline (no extra “view” clicks).</div></div>
+          <div class="step"><i class="ri-bank-card-line"></i><div><b>Pay & Enroll</b>: If <code>price&gt;0</code>, PayPal button appears — see <a href="#payments">Payments</a>.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MY LEARNING -->
+    <div id="learning" class="section">
+      <div class="h"><i class="ri-graduation-cap-line"></i> My Learning</div>
+      <div class="gcard">
+        <div class="step"><i class="ri-open-arm-line"></i><div>Shows your enrolled courses. Click <b>Open</b> to view the same inline outline/quizzes layout.</div></div>
+      </div>
+    </div>
+
+    <!-- FINALS -->
+    <div id="assessments" class="section">
+      <div class="h"><i class="ri-file-list-3-line"></i> Finals (Assessments)</div>
+      <div class="gcard grid2">
+        <div class="step"><i class="ri-add-box-line"></i><div><b>Create Final</b>: Choose course, set pass score, paste Items JSON (array of {q, choices, answer, feedbackOk, feedbackNo}).</div></div>
+        <div class="step"><i class="ri-play-line"></i><div><b>Take Final</b>: Students must be enrolled. Live per-answer feedback; score saved to <code>attempts</code>.</div></div>
+      </div>
+    </div>
+
+    <!-- CHAT -->
+    <div id="chat" class="section">
+      <div class="h"><i class="ri-chat-3-line"></i> Chat</div>
+      <div class="gcard grid3">
+        <div class="gcard"><div class="badge"><i class="ri-megaphone-line"></i> Course</div><div class="muted">Channel <code>course_{courseId}</code></div></div>
+        <div class="gcard"><div class="badge"><i class="ri-user-3-line"></i> Direct</div><div class="muted">Channel <code>dm_{minUid}_{maxUid}</code></div></div>
+        <div class="gcard"><div class="badge"><i class="ri-group-line"></i> Group/Batch</div><div class="muted">Channel <code>group_{id}</code></div></div>
+      </div>
+    </div>
+
+    <!-- TASKS -->
+    <div id="tasks" class="section">
+      <div class="h"><i class="ri-list-check-2"></i> Tasks</div>
+      <div class="gcard grid2">
+        <div class="step"><i class="ri-add-line"></i><div><b>Add Task</b> in “To do”.</div></div>
+        <div class="step"><i class="ri-drag-move-2-line"></i><div>Drag cards to “In progress” / “Done”.</div></div>
+      </div>
+    </div>
+
+    <!-- PROFILE -->
+    <div id="profile" class="section">
+      <div class="h"><i class="ri-user-3-line"></i> Profile</div>
+      <div class="gcard grid2">
+        <div class="step"><i class="ri-image-add-line"></i><div>Update Name, Portfolio, Bio; upload Avatar & Signature.</div></div>
+        <div class="step"><i class="ri-award-line"></i><div>Certificates: after you pass a course final, download from Transcript.</div></div>
+      </div>
+    </div>
+
+    <!-- ADMIN -->
+    <div id="admin" class="section">
+      <div class="h"><i class="ri-shield-star-line"></i> Admin</div>
+      <div class="gcard grid2">
+        <div class="step"><i class="ri-shield-user-line"></i><div><b>Roles</b>: write <code>roles/{uid}.role</code> as <code>student</code>|<code>instructor</code>|<code>admin</code> <b>(lowercase)</b>.</div></div>
+        <div class="step"><i class="ri-team-line"></i><div><b>Users</b>: edit/delete profiles.</div></div>
+        <div class="step"><i class="ri-user-add-line"></i><div><b>Roster</b>: select course → <b>Sync from Enrollments</b> (fills <code>courses/{id}.participants</code>), or <b>View</b>.</div></div>
+        <div class="step"><i class="ri-megaphone-line"></i><div><b>Announcements</b>: post site-wide messages.</div></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="settings" class="section">
+      <div class="h"><i class="ri-settings-3-line"></i> Settings</div>
+      <div class="gcard">
+        <div class="step"><i class="ri-brush-line"></i><div>Change color palette and font size instantly (saved in localStorage).</div></div>
+      </div>
+    </div>
+
+    <!-- SEARCH -->
+    <div id="search" class="section">
+      <div class="h"><i class="ri-search-line"></i> Search</div>
+      <div class="gcard">
+        <div class="step"><i class="ri-keyboard-line"></i><div>Use the top bar. Live results show Courses, Finals, Profiles. Press Enter to open the Search view.</div></div>
+      </div>
+    </div>
+
+    <!-- PAYMENTS -->
+    <div id="payments" class="section">
+      <div class="h"><i class="ri-bank-card-line"></i> Payments (PayPal)</div>
+      <div class="gcard">
+        <div class="step"><i class="ri-code-box-line"></i><div>Add the PayPal SDK in <code>index.html</code> (replace client id & currency):</div></div>
+        <pre><code>&lt;script src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&amp;currency=USD"&gt;&lt;/script&gt;</code></pre>
+        <div class="muted">Find your Client ID in PayPal Developer &gt; <b>Apps &amp; Credentials</b> &gt; Create app &gt; Copy <b>Client ID</b>.</div>
+        <div class="muted">When a paid course is opened, click <b>Pay &amp; Enroll</b> to render PayPal buttons; on capture we save to <code>payments</code> (optional) then create an enrollment.</div>
+      </div>
+    </div>
+
+    <!-- STYLING -->
+    <div id="styling" class="section">
+      <div class="h"><i class="ri-palette-line"></i> Styling (Per-course card)</div>
+      <div class="gcard">
+        <div class="step"><i class="ri-paint-fill"></i><div>Add a <code>style</code> map on the course doc (Firestore) or in your JSON import:</div></div>
+        <pre><code>"style": {
+  "bg": "linear-gradient(135deg,#0ea5e9,#22c55e)",
+  "text": "#0b1220",
+  "badgeBg": "rgba(255,255,255,.4)",
+  "badgeText": "#0b1220",
+  "font": "Georgia, serif",
+  "imgFilter": "saturate(1.05)",
+  "cardClass": "theme-gold"   // optional, uses CSS preset
+}</code></pre>
+        <div class="muted">These map to CSS custom properties on the card (fallbacks are defined in <code>styles.css</code>):</div>
+        <ul class="muted">
+          <li><code>bg</code> → <code>--card-bg</code>/<code>--cc-bg</code></li>
+          <li><code>text</code> → <code>--card-text</code>/<code>--cc-text</code></li>
+          <li><code>badgeBg</code>/<code>badgeText</code> → badge colors</li>
+          <li><code>font</code> → <code>--card-font</code>/<code>--cc-font</code></li>
+          <li><code>imgFilter</code> → <code>--card-img-filter</code>/<code>--cc-img-filter</code></li>
+          <li><code>cardClass</code> → adds preset look (e.g. <code>theme-gold</code>)</li>
         </ul>
-      </div></div>
-    `;
-  }
+      </div>
+    </div>
+
+    <!-- HOSTED JSON -->
+    <div id="datajson" class="section">
+      <div class="h"><i class="ri-file-json-line"></i> Hosting course JSON</div>
+      <div class="gcard">
+        <div class="step"><i class="ri-folder-2-line"></i><div>Place files under Hosting root, e.g. <code>/public/data/outlines/*.json</code>, <code>/public/data/lesson-quizzes/*.json</code>.</div></div>
+        <div class="step"><i class="ri-link-m"></i><div>Use URLs like <code>/data/outlines/your-course.json</code> in the course form (Outline JSON URL / Lesson Quizzes JSON URL).</div></div>
+        <div class="step"><i class="ri-checkbox-circle-line"></i><div>Open the URL in your browser — you must see raw JSON (not HTML).</div></div>
+      </div>
+    </div>
+
+    <!-- TROUBLESHOOTING -->
+    <div id="troubleshoot" class="section">
+      <div class="h"><i class="ri-tools-line"></i> Troubleshooting</div>
+      <div class="gcard">
+        <div class="step"><i class="ri-error-warning-line"></i><div><b>“Unexpected token &lt;”</b>: URL returns HTML (404). Fix the path to your JSON or JS.</div></div>
+        <div class="step"><i class="ri-lock-2-line"></i><div><b>Permissions</b>: roles must be lowercase; check Firestore rules for writes to <code>courses</code>, <code>payments</code>, <code>enrollments</code>, etc.</div></div>
+        <div class="step"><i class="ri-image-line"></i><div><b>Cover too large</b>: we force ~250px width in the Details sheet; confirm you didn’t override with custom CSS.</div></div>
+      </div>
+    </div>
+
+    <!-- ABOUT GUIDE -->
+    <div id="guide" class="section">
+      <div class="h"><i class="ri-compass-3-line"></i> About this Guide</div>
+      <div class="gcard">
+        <div class="muted">This page mirrors every left-sidebar menu and the extra flows (payments, styling, hosting). Use the chip nav at the top to jump around.</div>
+      </div>
+    </div>
+  </section>`;
+}
 
   function buildTranscript(uid){
     const byCourse = {};
@@ -804,7 +1027,7 @@
     $('#mm-close')?.addEventListener('click', ()=> closeModal('m-modal'));
   }
 
-  // ---- Chat helpers
+  // ---- Helpers reused by chat
   function profileKey(p){ return p.uid || p.id; }
   function getCourseRecipients(cid){
     const me = auth.currentUser?.uid;
@@ -1209,7 +1432,7 @@
     });
   }
 
-  // ---- Chat wiring (segmented modes)
+  // ---- Chat wiring (FIXED: no TDZ error)
   function wireChat(){
     const box=$('#chat-box');
     const modeBtns=$$('#chat-modes [data-mode]');
@@ -1219,8 +1442,10 @@
     const input=$('#chat-input');
     const send=$('#chat-send');
 
-    // default mode
+    // declare BEFORE first use
+    let unsub = null;
     let mode='course';
+
     function setMode(m){
       mode=m;
       modeBtns.forEach(b=> b.classList.toggle('secondary', b.getAttribute('data-mode')!==m));
@@ -1230,28 +1455,17 @@
       if(m==='dm') populateDmUserSelect();
       sub();
     }
-    modeBtns.forEach(b=> b.addEventListener('click', ()=> setMode(b.getAttribute('data-mode')) ));
-    setMode('course');
 
-    function profileKey(p){ return p.uid || p.id; }
-    function getCourseRecipients(cid){
-      const me = auth.currentUser?.uid;
-      const course = state.courses?.find(c => c.id === cid);
-      const byId = new Map((state.profiles||[]).map(p => [profileKey(p), p]));
-      let ids = Array.isArray(course?.participants) && course.participants.length
-        ? course.participants
-        : (state.profiles||[]).map(profileKey);
-      return ids.filter(id => id && id !== me).map(id => byId.get(id)).filter(Boolean)
-        .sort((a,b) => (a.name||a.email||'').localeCompare(b.name||b.email||''));
-    }
-    function populateDmUserSelect(){
-      const sel = document.getElementById('chat-dm'); if (!sel) return;
-      const cid = document.getElementById('chat-course')?.value || '';
-      const users = getCourseRecipients(cid);
-      sel.innerHTML = '<option value="">Select user…</option>' + users.map(p => `<option value="${profileKey(p)}">${p.name || p.email}</option>`).join('');
+    function paint(msgs){
+      box.innerHTML = msgs.sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0))
+        .map(m=>`
+          <div style="margin-bottom:8px">
+            <div style="font-weight:600">${m.name||m.email||'User'} <span class="muted" style="font-size:12px">• ${new Date(m.createdAt?.toDate?.()||m.createdAt||Date.now()).toLocaleTimeString()}</span></div>
+            <div>${(m.text||'').replace(/</g,'&lt;')}</div>
+          </div>`).join('');
+      box.scrollTop=box.scrollHeight;
     }
 
-    let unsub=null;
     function channelKey(){
       if(mode==='course'){
         const c=courseSel.value; return c?`course_${c}`:'';
@@ -1262,25 +1476,19 @@
         const gid=(groupInp.value||'').trim(); return gid?`group_${gid}`:'';
       }
     }
-    function paint(msgs){
-      box.innerHTML = msgs.sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0))
-        .map(m=>`
-          <div style="margin-bottom:8px">
-            <div style="font-weight:600">${m.name||m.email||'User'} <span class="muted" style="font-size:12px">• ${new Date(m.createdAt?.toDate?.()||m.createdAt||Date.now()).toLocaleTimeString()}</span></div>
-            <div>${(m.text||'').replace(/</g,'&lt;')}</div>
-          </div>`).join('');
-      box.scrollTop=box.scrollHeight;
-    }
+
     function sub(){
       if(unsub){ try{unsub()}catch{} unsub=null; }
-      const ch = channelKey(); if(!ch){ box.innerHTML='<div class="muted">Pick a channel…</div>'; return; }
+      const ch = channelKey();
+      if(!ch){ box.innerHTML='<div class="muted">Pick a channel…</div>'; return; }
       unsub = col('messages').where('channel','==',ch).onSnapshot(
         s=> paint(s.docs.map(d=>({id:d.id,...d.data()}))),
-        err=> console.warn('chat listener error:', err)
+        err=> { console.warn('chat listener error:', err); box.innerHTML = `<div class="muted">Cannot load messages (permissions?).</div>`; }
       );
       state._unsubChat = unsub;
     }
 
+    modeBtns.forEach(b=> b.addEventListener('click', ()=> setMode(b.getAttribute('data-mode')) ));
     courseSel?.addEventListener('change', ()=>{ populateDmUserSelect(); sub(); });
     dmSel?.addEventListener('change', sub);
     groupInp?.addEventListener('input', sub);
@@ -1296,12 +1504,16 @@
         peerUid: mode==='dm' ? dmSel.value : undefined,
         groupId: mode==='group' ? groupInp.value.trim() : undefined
       });
-      await col('messages').add(payload);
-      input.value='';
+      try{
+        await col('messages').add(payload);
+        input.value='';
+      }catch(e){
+        notify('Cannot send (permissions?)','danger');
+      }
     });
 
     populateDmUserSelect();
-    sub();
+    setMode('course'); // safe now
   }
 
   // ---- Tasks (drag/drop)
