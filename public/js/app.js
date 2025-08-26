@@ -1,4 +1,4 @@
-/* LearnHub — E-Learning */
+/* LearnHub — E-Learning (fixed build) */
 (() => {
   'use strict';
 
@@ -41,8 +41,16 @@
   const slug = s => (s||'').toString().toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
   function lessonId(chIdx, chTitle, lIdx, lTitle){ return `${String(chIdx+1).padStart(2,'0')}-${slug(chTitle||`chapter-${chIdx+1}`)}__${String(lIdx+1).padStart(2,'0')}-${slug(lTitle||`lesson-${lIdx+1}`)}`; }
   function countLessons(outline){ let n=0; (outline?.chapters||[]).forEach(ch=>{ n += Array.isArray(ch.lessons) ? ch.lessons.length : 0; }); return n; }
-  async function getProgressLessons(courseId){ const uid=auth.currentUser.uid; const s=await doc('progress',`${uid}_${courseId}`).get(); return s.exists ? (s.data().lessons||{}) : {}; }
-  async function ensureProgressTotal(courseId, total){ if(!total) return; const uid=auth.currentUser.uid; await doc('progress',`${uid}_${courseId}`).set({ uid, courseId, total }, { merge:true }); }
+  async function getProgressLessons(courseId){
+    const uid=auth.currentUser.uid;
+    const s=await doc('progress',`${uid}_${courseId}`).get();
+    return s.exists ? (s.data().lessons||{}) : {};
+  }
+  async function ensureProgressTotal(courseId, total){
+    if(!total) return;
+    const uid=auth.currentUser.uid;
+    await doc('progress',`${uid}_${courseId}`).set({ uid, courseId, total }, { merge:true });
+  }
   async function toggleLessonProgress(courseId, id, checked){
     const uid=auth.currentUser.uid; const ref=doc('progress',`${uid}_${courseId}`);
     const payload = checked ? { [`lessons.${id}`]: true } : { [`lessons.${id}`]: firebase.firestore.FieldValue.delete() };
@@ -107,7 +115,7 @@
     }).join('');
   }
 
-  // ---- PayPal setup ----
+  // ---- PayPal setup (robust) ----
   async function setupPayPalForCourse(c){
     const zone = document.getElementById('paypal-zone');
     const btns = document.getElementById('paypal-buttons');
@@ -115,35 +123,43 @@
     zone.classList.remove('hidden');
     btns.innerHTML = '';
 
-    if(!window.paypal || !paypal.Buttons){
-      zone.innerHTML = `<div class="card"><div class="card-body">PayPal SDK missing — set your Client ID in <code>index.html</code>.</div></div>`;
+    if (!(window.paypal && typeof paypal.Buttons === 'function')) {
+      zone.innerHTML = `<div class="card"><div class="card-body">PayPal SDK not ready. Confirm the client-id in <code>index.html</code>.</div></div>`;
       return;
     }
-    const price = Number(c.price||0).toFixed(2);
-    paypal.Buttons({
-      style: { shape: 'pill', layout: 'vertical', label: 'paypal' },
-      createOrder: (data, actions) => actions.order.create({ purchase_units: [{ description: c.title || 'Course', amount: { value: price } }]}),
-      onApprove: async (data, actions) => {
-        try{
-          const details = await actions.order.capture();
+    try{
+      const price = Number(c.price||0).toFixed(2);
+      await paypal.Buttons({
+        style: { shape: 'pill', layout: 'vertical', label: 'paypal' },
+        createOrder: (_, actions) => actions.order.create({ purchase_units: [{ description: c.title || 'Course', amount: { value: price } }]}),
+        onApprove: async (data, actions) => {
           try{
-            await col('payments').add({
-              uid: auth.currentUser.uid, courseId: c.id, amount: +price, provider: 'paypal',
-              orderId: data.orderID,
-              captureId: details?.purchase_units?.[0]?.payments?.captures?.[0]?.id || '',
-              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            const details = await actions.order.capture();
+            try{
+              await col('payments').add({
+                uid: auth.currentUser.uid, courseId: c.id, amount: +price, provider: 'paypal',
+                orderId: data.orderID,
+                captureId: details?.purchase_units?.[0]?.payments?.captures?.[0]?.id || '',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+              });
+            }catch(_e){}
+            await col('enrollments').add({
+              uid: auth.currentUser.uid, courseId: c.id, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              course: { id:c.id, title:c.title, category:c.category, credits:c.credits, coverImage:c.coverImage }
             });
-          }catch(_e){}
-          await col('enrollments').add({
-            uid: auth.currentUser.uid, courseId: c.id, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            course: { id:c.id, title:c.title, category:c.category, credits:c.credits, coverImage:c.coverImage }
-          });
-          try{ await doc('courses', c.id).set({ participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) }, { merge:true }); }catch(_e){}
-          closeModal('m-modal'); notify('Payment complete — enrolled');
-        }catch(e){ console.error(e); notify('Payment capture failed','danger'); }
-      },
-      onError: (err) => { console.error(err); notify('PayPal error','danger'); }
-    }).render('#paypal-buttons');
+            try{ await doc('courses', c.id).set({ participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) }, { merge:true }); }catch(_e){}
+            closeModal('m-modal'); notify('Payment complete — enrolled');
+          }catch(e){ console.error(e); notify('Payment capture failed','danger'); }
+        },
+        onError: (err) => {
+          console.error('PayPal error:', err);
+          zone.innerHTML = `<div class="card"><div class="card-body">Couldn’t render PayPal buttons (<code>${(err && err.message) || 'error'}</code>).</div></div>`;
+        }
+      }).render('#paypal-buttons');
+    }catch(e){
+      console.error('PayPal render error:', e);
+      zone.innerHTML = `<div class="card"><div class="card-body">Couldn’t initialize PayPal (<code>${(e && e.message) || 'error'}</code>).</div></div>`;
+    }
   }
 
   // ---- Theme ----
@@ -277,7 +293,7 @@
       </div>
     </div>`;
 
-  // Dashboard (restored)
+  // === Dashboard (restored) ===
   const dashTile=(label,value,route,icon)=>`
     <div class="card clickable" data-go="${route}">
       <div class="card-body" style="display:flex;align-items:center;justify-content:space-between">
@@ -325,7 +341,7 @@
     `;
   }
 
-  // Course/My Learning cards
+  // === Course/My Learning cards ===
   function courseCard(c){
     const img = c.coverImage || '/icons/learnhub-cap.svg';
     const goals = (c.goals||[]).slice(0,3).map(g=>`<li>${g}</li>`).join('');
@@ -353,7 +369,7 @@
           ${isLong? `<button class="short-toggle" data-short-toggle>Read more</button>`:''}
         </div>
 
-        ${goals?`<ul style="margin-top:4px">${goals}</ul>`:''}
+        ${goals?`<ul style="margin-top:8px">${goals}</ul>`:''}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
           <div class="muted">Credits: <strong>${c.credits||0}</strong></div>
           <div style="font-weight:800">${money(c.price||0)}</div>
@@ -465,6 +481,7 @@
     `;
   }
 
+  // === Chat (restored: Course/DM/Group) ===
   const vChat=()=>`
   <div class="card"><div class="card-body">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between">
@@ -497,7 +514,7 @@
     </div>
   </div></div>`;
 
-  // Tasks (restored)
+  // === Tasks (restored) ===
   function vTasks(){
     const my=auth.currentUser?.uid;
     const lane=(key,label,color)=>{
@@ -1027,7 +1044,7 @@
     $('#mm-close')?.addEventListener('click', ()=> closeModal('m-modal'));
   }
 
-  // ---- Helpers reused by chat
+  // ---- Chat helpers (global)
   function profileKey(p){ return p.uid || p.id; }
   function getCourseRecipients(cid){
     const me = auth.currentUser?.uid;
@@ -1193,37 +1210,42 @@
         `;
         openModal('m-modal');
 
-        // Load outline + progress
+        // ---- Outline / Progress (fail-safe, no stuck "Loading…")
         const outlineBox = document.getElementById('outline-box');
         let outlineData = null;
-        try{ if(c.outlineUrl){ outlineData = await fetchJSON(c.outlineUrl); } }catch(err){ outlineData = null; }
-        const progressLessons = await getProgressLessons(c.id);
-        await ensureProgressTotal(c.id, countLessons(outlineData||{}));
+        try { if(c.outlineUrl){ outlineData = await fetchJSON(c.outlineUrl); } } catch(err){ console.warn('outline load failed:', err); }
+        const totalLessons = countLessons(outlineData || { chapters: [] });
+        try { await ensureProgressTotal(c.id, totalLessons); } catch(e){ console.warn('ensureProgressTotal failed:', e); }
+        let progressLessons = {};
+        try { progressLessons = await getProgressLessons(c.id); } catch(e){ console.warn('getProgressLessons failed:', e); }
+
         const bodyEl = document.getElementById('mm-body');
-        bodyEl.insertAdjacentHTML('afterbegin', renderCourseProgressHeader(c, outlineData||{chapters:[]}, progressLessons));
+        bodyEl.insertAdjacentHTML('afterbegin', renderCourseProgressHeader(c, outlineData || {chapters:[]}, progressLessons));
         if(outlineData){ outlineBox.innerHTML = renderOutlineBoxInteractive(c.id, outlineData, progressLessons); }
         else { outlineBox.innerHTML = `<div class="muted">No outline URL for this course.</div>`; }
+
         outlineBox.addEventListener('change', async (ev)=>{
           const cb = ev.target.closest('input[type="checkbox"][data-lesson]'); if(!cb) return;
-          await toggleLessonProgress(c.id, cb.getAttribute('data-lesson'), cb.checked);
-          const fresh = await getProgressLessons(c.id);
-          document.getElementById('course-progress').outerHTML =
-            renderCourseProgressHeader(c, outlineData||{chapters:[]}, fresh);
+          try{
+            await toggleLessonProgress(c.id, cb.getAttribute('data-lesson'), cb.checked);
+            const fresh = await getProgressLessons(c.id);
+            document.getElementById('course-progress').outerHTML =
+              renderCourseProgressHeader(c, outlineData || {chapters:[]}, fresh);
+          }catch(e){ console.warn('toggleLessonProgress failed:', e); }
         });
 
-        // Lesson Quizzes
+        // ---- Lesson Quizzes
         const lessonBox = document.getElementById('lesson-quizzes-box');
         if(c.quizzesUrl){
-          fetchJSON(c.quizzesUrl)
-            .then(d => { lessonBox.innerHTML = renderLessonQuizzesBox(d); })
-            .catch(err => { lessonBox.innerHTML = `<div class="muted">Could not load lesson quizzes (${(err&&err.message)||'error'}).</div>`; });
+          try{ const d = await fetchJSON(c.quizzesUrl); lessonBox.innerHTML = renderLessonQuizzesBox(d); }
+          catch(err){ console.warn('lesson quizzes load failed:', err); lessonBox.innerHTML = `<div class="muted">Could not load lesson quizzes.</div>`; }
         }else{
           lessonBox.innerHTML = `<div class="muted">No lesson quizzes URL for this course.</div>`;
         }
 
-        // Actions
-        document.getElementById('open-quiz')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
-        document.getElementById('enroll')?.addEventListener('click', async ()=>{
+        // ---- Actions
+        $('#open-quiz')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
+        $('#enroll')?.addEventListener('click', async ()=>{
           await col('enrollments').add({
             uid:auth.currentUser.uid, courseId:c.id,
             createdAt:firebase.firestore.FieldValue.serverTimestamp(),
@@ -1232,7 +1254,7 @@
           try{ await doc('courses', c.id).set({ participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) }, { merge:true }); }catch(_e){}
           closeModal('m-modal'); notify('Enrolled');
         });
-        document.getElementById('show-pay')?.addEventListener('click', ()=> setupPayPalForCourse(c));
+        $('#show-pay')?.addEventListener('click', ()=> setupPayPalForCourse(c));
       }
       if(editBtn){
         if(!canTeach()) return notify('No permission','warn');
@@ -1309,31 +1331,37 @@
         </div>`;
       openModal('m-modal');
 
-      document.getElementById('open-quiz')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
-      document.getElementById('mm-close2')?.addEventListener('click', ()=> closeModal('m-modal'));
+      $('#open-quiz')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
+      $('#mm-close2')?.addEventListener('click', ()=> closeModal('m-modal'));
 
+      // ---- Outline / Progress (same order as Courses modal)
       const outlineBox = document.getElementById('outline-box');
       let outlineData = null;
-      try{ if(c.outlineUrl){ outlineData = await fetchJSON(c.outlineUrl); } }catch(err){ outlineData = null; }
-      const progressLessons = await getProgressLessons(c.id);
-      await ensureProgressTotal(c.id, countLessons(outlineData||{}));
+      try { if(c.outlineUrl){ outlineData = await fetchJSON(c.outlineUrl); } } catch(err){ console.warn('outline load failed:', err); }
+      const totalLessons = countLessons(outlineData || { chapters: [] });
+      try { await ensureProgressTotal(c.id, totalLessons); } catch(e){ console.warn('ensureProgressTotal failed:', e); }
+      let progressLessons = {};
+      try { progressLessons = await getProgressLessons(c.id); } catch(e){ console.warn('getProgressLessons failed:', e); }
       const bodyEl = document.getElementById('mm-body');
-      bodyEl.insertAdjacentHTML('afterbegin', renderCourseProgressHeader(c, outlineData||{chapters:[]}, progressLessons));
+      bodyEl.insertAdjacentHTML('afterbegin', renderCourseProgressHeader(c, outlineData || {chapters:[]}, progressLessons));
+
       if(outlineData){ outlineBox.innerHTML = renderOutlineBoxInteractive(c.id, outlineData, progressLessons); }
       else { outlineBox.innerHTML = `<div class="muted">No outline URL for this course.</div>`; }
+
       outlineBox.addEventListener('change', async (ev)=>{
         const cb = ev.target.closest('input[type="checkbox"][data-lesson]'); if(!cb) return;
-        await toggleLessonProgress(c.id, cb.getAttribute('data-lesson'), cb.checked);
-        const fresh = await getProgressLessons(c.id);
-        document.getElementById('course-progress').outerHTML =
-          renderCourseProgressHeader(c, outlineData||{chapters:[]}, fresh);
+        try{
+          await toggleLessonProgress(c.id, cb.getAttribute('data-lesson'), cb.checked);
+          const fresh = await getProgressLessons(c.id);
+          document.getElementById('course-progress').outerHTML =
+            renderCourseProgressHeader(c, outlineData || {chapters:[]}, fresh);
+        }catch(e){ console.warn('toggleLessonProgress failed:', e); }
       });
 
       const lessonBox = document.getElementById('lesson-quizzes-box');
       if(c.quizzesUrl){
-        fetchJSON(c.quizzesUrl)
-          .then(d => { lessonBox.innerHTML = renderLessonQuizzesBox(d); })
-          .catch(err => { lessonBox.innerHTML = `<div class="muted">Could not load lesson quizzes (${(err&&err.message)||'error'}).</div>`; });
+        try{ const d = await fetchJSON(c.quizzesUrl); lessonBox.innerHTML = renderLessonQuizzesBox(d); }
+        catch(err){ console.warn('lesson quizzes load failed:', err); lessonBox.innerHTML = `<div class="muted">Could not load lesson quizzes.</div>`; }
       }else{
         lessonBox.innerHTML = `<div class="muted">No lesson quizzes URL for this course.</div>`;
       }
@@ -1432,7 +1460,7 @@
     });
   }
 
-  // ---- Chat wiring (FIXED: no TDZ error)
+  // ---- Chat wiring (fix TDZ for unsub)
   function wireChat(){
     const box=$('#chat-box');
     const modeBtns=$$('#chat-modes [data-mode]');
@@ -1442,30 +1470,11 @@
     const input=$('#chat-input');
     const send=$('#chat-send');
 
-    // declare BEFORE first use
+    // must declare before any call to sub()
     let unsub = null;
+
+    // default mode
     let mode='course';
-
-    function setMode(m){
-      mode=m;
-      modeBtns.forEach(b=> b.classList.toggle('secondary', b.getAttribute('data-mode')!==m));
-      courseSel.classList.toggle('hidden', m!=='course');
-      dmSel.classList.toggle('hidden', m!=='dm');
-      groupInp.classList.toggle('hidden', m!=='group');
-      if(m==='dm') populateDmUserSelect();
-      sub();
-    }
-
-    function paint(msgs){
-      box.innerHTML = msgs.sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0))
-        .map(m=>`
-          <div style="margin-bottom:8px">
-            <div style="font-weight:600">${m.name||m.email||'User'} <span class="muted" style="font-size:12px">• ${new Date(m.createdAt?.toDate?.()||m.createdAt||Date.now()).toLocaleTimeString()}</span></div>
-            <div>${(m.text||'').replace(/</g,'&lt;')}</div>
-          </div>`).join('');
-      box.scrollTop=box.scrollHeight;
-    }
-
     function channelKey(){
       if(mode==='course'){
         const c=courseSel.value; return c?`course_${c}`:'';
@@ -1476,19 +1485,36 @@
         const gid=(groupInp.value||'').trim(); return gid?`group_${gid}`:'';
       }
     }
-
+    function paint(msgs){
+      box.innerHTML = msgs.sort((a,b)=>(a.createdAt?.toMillis?.()||0)-(b.createdAt?.toMillis?.()||0))
+        .map(m=>`
+          <div style="margin-bottom:8px">
+            <div style="font-weight:600">${m.name||m.email||'User'} <span class="muted" style="font-size:12px">• ${new Date(m.createdAt?.toDate?.()||m.createdAt||Date.now()).toLocaleTimeString()}</span></div>
+            <div>${(m.text||'').replace(/</g,'&lt;')}</div>
+          </div>`).join('');
+      box.scrollTop=box.scrollHeight;
+    }
     function sub(){
       if(unsub){ try{unsub()}catch{} unsub=null; }
-      const ch = channelKey();
-      if(!ch){ box.innerHTML='<div class="muted">Pick a channel…</div>'; return; }
+      const ch = channelKey(); if(!ch){ box.innerHTML='<div class="muted">Pick a channel…</div>'; return; }
       unsub = col('messages').where('channel','==',ch).onSnapshot(
         s=> paint(s.docs.map(d=>({id:d.id,...d.data()}))),
-        err=> { console.warn('chat listener error:', err); box.innerHTML = `<div class="muted">Cannot load messages (permissions?).</div>`; }
+        err=> console.warn('chat listener error:', err)
       );
       state._unsubChat = unsub;
     }
-
+    function setMode(m){
+      mode=m;
+      modeBtns.forEach(b=> b.classList.toggle('secondary', b.getAttribute('data-mode')!==m));
+      courseSel.classList.toggle('hidden', m!=='course');
+      dmSel.classList.toggle('hidden', m!=='dm');
+      groupInp.classList.toggle('hidden', m!=='group');
+      if(m==='dm') populateDmUserSelect();
+      sub();
+    }
     modeBtns.forEach(b=> b.addEventListener('click', ()=> setMode(b.getAttribute('data-mode')) ));
+    setMode('course');
+
     courseSel?.addEventListener('change', ()=>{ populateDmUserSelect(); sub(); });
     dmSel?.addEventListener('change', sub);
     groupInp?.addEventListener('input', sub);
@@ -1504,16 +1530,12 @@
         peerUid: mode==='dm' ? dmSel.value : undefined,
         groupId: mode==='group' ? groupInp.value.trim() : undefined
       });
-      try{
-        await col('messages').add(payload);
-        input.value='';
-      }catch(e){
-        notify('Cannot send (permissions?)','danger');
-      }
+      await col('messages').add(payload);
+      input.value='';
     });
 
     populateDmUserSelect();
-    setMode('course'); // safe now
+    sub();
   }
 
   // ---- Tasks (drag/drop)

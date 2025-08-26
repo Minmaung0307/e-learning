@@ -3,10 +3,8 @@
   <head>
     <meta charset="utf-8" />
 
-    <!-- Modern, PWA-friendly viewport (single, not duplicated) -->
+    <!-- PWA-friendly viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-
-    <!-- PWA-capable (Chrome + iOS Safari) -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="LearnHub" />
@@ -20,10 +18,9 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
 
-    <!-- Styles -->
     <link rel="stylesheet" href="css/styles.css" />
 
-    <!-- Remix Icon (for icons used in UI) -->
+    <!-- Remix Icon -->
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet" />
 
     <!-- Firebase SDKs -->
@@ -38,21 +35,21 @@
         apiKey: "AIzaSyBv5xQEhNbTbfTywn2dcKyZhbecLiGxZ_I",
         authDomain: "e-learning-mm.firebaseapp.com",
         projectId: "e-learning-mm",
-        storageBucket: "e-learning-mm.firebasestorage.app",
+        storageBucket: "e-learning-mm.appspot.com", // <- typical format; keep your actual bucket if different
         messagingSenderId: "523808908467",
         appId: "1:523808908467:web:01b9bac036137744647cc6",
-        measurementId: "G-JYF6HGM5XC",
+        measurementId: "G-JYF6HGM5XC"
       };
     </script>
 
-    <!-- PayPal SDK (replace client-id if needed) -->
-    <script src="https://www.paypal.com/sdk/js?client-id=AVpfmQ8DyyatFaAGQ3Jg58XtUt_2cJDr1leqcc_JI8LvKIR2N5WB_yljqCOTTCtvK1hFJ7Q9X0ojXsEC&currency=USD&intent=capture"></script>
+    <!-- PayPal SDK (buttons component) -->
+    <script
+      src="https://www.paypal.com/sdk/js?client-id=AVpfmQ8DyyatFaAGQ3Jg58XtUt_2cJDr1leqcc_JI8LvKIR2N5WB_yljqCOTTCtvK1hFJ7Q9X0ojXsEC&currency=USD&intent=capture&components=buttons">
+    </script>
   </head>
-
   <body class="theme-sunrise font-medium">
     <div id="root"></div>
     <div id="notification" class="notification">ok</div>
-
-    <script src="js/app.js" defer></script>
+    <script src="js/app.js"></script>
   </body>
 </html>
