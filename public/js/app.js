@@ -775,7 +775,7 @@
         t=setTimeout(()=>{
           const ix=[];
           state.courses.forEach(c=> ix.push({label:c.title, section:'Courses', route:'courses', id:c.id, text:`${c.title} ${c.category||''}`}));
-          state.quizzes.forEach(qz=> ix.push({label=qz.title, section:'Finals', route:'assessments', id:qz.id, text:qz.courseTitle||''}));
+          state.quizzes.forEach(qz=> ix.push({label:qz.title, section:'Finals', route:'assessments', id:qz.id, text:qz.courseTitle||''}));
           state.profiles.forEach(p=> ix.push({label:p.name||p.email, section:'Profiles', route:'profile', id:p.uid, text:(p.bio||'')}));
           const tokens=q.toLowerCase().split(/\s+/).filter(Boolean);
           const out=ix.map(item=>{
