@@ -1,15 +1,9 @@
-/* LearnHub — E-Learning (compact build, admin/instructor/student) */
+/* LearnHub — E-Learning */
 (() => {
   'use strict';
 
-  // ---- DOM ready helper ----
-  function onReady(fn){
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', fn, { once: true });
-    } else {
-      fn();
-    }
-  }
+  // ---- DOM ready ----
+  const onReady = (fn)=> (document.readyState==='loading'? document.addEventListener('DOMContentLoaded', fn, {once:true}) : fn());
 
   // ---- Firebase ----
   if (!window.firebase || !window.__FIREBASE_CONFIG) {
@@ -20,19 +14,15 @@
   const auth = firebase.auth();
   const db   = firebase.firestore();
   const stg  = firebase.storage();
-  try { firebase.firestore.setLogLevel('debug'); } catch {}
-
-  // ---- Constants ----
-  const VALID_ROLES = ['student','instructor','admin'];
-  const THEME_PALETTES = ['sunrise','light','dark','ocean','forest','grape','lavender','sunset','sand','mono','midnight'];
 
   // ---- State ----
+  const VALID_ROLES = ['student','instructor','admin'];
+  const THEME_PALETTES = ['sunrise','light','dark','ocean','forest','grape','lavender','sunset','sand','mono','midnight'];
   const state = {
     user:null, role:'student', route:'dashboard',
     theme:{ palette: localStorage.getItem('lh.palette') || 'sunrise', font: localStorage.getItem('lh.font') || 'medium' },
     searchQ:'', highlightId:null,
-    courses:[], enrollments:[], quizzes:[], attempts:[], messages:[], tasks:[], profiles:[], notes:[], announcements:[],
-    progress:[],
+    courses:[], enrollments:[], quizzes:[], attempts:[], messages:[], tasks:[], profiles:[], announcements:[], progress:[],
     myEnrolledIds:new Set(), unsub:[], _unsubChat:null
   };
 
@@ -47,34 +37,21 @@
   const canManageUsers  = ()=> state.role==='admin';
   const isEnrolled = (courseId)=> state.myEnrolledIds.has(courseId);
   const money = x => (x===0 ? 'Free' : `$${Number(x).toFixed(2)}`);
+  const clean = (obj) => Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined && !(typeof v === 'number' && Number.isNaN(v))));
 
-  // ---- JSON fetcher ----
-  async function fetchJSON(url){ const r = await fetch(url, { cache: 'no-store' }); if(!r.ok) throw new Error(`HTTP ${r.status}`); return await r.json(); }
+  const fetchJSON = async (url)=>{ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return await r.json(); };
 
-  // ---- Progress helpers ----
   const slug = s => (s||'').toString().toLowerCase()
     .normalize('NFKD').replace(/[\u0300-\u036f]/g,'')
     .replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
   function lessonId(chIdx, chTitle, lIdx, lTitle){
     return `${String(chIdx+1).padStart(2,'0')}-${slug(chTitle||`chapter-${chIdx+1}`)}__${String(lIdx+1).padStart(2,'0')}-${slug(lTitle||`lesson-${lIdx+1}`)}`;
   }
-  function countLessons(outline){
-    let n=0; (outline?.chapters||[]).forEach(ch=>{ n += Array.isArray(ch.lessons) ? ch.lessons.length : 0; });
-    return n;
-  }
-  async function getProgressLessons(courseId){
-    const uid = auth.currentUser.uid;
-    const snap = await doc('progress', `${uid}_${courseId}`).get();
-    return snap.exists ? (snap.data().lessons||{}) : {};
-  }
-  async function ensureProgressTotal(courseId, total){
-    if(!total) return;
-    const uid = auth.currentUser.uid;
-    await doc('progress', `${uid}_${courseId}`).set({ uid, courseId, total }, { merge:true });
-  }
+  function countLessons(outline){ let n=0; (outline?.chapters||[]).forEach(ch=>{ n += Array.isArray(ch.lessons) ? ch.lessons.length : 0; }); return n; }
+  async function getProgressLessons(courseId){ const uid=auth.currentUser.uid; const s=await doc('progress',`${uid}_${courseId}`).get(); return s.exists ? (s.data().lessons||{}) : {}; }
+  async function ensureProgressTotal(courseId, total){ if(!total) return; const uid=auth.currentUser.uid; await doc('progress',`${uid}_${courseId}`).set({ uid, courseId, total }, { merge:true }); }
   async function toggleLessonProgress(courseId, id, checked){
-    const uid = auth.currentUser.uid;
-    const ref = doc('progress', `${uid}_${courseId}`);
+    const uid=auth.currentUser.uid; const ref=doc('progress',`${uid}_${courseId}`);
     const payload = checked ? { [`lessons.${id}`]: true } : { [`lessons.${id}`]: firebase.firestore.FieldValue.delete() };
     await ref.set({ uid, courseId, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), ...payload }, { merge:true });
   }
@@ -98,18 +75,6 @@
           <div>Best score: <strong>${best}%</strong>${final?` • Pass ≥ ${final.passScore||70}%`:''} • Credits earned: <strong>${earned}/${course.credits||0}</strong></div>
         </div>
       </div>`;
-  }
-  function renderOutlineBox(data){
-    if(!data || !Array.isArray(data.chapters)) return `<div class="muted">No chapters found.</div>`;
-    return data.chapters.map(ch=>{
-      const lessons = Array.isArray(ch.lessons) ? `<ul class="list-tight">${
-        ch.lessons.map(l=>`<li>${(l.title||'').replace(/</g,'&lt;')}${l.duration?` <span class="muted">(${l.duration} min)</span>`:''}</li>`).join('')
-      }</ul>` : '';
-      return `<details open>
-        <summary><strong>${(ch.title||'Chapter').replace(/</g,'&lt;')}</strong></summary>
-        ${lessons}
-      </details>`;
-    }).join('');
   }
   function renderOutlineBoxInteractive(courseId, data, checkedMap){
     if(!data || !Array.isArray(data.chapters)) return `<div class="muted">No chapters found.</div>`;
@@ -147,9 +112,8 @@
       </details>`;
     }).join('');
   }
-  const clean = (obj) => Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined && !(typeof v === 'number' && Number.isNaN(v))));
 
-  // ---- PayPal setup (client-side capture) ----
+  // ---- PayPal setup ----
   async function setupPayPalForCourse(c){
     const zone = document.getElementById('paypal-zone');
     const btns = document.getElementById('paypal-buttons');
@@ -188,7 +152,7 @@
     }).render('#paypal-buttons');
   }
 
-  // ---- Theme (instant) ----
+  // ---- Theme ----
   function applyTheme(){
     if (!document.body) return;
     Array.from(document.body.classList).filter(c => c.startsWith('theme-')).forEach(c => document.body.classList.remove(c));
@@ -198,17 +162,17 @@
   }
   onReady(applyTheme);
 
-  // ---- Page hero (route-aware header) ----
+  // ---- Page hero meta ----
   function heroForRoute(route){
     switch(route){
       case 'dashboard': return { icon:'ri-dashboard-line', klass:'dashboard', title:'Dashboard', sub:'Your hub of activity' };
       case 'courses': return { icon:'ri-book-2-line', klass:'courses', title:'Courses', sub:'Create, browse, enroll' };
       case 'learning': return { icon:'ri-graduation-cap-line', klass:'learning', title:'My Learning', sub:'Enrolled courses' };
       case 'assessments': return { icon:'ri-file-list-3-line', klass:'assess', title:'Final Exams', sub:'Take and track results' };
-      case 'chat': return { icon:'ri-chat-3-line', klass:'chat', title:'Chat', sub:'Course, DM, and group' };
+      case 'chat': return { icon:'ri-chat-3-line', klass:'chat', title:'Chat', sub:'Course, DM & groups' };
       case 'tasks': return { icon:'ri-list-check-2', klass:'tasks', title:'Tasks', sub:'Personal kanban' };
       case 'profile': return { icon:'ri-user-3-line', klass:'profile', title:'Profile', sub:'Bio, avatar & certificates' };
-      case 'admin': return { icon:'ri-shield-star-line', klass:'admin', title:'Admin', sub:'Users, roles & rosters' };
+      case 'admin': return { icon:'ri-shield-star-line', klass:'admin', title:'Admin', sub:'Users, roles & transcripts' };
       case 'guide': return { icon:'ri-compass-3-line', klass:'guide', title:'Guide', sub:'All features explained' };
       case 'settings': return { icon:'ri-settings-3-line', klass:'settings', title:'Settings', sub:'Theme & preferences' };
       case 'search': return { icon:'ri-search-line', klass:'search', title:'Search', sub:'Global search' };
@@ -221,13 +185,13 @@
   function closeModal(id){ $('#'+id)?.classList.remove('active'); }
   const closeSidebar=()=>{ document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
 
-  // ---- Router / Layout ----
+  // ---- Router ----
   const routes=['dashboard','courses','learning','assessments','chat','tasks','profile','admin','guide','settings','search'];
   function go(route){
-    const prev = state.route;
     state.route = routes.includes(route)?route:'dashboard';
-    if (prev === 'chat' && state._unsubChat) { try{ state._unsubChat(); }catch{} state._unsubChat = null; }
-    closeSidebar();
+    // ensure modals/backdrops never block nav (fix for Profile not clickable if modal open)
+    closeModal('m-modal'); closeSidebar();
+    if (state._unsubChat && route!=='chat') { try{ state._unsubChat(); }catch{} state._unsubChat = null; }
     render();
   }
 
@@ -322,6 +286,7 @@
 
   const dashCard=(label,value,route,icon)=>`
     <div class="card clickable" data-go="${route}">
+      <div class="top-media"><img src="/icons/learnhub-cap.svg" alt=""></div>
       <div class="card-body" style="display:flex;align-items:center;justify-content:space-between">
         <div>
           <div class="muted">${label}</div>
@@ -347,17 +312,19 @@
         <h3 style="margin:0 0 8px 0">Announcements</h3>
         <div id="ann-list">
           ${state.announcements.map(a=>`
-            <div class="card"><div class="card-body" style="display:flex;justify-content:space-between;gap:10px">
-              <div>
-                <div style="font-weight:700">${a.title||'—'}</div>
-                <div class="muted" style="font-size:12px">${new Date(a.createdAt?.toDate?.()||a.createdAt||Date.now()).toLocaleString()}</div>
-                <div style="margin-top:6px">${(a.body||'').replace(/</g,'&lt;')}</div>
+            <div class="card"><div class="top-media"><img src="/icons/learnhub-cap.svg" alt=""></div>
+              <div class="card-body" style="display:flex;justify-content:space-between;gap:10px">
+                <div>
+                  <div style="font-weight:700">${a.title||'—'}</div>
+                  <div class="muted" style="font-size:12px">${new Date(a.createdAt?.toDate?.()||a.createdAt||Date.now()).toLocaleString()}</div>
+                  <div style="margin-top:6px">${(a.body||'').replace(/</g,'&lt;')}</div>
+                </div>
+                ${canManageUsers()?`<div style="display:flex;gap:6px">
+                  <button class="btn ghost" data-edit-ann="${a.id}"><i class="ri-edit-line"></i></button>
+                  <button class="btn danger" data-del-ann="${a.id}"><i class="ri-delete-bin-6-line"></i></button>
+                </div>`:''}
               </div>
-              ${canManageUsers()?`<div style="display:flex;gap:6px">
-                <button class="btn ghost" data-edit-ann="${a.id}"><i class="ri-edit-line"></i></button>
-                <button class="btn danger" data-del-ann="${a.id}"><i class="ri-delete-bin-6-line"></i></button>
-              </div>`:''}
-            </div></div>
+            </div>
           `).join('')}
           ${!state.announcements.length? `<div class="muted">No announcements.</div>`:''}
         </div>
@@ -376,13 +343,12 @@
       st.text ? `--cc-text:${st.text}` : '',
       st.font ? `--cc-font:${st.font}` : '',
       st.badgeBg ? `--cc-badge-bg:${st.badgeBg}` : '',
-      st.badgeText ? `--cc-badge-text:${st.badgeText}` : '',
-      st.imgFilter ? `--cc-img-filter:${st.imgFilter}` : '',
+      st.badgeText ? `--cc-badge-text:${st.badgeText}` : ''
     ].filter(Boolean).join(';');
 
     return `
     <div class="card course-card ${st.cardClass||''} ${state.highlightId===c.id?'highlight':''}" id="${c.id}" style="${styleStr}">
-      <div class="img"><img src="${img}" alt="${c.title}"/></div>
+      <div class="top-media"><img src="${img}" alt="${c.title}"/></div>
       <div class="card-body">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div style="font-weight:800">${c.title}</div>
@@ -436,27 +402,15 @@
         <h3 style="margin:0 0 8px 0">My Learning</h3>
         <div class="grid cols-4">
           ${list.map(c=>{
-            const prog = (state.progress||[]).find(p=>p.courseId===c.id && p.uid===auth.currentUser?.uid) || {};
-            const done = Object.keys(prog.lessons||{}).length;
-            const total = prog.total || 0;
-            const pct = total ? Math.round((done/total)*100) : 0;
-
-            const best = (state.attempts||[])
-              .filter(a=>a.courseId===c.id && a.uid===auth.currentUser?.uid)
-              .reduce((m,a)=> Math.max(m, a.score||0), 0);
-            const final = (state.quizzes||[]).find(q=>q.courseId===c.id && q.isFinal);
-            const earned = final && best >= (final.passScore||70) ? (c.credits||0) : 0;
-
             const isLong = (c.short||'').length > 160;
             const txt = (c.short||'').replace(/</g,'&lt;');
-
             return `
             <div class="card course-card">
-              <div class="img"><img src="${c.coverImage||'/icons/learnhub-cap.svg'}" alt="${c.title||''}"/></div>
+              <div class="top-media"><img src="${c.coverImage||'/icons/learnhub-cap.svg'}" alt="${c.title||''}"/></div>
               <div class="card-body">
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
                   <div style="font-weight:800">${c.title||'(deleted course)'}</div>
-                  <span class="badge">${pct}% • Best ${best}% • ${earned}/${c.credits||0} cr</span>
+                  <span class="badge">${c.category||'General'}</span>
                 </div>
                 <div class="short-wrap">
                   <div class="muted short ${isLong?'clamp':''}">${txt}</div>
@@ -466,7 +420,6 @@
                   <div class="muted">Credits: <strong>${c.credits||0}</strong></div>
                   <button class="btn" data-open-course="${c.id}">Open</button>
                 </div>
-                <div class="progress-bar" style="margin-top:8px"><span style="width:${pct}%"></span></div>
               </div>
             </div>`;
           }).join('')}
@@ -485,6 +438,7 @@
         <div class="grid" data-sec="quizzes">
           ${state.quizzes.filter(q=>q.isFinal).map(q=>`
             <div class="card ${state.highlightId===q.id?'highlight':''}" id="${q.id}">
+              <div class="top-media"><img src="/icons/learnhub-cap.svg" alt=""></div>
               <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
                 <div>
                   <div style="font-weight:800">${q.title}</div>
@@ -547,7 +501,7 @@
       <button class="btn" id="chat-send"><i class="ri-send-plane-2-line"></i></button>
     </div>
     <div class="muted" style="font-size:12px;margin-top:6px">
-      Modes: Course-wide, Direct (1:1), Group/Batch (e.g., “Diploma-2025”). Admins may still use Announcements for broadcast.
+      Modes: Course-wide, Direct (1:1), Group/Batch (e.g., “Diploma-2025”).
     </div>
   </div></div>`;
 
@@ -564,6 +518,7 @@
           <div class="grid lane-grid" id="lane-${key}">
             ${cards.map(t=>`
               <div class="card task-card" id="${t.id}" draggable="true" data-task="${t.id}" style="cursor:grab">
+                <div class="top-media"><img src="/icons/learnhub-cap.svg" alt=""></div>
                 <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
                   <div>${t.title}</div>
                   <div class="actions">
@@ -579,7 +534,6 @@
     return `<div data-sec="tasks">${lane('todo','To do','#f59e0b')}${lane('inprogress','In progress','#3b82f6')}${lane('done','Done','#10b981')}</div>`;
   }
 
-  // Guide view (abbreviated here – keep your previous rich content if you prefer)
   function vGuide(){
   return `
   <section class="guide">
@@ -823,6 +777,17 @@
   </section>`;
 }
 
+  function buildTranscript(uid){
+    const byCourse = {};
+    (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
+      byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId, best:0, completed:false};
+      byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score||0);
+      const q = state.quizzes.find(q=>q.courseId===a.courseId && q.isFinal);
+      byCourse[a.courseId].completed = q ? (byCourse[a.courseId].best >= (q.passScore||70)) : false;
+    });
+    return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
+  }
+
   function vProfile(){
     const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {name:'',bio:'',portfolio:'',avatar:'',signature:''};
     return `
@@ -875,7 +840,7 @@
             <input id="rm-uid" class="input" placeholder="User UID"/>
             <select id="rm-role" class="input">${VALID_ROLES.map(r=>`<option value="${r}">${r}</option>`).join('')}</select>
             <button class="btn" id="rm-save"><i class="ri-save-3-line"></i> Save Role</button>
-            <div class="muted" style="font-size:12px">Tip: Create your own admin doc once in roles/{yourUid} via console.</div>
+            <div class="muted" style="font-size:12px">Tip: Create roles/{yourUid} with role “admin”.</div>
           </div>
         </div></div>
 
@@ -973,7 +938,7 @@
     }
   }
 
-  // ---- Render / Shell ----
+  // ---- Render ----
   function render(){
     if (!document.body) { onReady(render); return; }
     let root = document.getElementById('root');
@@ -1002,13 +967,20 @@
     });
     $('#backdrop')?.addEventListener('click', closeSidebar);
     $('#brand')?.addEventListener('click', closeSidebar);
+
+    // Make sure nav works even if modal/backdrop was open
+    const goFromNav = (route)=>{ go(route); };
     $('#side-nav')?.addEventListener('click', e=>{
-      const it=e.target.closest?.('.item[data-route]'); if(it){ go(it.getAttribute('data-route')); }
+      const it=e.target.closest?.('.item[data-route]'); if(it){ goFromNav(it.getAttribute('data-route')); }
+    });
+    $('#side-nav')?.addEventListener('pointerdown', e=>{
+      const it=e.target.closest?.('.item[data-route]'); if(it){ e.preventDefault(); goFromNav(it.getAttribute('data-route')); }
     });
     $('#side-nav')?.addEventListener('keydown', e=>{
       const it=e.target.closest?.('.item[data-route]'); if(!it) return;
-      if(e.key==='Enter' || e.key===' '){ e.preventDefault(); go(it.getAttribute('data-route')); }
+      if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goFromNav(it.getAttribute('data-route')); }
     });
+
     $('#main')?.addEventListener('click', (e)=>{
       const goEl = e.target.closest?.('[data-go]'); if (goEl) { go(goEl.getAttribute('data-go')); return; }
       const tg = e.target.closest?.('[data-short-toggle]');
@@ -1019,9 +991,10 @@
       }
       closeSidebar();
     });
+
     $('#btnLogout')?.addEventListener('click', ()=> auth.signOut());
 
-    // search live
+    // search
     const input=$('#globalSearch'), results=$('#searchResults');
     if(input && results){
       let t;
@@ -1051,11 +1024,7 @@
       });
 
       document.addEventListener('click', e=>{
-        try{
-          if(results && typeof results.contains==='function' && e.target!==input && !results.contains(e.target)){
-            results.classList.remove('active');
-          }
-        }catch(_e){}
+        if(results && e.target!==input && !results.contains(e.target)){ results.classList.remove('active'); }
       }, { capture:true });
     }
 
@@ -1095,7 +1064,7 @@
       case 'tasks': wireTasks(); break;
       case 'profile': wireProfile(); break;
       case 'admin': wireAdmin(); break;
-      case 'guide': wireGuide(); break;
+      case 'guide': /* none */ break;
       case 'settings': break;
       case 'dashboard': wireAnnouncements(); break;
     }
@@ -1537,7 +1506,7 @@
       const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {};
       const payload = clean({
         channel: ch, type: modeSel.value, uid: auth.currentUser.uid, email: auth.currentUser.email, name: me.name||'',
-        text, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        text, createdAt:firebase.firestore.FieldValue.serverTimestamp(),
         courseId: modeSel.value==='course' ? courseSel.value : undefined,
         peerUid: modeSel.value==='dm' ? dmSel.value : undefined,
         groupId: modeSel.value==='group' ? groupInp.value.trim() : undefined
@@ -1681,7 +1650,7 @@
     });
   }
 
-  // ---- Admin wiring (roles, profiles, roster, transcript viewer)
+  // ---- Admin wiring
   function wireAdmin(){
     $('#rm-save')?.addEventListener('click', async ()=>{
       const uid = $('#rm-uid')?.value.trim();
@@ -1742,16 +1711,6 @@
     });
 
     // Transcript viewer
-    function buildTranscript(uid){
-      const byCourse = {};
-      (state.attempts||[]).filter(a=>a.uid===uid).forEach(a=>{
-        byCourse[a.courseId]=byCourse[a.courseId]||{courseId:a.courseId, courseTitle:(state.courses.find(c=>c.id===a.courseId)||{}).title||a.courseId, best:0, completed:false};
-        byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score||0);
-        const q = state.quizzes.find(q=>q.courseId===a.courseId && q.isFinal);
-        byCourse[a.courseId].completed = q ? (byCourse[a.courseId].best >= (q.passScore||70)) : false;
-      });
-      return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
-    }
     function adminRenderTranscript(uid){
       const rows = buildTranscript(uid);
       const html = `
@@ -1805,12 +1764,7 @@
     });
   }
 
-  // ---- Guide wiring (copy buttons etc.)
-  function wireGuide(){
-    const root = $('#main'); if(!root || root.__wired) return; root.__wired = true;
-  }
-
-  // ---- Announcements (Dashboard)
+  // ---- Announcements
   function wireAnnouncements(){
     if(!canManageUsers()) return;
     $('#add-ann')?.addEventListener('click', ()=>{
@@ -1893,7 +1847,6 @@
         s=>{ state.announcements=s.docs.map(d=>({id:d.id,...d.data()})); if(['dashboard'].includes(state.route)) render(); }
       )
     );
-    // NEW: progress sync
     state.unsub.push(
       col('progress').where('uid','==',uid).onSnapshot(
         s => { state.progress = s.docs.map(d=>({id:d.id, ...d.data()})); if(['courses','learning','profile','admin'].includes(state.route)) render(); },
@@ -1932,13 +1885,13 @@
   // ---- Boot
   onReady(render);
 
-  // ---- Seed demo courses (optional) ----
+  // ---- Demo seed helper ----
   window.seedDemoCourses = async function(){
     const u=auth.currentUser; if(!u) return alert('Sign in first');
     const list=[
       {title:'Advanced Digital Marketing',category:'Marketing',credits:4,price:250,short:'Master SEO, social media, content strategy.',goals:['Get certified','Hands-on project','Career guidance'],coverImage:'https://images.unsplash.com/photo-1554774853-b415df9eeb92?w=1200&q=80', style: { cardClass: 'theme-gold' }},
       {title:'Modern Web Bootcamp',category:'CS',credits:5,price:0,short:'HTML, CSS, JS, and tooling.',goals:['Responsive sites','Deploy to Hosting','APIs basics'],coverImage:'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&q=80',
-        style:{ bg:'linear-gradient(135deg,#0ea5e9,#22c55e)', text:'#0b1220', badgeBg:'rgba(255,255,255,.4)', badgeText:'#0b1220', imgFilter:'saturate(1.05)' } },
+        style:{ bg:'linear-gradient(135deg,#0ea5e9,#22c55e)', text:'#0b1220', badgeBg:'rgba(255,255,255,.4)', badgeText:'#0b1220' } },
       {title:'Data Visualization 101',category:'Analytics',credits:3,price:120,short:'Chart design, data literacy, storytelling with visuals.',goals:['Good chart choices','Avoid mislead','Tell impact'],coverImage:'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1200&q=80',style:{cardClass:'theme-ice'}}
     ];
     for(const c of list){
