@@ -293,7 +293,7 @@
       </div>
     </div>`;
 
-  // === Dashboard (restored) ===
+  // === Dashboard ===
   const dashTile=(label,value,route,icon)=>`
     <div class="card clickable" data-go="${route}">
       <div class="card-body" style="display:flex;align-items:center;justify-content:space-between">
@@ -481,7 +481,7 @@
     `;
   }
 
-  // === Chat (restored: Course/DM/Group) ===
+  // === Chat ===
   const vChat=()=>`
   <div class="card"><div class="card-body">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between">
@@ -514,7 +514,7 @@
     </div>
   </div></div>`;
 
-  // === Tasks (restored) ===
+  // === Tasks ===
   function vTasks(){
     const my=auth.currentUser?.uid;
     const lane=(key,label,color)=>{
@@ -543,38 +543,19 @@
     return `<div data-sec="tasks">${lane('todo','To do','#f59e0b')}${lane('inprogress','In progress','#3b82f6')}${lane('done','Done','#10b981')}</div>`;
   }
 
-  function vGuide(){
-  return `
+  // === Guide (unchanged) ===
+  function vGuide(){ /* same big guide as you shared */ return `
   <section class="guide">
     <style>
-      /* compact, readable styles for the Guide page only */
-      .guide{
-        --g-bg: linear-gradient(135deg,#0ea5e9 0%, #22c55e 100%);
-        --g-text: var(--text);
-        --g-muted: var(--muted);
-        --g-border: var(--border);
-        --g-surface: var(--panel);
-        --g-surface-2: color-mix(in srgb, var(--panel) 90%, #fff 10%);
-        --g-link: var(--primary);
-        --g-code-bg:#0b1220; --g-code-text:#e5e7eb;
-      }
+      .guide{ --g-bg: linear-gradient(135deg,#0ea5e9 0%, #22c55e 100%); --g-text: var(--text); --g-muted: var(--muted); --g-border: var(--border); --g-surface: var(--panel); --g-surface-2: color-mix(in srgb, var(--panel) 90%, #fff 10%); --g-link: var(--primary); --g-code-bg:#0b1220; --g-code-text:#e5e7eb; }
       .theme-light .guide{ --g-code-bg:#0f172a; --g-code-text:#e5e7eb; }
-
-      .guide, .guide *{ color:var(--g-text) }
-      .guide a{ color:var(--g-link); text-underline-offset:2px }
-      .guide .muted{ color:var(--g-muted) }
-
+      .guide, .guide *{ color:var(--g-text) } .guide a{ color:var(--g-link); text-underline-offset:2px } .guide .muted{ color:var(--g-muted) }
       .guide .hero{ background:var(--g-bg); color:#fff; border-radius:16px; padding:24px 18px; box-shadow:0 6px 24px rgba(0,0,0,.15); }
-      .guide .hero .title{ font-size:22px; font-weight:800 }
-      .guide .hero .subtitle{ opacity:.95; font-size:13px }
-      .guide .nav{ display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 0 }
-      .guide .nav a{ text-decoration:none; background:rgba(0,0,0,.18); color:#fff; padding:7px 10px; border-radius:999px; font-size:12px; border:1px solid rgba(255,255,255,.25); }
-
-      .guide .section{ margin-top:14px }
-      .guide .h{ display:flex; align-items:center; gap:8px; margin:0 0 6px 0; font-size:16px; font-weight:800 }
+      .guide .hero .title{ font-size:22px; font-weight:800 } .guide .hero .subtitle{ opacity:.95; font-size:13px }
+      .guide .nav{ display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 0 } .guide .nav a{ text-decoration:none; background:rgba(0,0,0,.18); color:#fff; padding:7px 10px; border-radius:999px; font-size:12px; border:1px solid rgba(255,255,255,.25); }
+      .guide .section{ margin-top:14px } .guide .h{ display:flex; align-items:center; gap:8px; margin:0 0 6px 0; font-size:16px; font-weight:800 }
       .guide .gcard{ border:1px solid var(--g-border); border-radius:14px; background:var(--g-surface); padding:12px; display:grid; gap:10px }
-      .guide .grid2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px }
-      .guide .grid3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px }
+      .guide .grid2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px } .guide .grid3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px }
       .guide .step{ display:flex; gap:10px; align-items:flex-start; padding:10px; border-radius:12px; border:1px dashed var(--g-border); background:var(--g-surface-2); }
       .guide .badge{ display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border-radius:999px; font-size:12px; background:var(--g-surface-2); border:1px solid var(--g-border); }
       .guide pre{ background:var(--g-code-bg)!important; color:var(--g-code-text)!important; padding:10px 12px; border-radius:12px; overflow:auto; border:1px solid #1f2937; white-space:pre; tab-size:2; }
@@ -582,30 +563,12 @@
       .guide ul{ margin:6px 0 0 18px }
       @media(max-width:840px){ .guide .grid2,.guide .grid3{ grid-template-columns:1fr } }
     </style>
-
-    <div class="hero">
-      <div class="title"><i class="ri-compass-3-line"></i> LearnHub — Complete Guide</div>
-      <div class="subtitle">Everything in the left sidebar, plus payments, styling, hosted JSON, and fixes.</div>
-      <div class="nav">
-        <a href="#menus">Menus</a>
-        <a href="#dashboard">Dashboard</a>
-        <a href="#courses">Courses</a>
-        <a href="#learning">My&nbsp;Learning</a>
-        <a href="#assessments">Finals</a>
-        <a href="#chat">Chat</a>
-        <a href="#tasks">Tasks</a>
-        <a href="#profile">Profile</a>
-        <a href="#admin">Admin</a>
-        <a href="#settings">Settings</a>
-        <a href="#search">Search</a>
-        <a href="#payments">Payments</a>
-        <a href="#styling">Styling</a>
-        <a href="#datajson">Hosting JSON</a>
-        <a href="#troubleshoot">Troubleshooting</a>
-        <a href="#guide">About&nbsp;Guide</a>
-      </div>
-    </div>
-
+    <div class="hero"><div class="title"><i class="ri-compass-3-line"></i> LearnHub — Complete Guide</div>
+    <div class="subtitle">Everything in the left sidebar, plus payments, styling, hosted JSON, and fixes.</div>
+    <div class="nav">
+      <a href="#menus">Menus</a><a href="#dashboard">Dashboard</a><a href="#courses">Courses</a><a href="#learning">My&nbsp;Learning</a><a href="#assessments">Finals</a><a href="#chat">Chat</a><a href="#tasks">Tasks</a><a href="#profile">Profile</a><a href="#admin">Admin</a><a href="#settings">Settings</a><a href="#search">Search</a><a href="#payments">Payments</a><a href="#styling">Styling</a><a href="#datajson">Hosting JSON</a><a href="#troubleshoot">Troubleshooting</a><a href="#guide">About&nbsp;Guide</a>
+    </div></div>
+    <!-- Keep the same guide body you pasted previously -->
     <!-- MENUS OVERVIEW -->
     <div id="menus" class="section">
       <div class="h"><i class="ri-layout-2-line"></i> Sidebar Menus (at a glance)</div>
@@ -783,8 +746,7 @@
         <div class="muted">This page mirrors every left-sidebar menu and the extra flows (payments, styling, hosting). Use the chip nav at the top to jump around.</div>
       </div>
     </div>
-  </section>`;
-}
+  </section>`;}
 
   function buildTranscript(uid){
     const byCourse = {};
@@ -797,10 +759,11 @@
     return Object.values(byCourse).sort((a,b)=> a.courseTitle.localeCompare(b.courseTitle));
   }
 
+  // === Profile (SINGLE COLUMN as requested) ===
   function vProfile(){
     const me = state.profiles.find(p=>p.uid===auth.currentUser?.uid) || {name:'',bio:'',portfolio:'',avatar:'',signature:''};
     return `
-      <div class="grid cols-2">
+      <div>
         <div class="card"><div class="card-body">
           <h3 style="margin:0 0 8px 0">My Profile</h3>
           <div class="grid">
@@ -1044,7 +1007,7 @@
     $('#mm-close')?.addEventListener('click', ()=> closeModal('m-modal'));
   }
 
-  // ---- Chat helpers (global)
+  // ---- Chat helpers
   function profileKey(p){ return p.uid || p.id; }
   function getCourseRecipients(cid){
     const me = auth.currentUser?.uid;
@@ -1210,7 +1173,7 @@
         `;
         openModal('m-modal');
 
-        // ---- Outline / Progress (fail-safe, no stuck "Loading…")
+        // ---- Outline / Progress
         const outlineBox = document.getElementById('outline-box');
         let outlineData = null;
         try { if(c.outlineUrl){ outlineData = await fetchJSON(c.outlineUrl); } } catch(err){ console.warn('outline load failed:', err); }
@@ -1334,7 +1297,7 @@
       $('#open-quiz')?.addEventListener('click', ()=>{ state.searchQ=c.title; go('assessments'); });
       $('#mm-close2')?.addEventListener('click', ()=> closeModal('m-modal'));
 
-      // ---- Outline / Progress (same order as Courses modal)
+      // ---- Outline / Progress
       const outlineBox = document.getElementById('outline-box');
       let outlineData = null;
       try { if(c.outlineUrl){ outlineData = await fetchJSON(c.outlineUrl); } } catch(err){ console.warn('outline load failed:', err); }
@@ -1460,7 +1423,7 @@
     });
   }
 
-  // ---- Chat wiring (fix TDZ for unsub)
+  // ---- Chat wiring
   function wireChat(){
     const box=$('#chat-box');
     const modeBtns=$$('#chat-modes [data-mode]');
@@ -1470,10 +1433,8 @@
     const input=$('#chat-input');
     const send=$('#chat-send');
 
-    // must declare before any call to sub()
     let unsub = null;
 
-    // default mode
     let mode='course';
     function channelKey(){
       if(mode==='course'){
