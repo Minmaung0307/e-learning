@@ -430,45 +430,57 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
   }
 
   function courseCard(c) {
-    const img = c.coverImage || '/icons/learnhub-cap.svg';
-    const goals = (c.goals || []).slice(0, 3).map(g => `<li>${g}</li>`).join('');
-    const isLong = (c.short || '').length > 160;
+  const img = c.coverImage || '/icons/learnhub-cap.svg';
+  const benefitsArr = (c.goals || c.benefits || []).slice(0, 3);
+  const isLong = (c.short || '').length > 160;
 
-    // optional per-course style
-    const st = c.style || {};
-    const styleStr = [
-      st.bg ? `--card-bg:${st.bg}` : '',
-      st.text ? `--card-text:${st.text}` : '',
-      st.font ? `--card-font:${st.font}` : '',
-    ].filter(Boolean).join(';');
+  // optional per-course style
+  const st = c.style || {};
+  const styleStr = [
+    st.bg ? `--card-bg:${st.bg}` : '',
+    st.text ? `--card-text:${st.text}` : '',
+    st.font ? `--card-font:${st.font}` : '',
+    st.imgFilter ? `--card-img-filter:${st.imgFilter}` : '',
+    st.badgeBg ? `--cc-badge-bg:${st.badgeBg}` : '',
+    st.badgeText ? `--cc-badge-text:${st.badgeText}` : '',
+  ].filter(Boolean).join(';');
 
-    return `
-      <div class="card course-card ${state.highlightId === c.id ? 'highlight' : ''}" id="${c.id}" style="${styleStr}">
-        <div class="img"><img src="${img}" alt="${c.title}"/></div>
-        <div class="card-body" style="font-family: var(--card-font, inherit); color: var(--card-text, inherit); background: var(--card-bg, transparent);">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div style="font-weight:800">${c.title}</div>
-            <span class="badge">${c.category || 'General'}</span>
-          </div>
+  return `
+    <div class="card course-card ${st.cardClass || ''} ${state.highlightId === c.id ? 'highlight' : ''}" id="${c.id}" style="${styleStr}">
+      <div class="img">
+        <img src="${img}" alt="${c.title}"/>
+      </div>
+      <div class="card-body">
+        <div class="header">
+          <div class="title">${c.title}</div>
+          <span class="badge">${c.category || 'General'}</span>
+        </div>
 
-          <div class="short-wrap">
-            <div class="muted short ${isLong ? 'clamp' : ''}">${(c.short || '').replace(/</g, '&lt;')}</div>
-            ${isLong ? `<button class="short-toggle" data-short-toggle>Read more</button>` : ''}
-          </div>
+        <div class="summary">
+          <div class="short ${isLong ? 'clamp' : ''}">${(c.short || '').replace(/</g, '&lt;')}</div>
+          ${isLong ? `<button class="short-toggle" data-short-toggle>Read more</button>` : ''}
+        </div>
 
-          ${goals ? `<ul style="margin-top:8px">${goals}</ul>` : ''}
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-            <div class="muted">Credits: <strong>${c.credits || 0}</strong></div>
-            <div style="font-weight:800">${money(c.price || 0)}</div>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <button class="btn" data-open="${c.id}"><i class="ri-external-link-line"></i> Details</button>
-            ${canTeach() ? `<button class="btn ghost" data-edit="${c.id}"><i class="ri-edit-line"></i></button>
-            <button class="btn danger" data-del="${c.id}"><i class="ri-delete-bin-6-line"></i></button>` : ''}
+        ${benefitsArr.length ? `
+          <ul class="benefits">
+            ${benefitsArr.map(b => `<li><i class="ri-checkbox-circle-line"></i><span>${(b || '').replace(/</g, '&lt;')}</span></li>`).join('')}
+          </ul>` : ''}
+
+        <div class="meta">
+          <div class="price">${money(c.price || 0)}</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn cta" data-open="${c.id}">
+              <i class="ri-external-link-line"></i> ${c.price > 0 ? 'Buy Now' : 'View Course'}
+            </button>
+            ${canTeach() ? `
+              <button class="btn ghost" data-edit="${c.id}" title="Edit"><i class="ri-edit-line"></i></button>
+              <button class="btn danger" data-del="${c.id}" title="Delete"><i class="ri-delete-bin-6-line"></i></button>
+            ` : ''}
           </div>
         </div>
-      </div>`;
-  }
+      </div>
+    </div>`;
+}
 
   function vCourses() {
     return `
@@ -1968,6 +1980,75 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
     });
   }
 
+  function injectCourseCardStyles() {
+  if (document.getElementById('lh-course-card-styles')) return;
+  const css = `
+  .card.course-card{
+    border-radius:16px;
+    box-shadow:0 6px 16px rgba(0,0,0,.08);
+    transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease,background .18s ease;
+    overflow:hidden;
+  }
+  .card.course-card:hover{
+    transform:translateY(-2px);
+    box-shadow:0 12px 28px rgba(0,0,0,.14);
+    border-color:var(--primary,#0ea5e9);
+  }
+  .course-card .img img{
+    display:block;width:100%;height:180px;object-fit:cover;
+    filter:var(--card-img-filter,none);
+  }
+  @media (max-width:720px){ .course-card .img img{ height:150px; } }
+
+  .course-card .card-body{
+    padding:12px;
+    font-family: var(--card-font, inherit);
+    color: var(--card-text, inherit);
+    background: var(--card-bg, transparent);
+  }
+  .course-card .header{
+    display:flex;justify-content:space-between;align-items:center;gap:8px;
+  }
+  .course-card .title{
+    font-weight:800;font-size:16px;line-height:1.3;
+  }
+  .course-card .badge{
+    background:var(--cc-badge-bg,rgba(0,0,0,.06));
+    color:var(--cc-badge-text,inherit);
+    padding:3px 8px;border-radius:999px;font-size:12px;
+  }
+
+  .course-card .summary{ margin-top:6px; }
+  .course-card .short{ font-size:13px; color:var(--muted); }
+  .course-card .short.clamp{
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .course-card .short-toggle{
+    margin-top:4px;background:none;border:0;color:var(--primary);cursor:pointer;font-size:12px;padding:0;
+  }
+
+  .course-card .benefits{
+    list-style:none;margin:10px 0 0 0;padding:0;display:grid;gap:6px;
+  }
+  .course-card .benefits li{
+    display:flex;gap:8px;align-items:flex-start;font-size:13px;
+  }
+  .course-card .benefits i{ font-size:16px;opacity:.85;margin-top:1px; }
+
+  .course-card .meta{
+    display:flex;justify-content:space-between;align-items:center;margin-top:12px;
+  }
+  .course-card .price{ font-weight:800;font-size:16px; }
+  .course-card .cta.btn{
+    padding:8px 12px;border-radius:10px;
+  }
+  `;
+  const style = document.createElement('style');
+  style.id = 'lh-course-card-styles';
+  style.textContent = css;
+  document.head.appendChild(style);
+}
+
   // ---- Transcript
   function buildTranscript(uid) {
     const byCourse = {};
@@ -2089,6 +2170,7 @@ auth.onAuthStateChanged(async (user) => {
 
   // ---- Boot
   onReady(render);
+  onReady(injectCourseCardStyles);
 
   // ---- Seed demo courses (optional) ----
   window.seedDemoCourses = async function () {
