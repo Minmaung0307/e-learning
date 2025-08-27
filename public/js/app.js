@@ -2077,6 +2077,58 @@ function injectCourseCardStyles() {
   document.head.appendChild(style);
 }
 
+// Add after your previous injectCourseCardStyles()
+function enforceReadableCardText() {
+  const ID = 'lh-course-card-text-fix';
+  const css = `
+  /* Root text color for all course cards (strong, readable on light gradients) */
+  .card.course-card{ color:#0b1220 !important; }
+
+  /* Make sure typical content is dark and legible */
+  .card.course-card .card-body,
+  .card.course-card .title,
+  .card.course-card .short,
+  .card.course-card .muted,
+  .card.course-card .benefits li,
+  .card.course-card .price,
+  .card.course-card .badge{
+    color:#0b1220 !important;
+  }
+
+  /* Subtle secondary (muted) tone */
+  .card.course-card .muted{
+    color:rgba(11,18,32,.65) !important;
+  }
+
+  /* Paragraph/summary tone a touch stronger than muted */
+  .card.course-card .short{
+    color:rgba(11,18,32,.90) !important;
+  }
+
+  /* Badge stays readable on gradients */
+  .card.course-card .badge{
+    background:rgba(255,255,255,.70);
+    border:1px solid rgba(0,0,0,.06);
+  }
+
+  /* Links / ghost buttons inside the card read as dark by default */
+  .card.course-card a,
+  .card.course-card .btn.ghost{
+    color:#0b1220 !important;
+  }
+
+  /* CTA on dark button: keep white text for contrast on the dark background */
+  .card.course-card .cta.btn{
+    background:#0b1220 !important;
+    color:#ffffff !important;
+  }
+  `;
+
+  const el = document.getElementById(ID) || Object.assign(document.createElement('style'), { id: ID });
+  el.textContent = css;
+  if (!el.parentNode) document.head.appendChild(el);
+}
+
   // ---- Transcript
   function buildTranscript(uid) {
     const byCourse = {};
@@ -2199,6 +2251,7 @@ auth.onAuthStateChanged(async (user) => {
   // ---- Boot
   onReady(render);
   onReady(injectCourseCardStyles);
+  onReady(enforceReadableCardText);
 
   // ---- Seed demo courses (optional) ----
   window.seedDemoCourses = async function () {
