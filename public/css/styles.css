@@ -531,14 +531,14 @@ body.theme-sunrise::after{
 }
 
 /* If “sheet-mode” is ever used, still keep it readable & aligned */
-#m-modal.sheet-mode{
+/* #m-modal.sheet-mode{
   justify-content: flex-end !important; /* sheet slides from right */
-}
-#m-modal.sheet-mode .dialog{
+/* } */
+/* #m-modal.sheet-mode .dialog{
   width: min(860px, calc(100vw - 20px)) !important;
   height: 100vh;
   border-radius: 0;
-}
+} */ 
 
 /* Ensure course detail content never feels stuck to one side */
 #mm-body{
