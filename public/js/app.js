@@ -2129,6 +2129,80 @@ function enforceReadableCardText() {
   if (!el.parentNode) document.head.appendChild(el);
 }
 
+// Courses + My Learning: parity & readability
+(function applyCourseAndLearningCardParity(){
+  const ID = 'lh-cards-courses-learning-parity';
+  const css = `
+  /* 3 / 2 / 1 responsive grid, only when a grid actually contains course cards */
+  .grid.cols-2:has(.card.course-card){
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:12px;
+  }
+  @media (max-width: 1100px){
+    .grid.cols-2:has(.card.course-card){ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width: 680px){
+    .grid.cols-2:has(.card.course-card){ grid-template-columns:1fr; }
+  }
+
+  /* Card base (applies to both pages) */
+  .card.course-card{
+    display:flex; flex-direction:column;
+    min-height:460px; border-radius:12px; overflow:hidden;
+  }
+
+  /* Prevent thumbnail cropping (contain + letterbox bg) */
+  .card.course-card .img{
+    width:100%; height:200px;
+    background:#f0f2f5; /* subtle letterbox */
+    display:flex; align-items:center; justify-content:center;
+  }
+  .card.course-card .img img{
+    width:100%; height:100%; object-fit:contain;
+  }
+
+  /* Push the last row (CTA/controls) to the bottom uniformly */
+  .card.course-card .card-body{ display:flex; flex-direction:column; flex:1 1 auto; }
+  .card.course-card .card-body > :last-child{ margin-top:auto !important; }
+
+  /* Gradient variety (automatic, cohesive, light backgrounds) */
+  .card.course-card:nth-child(6n+1){ background-image:linear-gradient(135deg,#eef2ff,#e0f2fe); }
+  .card.course-card:nth-child(6n+2){ background-image:linear-gradient(135deg,#fff7ed,#fef3c7); }
+  .card.course-card:nth-child(6n+3){ background-image:linear-gradient(135deg,#fdf2f8,#e9d5ff); }
+  .card.course-card:nth-child(6n+4){ background-image:linear-gradient(135deg,#ecfeff,#f0fdf4); }
+  .card.course-card:nth-child(6n+5){ background-image:linear-gradient(135deg,#faf5ff,#eef2ff); }
+  .card.course-card:nth-child(6n+6){ background-image:linear-gradient(135deg,#fffbeb,#fef2f2); }
+
+  /* High-contrast, dark text for readability on all gradients */
+  .card.course-card,
+  .card.course-card .card-body,
+  .card.course-card .short,
+  .card.course-card .muted,
+  .card.course-card .badge{
+    color:#0b1220 !important;
+  }
+  .card.course-card .muted{ color:rgba(11,18,32,.65) !important; }
+  .card.course-card .short{ color:rgba(11,18,32,.90) !important; }
+
+  /* Keep badges readable on gradients */
+  .card.course-card .badge{
+    background:rgba(255,255,255,.70);
+    border:1px solid rgba(0,0,0,.06);
+  }
+
+  /* Optional: stronger CTA contrast if you use a dark primary button */
+  .card.course-card .btn.primary,
+  .card.course-card .btn.ok{
+    color:#ffffff !important;
+  }
+  `;
+
+  let el = document.getElementById(ID);
+  if (!el) { el = document.createElement('style'); el.id = ID; document.head.appendChild(el); }
+  el.textContent = css;
+})();
+
   // ---- Transcript
   function buildTranscript(uid) {
     const byCourse = {};
