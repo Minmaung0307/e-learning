@@ -2698,6 +2698,48 @@ auth.onAuthStateChanged(async (user) => {
   onReady(render);
 });
 
+/* === Sidebar layout fix: content should fill remaining width === */
+(function sidebarLayoutFix(){
+  const ID = 'lh-sidebar-layout-fix';
+  const css = `
+  :root{
+    --sb-collapsed: 76px; /* keep in sync with your sidebar */
+  }
+
+  /* Desktop / tablet: content is offset by collapsed width and fills remainder */
+  @media (min-width: 768px){
+    .app{ position: relative; }
+
+    /* This is the wrapper that contains topbar + hero + main (second child of .app) */
+    .app > div{
+      box-sizing: border-box;
+      margin-left: var(--sb-collapsed) !important;              /* push past fixed sidebar */
+      width: calc(100% - var(--sb-collapsed)) !important;       /* fill remaining width */
+      min-width: 0;                                             /* prevent accidental shrink */
+    }
+
+    /* Ensure inner sections fully span the wrapper width */
+    .app .topbar,
+    .app .page-hero,
+    .app .main{
+      width: 100%;
+      max-width: none;
+    }
+  }
+
+  /* Mobile: sidebar is drawer; content should start at 0 and use full width */
+  @media (max-width: 767.98px){
+    .app > div{
+      margin-left: 0 !important;
+      width: 100% !important;
+    }
+  }
+  `;
+  let s = document.getElementById(ID);
+  if (!s){ s = document.createElement('style'); s.id = ID; document.head.appendChild(s); }
+  s.textContent = css;
+})();
+
   // ---- Boot
   onReady(render);
   onReady(injectCourseCardStyles);
