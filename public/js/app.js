@@ -40,9 +40,6 @@
     }
   }
 
-  // ---- Constants ----
-  const VALID_ROLES = ['student', 'instructor', 'admin'];
-
   // ---- State ----
   const state = {
     user: null,
@@ -82,6 +79,10 @@
   const canManageUsers = () => state.role === 'admin';
   const isEnrolled = (courseId) => state.myEnrolledIds.has(courseId);
   const money = x => (x === 0 ? 'Free' : `$${Number(x).toFixed(2)}`);
+
+  // ---- Constants ----
+const VALID_ROLES = ['student', 'instructor', 'admin'];
+const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
 
   // Remove undefined/NaN before writes (Firestore rejects undefined)
   const clean = (obj) => Object.fromEntries(
@@ -259,6 +260,23 @@
       default: return { icon: 'ri-compass-3-line', klass: 'guide', title: 'LearnHub', sub: 'Smart learning platform' };
     }
   }
+
+  function listenToMyRole(uid) {
+  const unsub = doc('roles', uid).onSnapshot(
+    snap => {
+      const role = normalizeRole(snap.data()?.role);
+      const resolved = VALID_ROLES.includes(role) ? role : 'student';
+      if (resolved !== state.role) {
+        state.role = resolved;
+        // keep profile.role in sync (best effort)
+        try { doc('profiles', uid).set({ role: resolved }, { merge: true }); } catch {}
+        render(); // sidebar/menu updates instantly
+      }
+    },
+    err => console.warn('roles listener error:', err)
+  );
+  state.unsub.push(unsub); // will be cleaned on sign-out by clearUnsubs()
+}
 
   // ---- Modal + Sidebar helpers ----
   function openModal(id) { $('#' + id)?.classList.add('active'); }
@@ -2036,26 +2054,38 @@
       return VALID_ROLES.includes(role) ? role : 'student';
     } catch { return 'student'; }
   }
-
+  
   // ---- Auth
-  auth.onAuthStateChanged(async (user) => {
-    state.user = user || null;
-    if (!user) {
-      clearUnsubs();
-      if (state._unsubChat) { try { state._unsubChat(); } catch { } state._unsubChat = null; }
-      onReady(render);
-      return;
-    }
-    state.role = await resolveRole(user.uid);
-    try {
-      const p = await doc('profiles', user.uid).get();
-      if (!p.exists) await doc('profiles', user.uid).set({ uid: user.uid, email: user.email, name: '', bio: '', portfolio: '', role: state.role, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-      else await doc('profiles', user.uid).set({ role: state.role }, { merge: true });
-    } catch {}
-    onReady(applyTheme);
-    sync();
+auth.onAuthStateChanged(async (user) => {
+  state.user = user || null;
+  if (!user) {
+    clearUnsubs();
+    if (state._unsubChat) { try { state._unsubChat(); } catch {} state._unsubChat = null; }
     onReady(render);
-  });
+    return;
+  }
+
+  // Resolve once, then keep it live
+  state.role = await resolveRole(user.uid);
+  listenToMyRole(user.uid); // <— NEW: live updates for Admin menu
+
+  try {
+    const p = await doc('profiles', user.uid).get();
+    if (!p.exists) {
+      await doc('profiles', user.uid).set({
+        uid: user.uid, email: user.email, name: '', bio: '', portfolio: '',
+        role: state.role,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      await doc('profiles', user.uid).set({ role: state.role }, { merge: true });
+    }
+  } catch {}
+
+  onReady(applyTheme);
+  sync();
+  onReady(render);
+});
 
   // ---- Boot
   onReady(render);
