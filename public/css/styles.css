@@ -469,3 +469,41 @@ body.theme-sunrise::after{
   backdrop-filter: none !important;
 }
 .modal .head, .modal .body, .modal .foot{ background: transparent !important; }
+
+/* ===== Sidebar icon centering — collapsed vs expanded ===== */
+@media (min-width: 768px){
+  /* Make sure the sidebar box model is predictable */
+  .sidebar{ box-sizing: border-box; }
+
+  /* Size/align the icon itself */
+  .sidebar .nav .item i{
+    font-size: 20px;               /* clearly visible */
+    width: 28px; min-width: 28px;  /* fixed icon box */
+    text-align: center; line-height: 1;
+  }
+
+  /* Collapsed (default) — center icons, hide labels, remove extra spacing */
+  .sidebar:not(:hover) .brand{
+    justify-content: center;
+    padding: 14px 0;               /* no side padding so logo centers */
+  }
+  .sidebar:not(:hover) .nav{ padding: 8px 0; }
+  .sidebar:not(:hover) .nav .item{
+    justify-content: center;       /* center icon row */
+    gap: 0;                        /* no gap if label is hidden */
+    padding: 12px 0;               /* symmetrical padding */
+  }
+  .sidebar:not(:hover) .nav .item span{ display: none; } /* fully remove labels from layout */
+  .sidebar:not(:hover) .footer{ display: none; }         /* optional: hide footer in collapsed */
+
+  /* Expanded (hover) — restore normal spacing & left alignment */
+  .sidebar:hover .nav .item{
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .sidebar:hover .brand{
+    justify-content: flex-start;
+    padding: 14px 14px;
+  }
+}
