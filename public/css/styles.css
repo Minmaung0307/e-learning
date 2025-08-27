@@ -623,3 +623,35 @@ body.theme-sunrise::after{
 
 /* (Optional) If you previously set a full-screen modal elsewhere, this overrides it */
 .modal { pointer-events: auto; }        /* ensure inner clicks work */
+
+/* ---- Course detail theming (applied to #main) ---- */
+#main.bg-grad-1 { background-image: linear-gradient(to top right, #d4fc79, #96e6a1); }
+#main.bg-grad-2 { background-image: linear-gradient(to top right, #a1c4fd, #c2e9fb); }
+#main.bg-grad-3 { background-image: linear-gradient(to top right, #fbc2eb, #a6c1ee); }
+#main.bg-grad-4 { background-image: linear-gradient(to top right, #ffecd2, #fcb69f); }
+#main.bg-grad-5 { background-image: linear-gradient(to top right, #e0c3fc, #8ec5fc); }
+#main.bg-grad-6 { background-image: linear-gradient(to top right, #fdfbfb, #ebedee); }
+#main[class^="bg-grad-"], #main[class*=" bg-grad-"] {
+  background-attachment: fixed;
+}
+
+/* Keep your global main padding (requested 20px gutters already present) */
+.main { padding: 0 20px 20px; }
+
+/* ---- Detail page sticky action bar ---- */
+.detail-actions {
+  position: sticky;
+  bottom: 14px;               /* floats near bottom while scrolling */
+  z-index: 5;
+}
+.detail-actions .detail-actions-inner {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.25);
+}
+
+/* Make outline/quizzes sections pleasant */
+.section-box h4 { margin: 0 0 6px 0; }

@@ -59,7 +59,10 @@
     announcements: [],
     myEnrolledIds: new Set(),
     unsub: [],
-    _unsubChat: null
+    _unsubChat: null,
+    currentCourseId: null,
+detailPrevRoute: null,
+mainThemeClass: '',
   };
 
   // ---- Utils ----
@@ -79,6 +82,14 @@
   const canManageUsers = () => state.role === 'admin';
   const isEnrolled = (courseId) => state.myEnrolledIds.has(courseId);
   const money = x => (x === 0 ? 'Free' : `$${Number(x).toFixed(2)}`);
+
+  // Deterministic gradient class per course id
+const GRADIENT_CLASSES = ['bg-grad-1','bg-grad-2','bg-grad-3','bg-grad-4','bg-grad-5','bg-grad-6'];
+function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){ h=((h<<5)-h)+s.charCodeAt(i); h|=0; } return Math.abs(h); }
+function pickGradientClass(courseId){
+  const idx = courseId ? hashStr(courseId) % GRADIENT_CLASSES.length : 0;
+  return GRADIENT_CLASSES[idx];
+}
 
   // ---- Constants ----
 const VALID_ROLES = ['student', 'instructor', 'admin'];
@@ -257,7 +268,9 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
       case 'settings': return { icon: 'ri-settings-3-line', klass: 'settings', title: 'Settings', sub: 'Theme & preferences' };
       case 'search': return { icon: 'ri-search-line', klass: 'search', title: 'Search', sub: 'Global search' };
       case 'contact': return { icon: 'ri-mail-send-line', klass: 'contact', title: 'Contact', sub: 'Get in touch' };
+      case 'course-detail': return { icon: 'ri-book-open-line', klass: 'course-detail', title: 'Course Detail', sub: 'Overview & materials' };
       default: return { icon: 'ri-compass-3-line', klass: 'guide', title: 'LearnHub', sub: 'Smart learning platform' };
+
     }
   }
 
@@ -304,7 +317,7 @@ function closeModal(id) {
   const closeSidebar = () => { document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
 
   // ---- Router / Layout ----
-  const routes = ['dashboard', 'courses', 'learning', 'assessments', 'chat', 'tasks', 'profile', 'admin', 'guide', 'settings', 'search', 'contact'];
+  const routes = ['dashboard','courses','course-detail','learning','assessments','chat','tasks','profile','admin','guide','settings','search','contact'];
   function go(route) {
     const prev = state.route;
     state.route = routes.includes(route) ? route : 'dashboard';
@@ -315,6 +328,7 @@ function closeModal(id) {
 
   function layout(content) {
   const hero = heroForRoute(state.route);
+  const mainTheme = state.route === 'course-detail' ? (state.mainThemeClass || '') : '';
   return `
     <div class="app">
       <aside class="sidebar" id="sidebar">
@@ -369,7 +383,7 @@ function closeModal(id) {
           </div>
         </div>
 
-        <div class="main" id="main">${content}</div>
+        <div class="main ${mainTheme}" id="main">${content}</div>
 
         <!-- In-pane modal (no full page overlay) -->
         <div class="modal" id="m-modal" aria-hidden="true">
@@ -474,7 +488,7 @@ function closeModal(id) {
   ].filter(Boolean).join(';');
 
   return `
-    <div class="card course-card ${st.cardClass || ''} ${state.highlightId === c.id ? 'highlight' : ''}" id="${c.id}" style="${styleStr}">
+    <div class="card course-card ${st.cardClass || ''} ${pickGradientClass(c.id)} ${state.highlightId === c.id ? 'highlight' : ''}" id="${c.id}" style="${styleStr}">
       <div class="img">
         <img src="${img}" alt="${c.title}"/>
       </div>
@@ -530,6 +544,63 @@ function closeModal(id) {
     `;
   }
 
+  function vCourseDetail(id){
+  const c = state.courses.find(x => x.id === id) || {};
+  const enrolled = isEnrolled(id);
+
+  return `
+    <div class="card" style="margin:12px 0">
+      <div class="card-body">
+        <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn ghost" id="cd-back"><i class="ri-arrow-left-line"></i> Back</button>
+            <div class="badge"><i class="ri-book-2-line"></i> ${c.category || 'General'} • Credits ${c.credits || 0}</div>
+          </div>
+          <div style="font-weight:800">${c.price > 0 ? money(c.price) : 'Free'}</div>
+        </div>
+
+        <h2 style="margin:8px 0 6px 0">${c.title || ''}</h2>
+
+        <!-- No big thumbnail on detail page (as requested) -->
+        <p class="muted" style="margin-top:6px">${(c.short || '').replace(/</g, '&lt;')}</p>
+        ${c.goals?.length ? `<ul class="list-tight" style="margin-top:6px">${c.goals.map(g => `<li>${g}</li>`).join('')}</ul>` : ''}
+
+        <div class="section-box" style="margin-top:12px">
+          <h4><i class="ri-layout-2-line"></i> Outline</h4>
+          <div id="cd-outline"><div class="muted">Loading…</div></div>
+        </div>
+
+        <div class="section-box" style="margin-top:12px">
+          <h4><i class="ri-question-answer-line"></i> Lesson Quizzes</h4>
+          <div id="cd-lesson-quizzes"><div class="muted">Loading…</div></div>
+        </div>
+
+        <!-- PayPal zone (rendered on demand) -->
+        <div id="paypal-zone" class="paypal-zone hidden" style="margin-top:14px">
+          <div id="paypal-buttons"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sticky action bar -->
+    <div class="detail-actions">
+      <div class="detail-actions-inner">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end">
+          ${
+            enrolled
+              ? `<button class="btn ok" disabled><i class="ri-check-line"></i> Enrolled</button>`
+              : (c.price > 0
+                  ? `<button class="btn" id="cd-show-pay"><i class="ri-bank-card-line"></i> Pay &amp; Enroll (${money(c.price)})</button>`
+                  : `<button class="btn" id="cd-enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>`
+                )
+          }
+          <button class="btn ghost" id="cd-finals"><i class="ri-question-line"></i> Finals</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
   function vLearning() {
     const my = auth.currentUser?.uid;
     const list = state.enrollments.filter(e => e.uid === my).map(e => state.courses.find(c => c.id === e.courseId) || {});
@@ -538,7 +609,7 @@ function closeModal(id) {
         <h3 style="margin:0 0 8px 0">My Learning</h3>
         <div class="grid cols-2" data-sec="learning">
           ${list.map(c => `
-            <div class="card course-card">
+            <div class="card course-card ${pickGradientClass(c.id)}">
               <div class="img"><img src="${c.coverImage || '/icons/learnhub-cap.svg'}" alt="${c.title || ''}"/></div>
               <div class="card-body">
                 <div style="font-weight:800">${c.title || '(deleted course)'}</div>
@@ -1069,6 +1140,7 @@ function closeModal(id) {
       case 'settings': return vSettings();
       case 'search': return vSearch();
       case 'contact': return vContact();
+      case 'course-detail': return vCourseDetail(state.currentCourseId);
       default: return vDashboard();
     }
   }
@@ -1182,6 +1254,7 @@ document.addEventListener('keydown', (e) => {
   function wireRoute() {
     switch (state.route) {
       case 'courses': wireCourses(); break;
+      case 'course-detail': wireCourseDetail(); break;
       case 'learning': wireLearning(); break;
       case 'assessments': wireAssessments(); break;
       case 'chat': wireChat(); break;
@@ -1303,93 +1376,101 @@ document.addEventListener('keydown', (e) => {
       const editBtn = e.target.closest?.('button[data-edit]');
       const delBtn = e.target.closest?.('button[data-del]');
 
-      if (openBtn) {
-        const id = openBtn.getAttribute('data-open');
-        const snap = await doc('courses', id).get(); if (!snap.exists) return;
-        const c = { id: snap.id, ...snap.data() };
-        const enrolled = isEnrolled(c.id);
+    //   if (openBtn) {
+    //     const id = openBtn.getAttribute('data-open');
+    //     const snap = await doc('courses', id).get(); if (!snap.exists) return;
+    //     const c = { id: snap.id, ...snap.data() };
+    //     const enrolled = isEnrolled(c.id);
 
-        $('#mm-title').textContent = c.title;
-        $('#mm-body').innerHTML = `
-          <div class="course-full" style="display:grid;grid-template-columns:250px 1fr;gap:14px;align-items:start">
-            <div>
-              <img class="course-cover-thumb" src="${c.coverImage || '/icons/learnhub-cap.svg'}" alt="${c.title}" style="width:250px;height:auto;max-width:100%;object-fit:cover;border-radius:10px;border:1px solid var(--border)"/>
-            </div>
-            <div>
-              <div class="muted">${c.category || 'General'} • Credits ${c.credits || 0}</div>
-              <p>${(c.short || '').replace(/</g, '&lt;')}</p>
-              ${(c.goals?.length ? `<ul class="list-tight">${c.goals.map(g => `<li>${g}</li>`).join('')}</ul>` : '')}
-              ${c.price > 0 ? `<div style="margin-top:6px"><strong>Price:</strong> ${money(c.price)}</div>` : ''}
-            </div>
-          </div>
+    //     $('#mm-title').textContent = c.title;
+    //     $('#mm-body').innerHTML = `
+    //       <div class="course-full" style="display:grid;grid-template-columns:250px 1fr;gap:14px;align-items:start">
+    //         <div>
+    //           <img class="course-cover-thumb" src="${c.coverImage || '/icons/learnhub-cap.svg'}" alt="${c.title}" style="width:250px;height:auto;max-width:100%;object-fit:cover;border-radius:10px;border:1px solid var(--border)"/>
+    //         </div>
+    //         <div>
+    //           <div class="muted">${c.category || 'General'} • Credits ${c.credits || 0}</div>
+    //           <p>${(c.short || '').replace(/</g, '&lt;')}</p>
+    //           ${(c.goals?.length ? `<ul class="list-tight">${c.goals.map(g => `<li>${g}</li>`).join('')}</ul>` : '')}
+    //           ${c.price > 0 ? `<div style="margin-top:6px"><strong>Price:</strong> ${money(c.price)}</div>` : ''}
+    //         </div>
+    //       </div>
 
-          <div class="section-box" style="margin-top:12px">
-            <h4><i class="ri-layout-2-line"></i> Outline</h4>
-            <div id="outline-box"><div class="muted">Loading…</div></div>
-          </div>
+    //       <div class="section-box" style="margin-top:12px">
+    //         <h4><i class="ri-layout-2-line"></i> Outline</h4>
+    //         <div id="outline-box"><div class="muted">Loading…</div></div>
+    //       </div>
 
-          <div class="section-box" style="margin-top:12px">
-            <h4><i class="ri-question-answer-line"></i> Lesson Quizzes</h4>
-            <div id="lesson-quizzes-box"><div class="muted">Loading…</div></div>
-          </div>
+    //       <div class="section-box" style="margin-top:12px">
+    //         <h4><i class="ri-question-answer-line"></i> Lesson Quizzes</h4>
+    //         <div id="lesson-quizzes-box"><div class="muted">Loading…</div></div>
+    //       </div>
 
-          <div id="paypal-zone" class="paypal-zone hidden" style="margin-top:14px">
-            <div id="paypal-buttons"></div>
-          </div>
-        `;
+    //       <div id="paypal-zone" class="paypal-zone hidden" style="margin-top:14px">
+    //         <div id="paypal-buttons"></div>
+    //       </div>
+    //     `;
 
-        $('#mm-foot').innerHTML = `
-          <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-            ${
-              enrolled
-                ? `<button class="btn ok" disabled>Enrolled</button>`
-                : (c.price > 0
-                    ? `<button class="btn" id="show-pay"><i class="ri-bank-card-line"></i> Pay & Enroll (${money(c.price)})</button>`
-                    : `<button class="btn" id="enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>`
-                  )
-            }
-            <button class="btn ghost" id="open-quiz"><i class="ri-question-line"></i> Finals</button>
-          </div>
-        `;
-        openModal('m-modal');
+    //     $('#mm-foot').innerHTML = `
+    //       <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+    //         ${
+    //           enrolled
+    //             ? `<button class="btn ok" disabled>Enrolled</button>`
+    //             : (c.price > 0
+    //                 ? `<button class="btn" id="show-pay"><i class="ri-bank-card-line"></i> Pay & Enroll (${money(c.price)})</button>`
+    //                 : `<button class="btn" id="enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>`
+    //               )
+    //         }
+    //         <button class="btn ghost" id="open-quiz"><i class="ri-question-line"></i> Finals</button>
+    //       </div>
+    //     `;
+    //     openModal('m-modal');
 
-        // Load outline JSON inline
-        const outlineBox = document.getElementById('outline-box');
-        if (c.outlineUrl) {
-          fetchJSON(c.outlineUrl)
-            .then(d => { outlineBox.innerHTML = renderOutlineBox(d); })
-            .catch(err => { outlineBox.innerHTML = `<div class="muted">Could not load outline (${(err && err.message) || 'error'}).</div>`; });
-        } else {
-          outlineBox.innerHTML = `<div class="muted">No outline URL for this course.</div>`;
-        }
+    //     // Load outline JSON inline
+    //     const outlineBox = document.getElementById('outline-box');
+    //     if (c.outlineUrl) {
+    //       fetchJSON(c.outlineUrl)
+    //         .then(d => { outlineBox.innerHTML = renderOutlineBox(d); })
+    //         .catch(err => { outlineBox.innerHTML = `<div class="muted">Could not load outline (${(err && err.message) || 'error'}).</div>`; });
+    //     } else {
+    //       outlineBox.innerHTML = `<div class="muted">No outline URL for this course.</div>`;
+    //     }
 
-        // Load lesson quizzes JSON inline
-        const lessonBox = document.getElementById('lesson-quizzes-box');
-        if (c.quizzesUrl) {
-          fetchJSON(c.quizzesUrl)
-            .then(d => { lessonBox.innerHTML = renderLessonQuizzesBox(d); })
-            .catch(err => { lessonBox.innerHTML = `<div class="muted">Could not load lesson quizzes (${(err && err.message) || 'error'}).</div>`; });
-        } else {
-          lessonBox.innerHTML = `<div class="muted">No lesson quizzes URL for this course.</div>`;
-        }
+    //     // Load lesson quizzes JSON inline
+    //     const lessonBox = document.getElementById('lesson-quizzes-box');
+    //     if (c.quizzesUrl) {
+    //       fetchJSON(c.quizzesUrl)
+    //         .then(d => { lessonBox.innerHTML = renderLessonQuizzesBox(d); })
+    //         .catch(err => { lessonBox.innerHTML = `<div class="muted">Could not load lesson quizzes (${(err && err.message) || 'error'}).</div>`; });
+    //     } else {
+    //       lessonBox.innerHTML = `<div class="muted">No lesson quizzes URL for this course.</div>`;
+    //     }
 
-        // Actions
-        document.getElementById('open-quiz')?.addEventListener('click', () => { state.searchQ = c.title; go('assessments'); });
+    //     // Actions
+    //     document.getElementById('open-quiz')?.addEventListener('click', () => { state.searchQ = c.title; go('assessments'); });
 
-        document.getElementById('enroll')?.addEventListener('click', async () => {
-          await col('enrollments').add({
-            uid: auth.currentUser.uid, courseId: c.id,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            course: { id: c.id, title: c.title, category: c.category, credits: c.credits, coverImage: c.coverImage }
-          });
-          try {
-            await doc('courses', c.id).set({ participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) }, { merge: true });
-          } catch (_e) { }
-          closeModal('m-modal'); notify('Enrolled');
-        });
+    //     document.getElementById('enroll')?.addEventListener('click', async () => {
+    //       await col('enrollments').add({
+    //         uid: auth.currentUser.uid, courseId: c.id,
+    //         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    //         course: { id: c.id, title: c.title, category: c.category, credits: c.credits, coverImage: c.coverImage }
+    //       });
+    //       try {
+    //         await doc('courses', c.id).set({ participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) }, { merge: true });
+    //       } catch (_e) { }
+    //       closeModal('m-modal'); notify('Enrolled');
+    //     });
 
-        document.getElementById('show-pay')?.addEventListener('click', () => setupPayPalForCourse(c));
-      }
+    //     document.getElementById('show-pay')?.addEventListener('click', () => setupPayPalForCourse(c));
+    //   }
+
+    if (openBtn) {
+  const id = openBtn.getAttribute('data-open');
+  state.currentCourseId = id;
+  state.detailPrevRoute = 'courses';
+  state.mainThemeClass = pickGradientClass(id);     // match the card theme
+  go('course-detail');                               // SPA-style navigation
+}
 
       if (editBtn) {
         if (!canTeach()) return notify('No permission', 'warn');
@@ -1432,6 +1513,63 @@ document.addEventListener('keydown', (e) => {
     });
   }
 
+  function wireCourseDetail(){
+  const id = state.currentCourseId;
+  const c = state.courses.find(x => x.id === id) || {};
+
+  // Back to where we came from
+  $('#cd-back')?.addEventListener('click', () => {
+    go(state.detailPrevRoute || 'courses');
+  });
+
+  // Finals
+  $('#cd-finals')?.addEventListener('click', () => {
+    state.searchQ = c.title || '';
+    go('assessments');
+  });
+
+  // Enroll (free)
+  $('#cd-enroll')?.addEventListener('click', async () => {
+    await col('enrollments').add({
+      uid: auth.currentUser.uid, courseId: c.id,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      course: { id: c.id, title: c.title, category: c.category, credits: c.credits, coverImage: c.coverImage }
+    });
+    try {
+      await doc('courses', c.id).set({ participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) }, { merge: true });
+    } catch {}
+    notify('Enrolled');
+    // Refresh detail view to reflect status
+    render();
+  });
+
+  // Pay & Enroll (lazy-mount PayPal)
+  $('#cd-show-pay')?.addEventListener('click', () => {
+    setupPayPalForCourse(c);
+    document.getElementById('paypal-zone')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+
+  // Load Outline JSON
+  const outlineBox = document.getElementById('cd-outline');
+  if (c.outlineUrl) {
+    fetchJSON(c.outlineUrl)
+      .then(d => outlineBox.innerHTML = renderOutlineBox(d))
+      .catch(err => outlineBox.innerHTML = `<div class="muted">Could not load outline (${err?.message || 'error'}).</div>`);
+  } else {
+    outlineBox.innerHTML = `<div class="muted">No outline URL for this course.</div>`;
+  }
+
+  // Load Lesson Quizzes JSON
+  const quizBox = document.getElementById('cd-lesson-quizzes');
+  if (c.quizzesUrl) {
+    fetchJSON(c.quizzesUrl)
+      .then(d => quizBox.innerHTML = renderLessonQuizzesBox(d))
+      .catch(err => quizBox.innerHTML = `<div class="muted">Could not load lesson quizzes (${err?.message || 'error'}).</div>`);
+  } else {
+    quizBox.innerHTML = `<div class="muted">No lesson quizzes URL for this course.</div>`;
+  }
+}
+
   // ---- Learning
   function wireLearning() {
     $('#main')?.addEventListener('click', async (e) => {
@@ -1447,7 +1585,16 @@ document.addEventListener('keydown', (e) => {
         return;
       }
 
-      const btn = e.target.closest?.('button[data-open-course]'); if (!btn) return;
+    //   const btn = e.target.closest?.('button[data-open-course]'); if (!btn) return;
+    const btn = e.target.closest?.('button[data-open-course]');
+if (btn) {
+  const id = btn.getAttribute('data-open-course');
+  state.currentCourseId = id;
+  state.detailPrevRoute = 'learning';
+  state.mainThemeClass = pickGradientClass(id);
+  go('course-detail');
+  return;
+}
       const id = btn.getAttribute('data-open-course'); const snap = await doc('courses', id).get(); if (!snap.exists) return;
       const c = { id: snap.id, ...snap.data() };
 
