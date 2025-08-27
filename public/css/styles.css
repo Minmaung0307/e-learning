@@ -137,8 +137,11 @@ img{ max-width:100% }
 .page-hero .t{ font-weight:800 }
 .page-hero .s{ color:var(--muted); font-size:12px }
 
-/* Main */
-.main{ width: 100%; }
+/* Main content gutters */
+.main{
+  width: 100%;
+  padding: 0 20px 20px; /* 20px left/right on all pages */
+}
 
 /* Cards, buttons, inputs */
 .card{ background:var(--panel); border:1px solid var(--border); border-radius:16px; box-shadow:0 1px 0 rgba(0,0,0,.25) }
@@ -506,4 +509,38 @@ body.theme-sunrise::after{
     justify-content: flex-start;
     padding: 14px 14px;
   }
+}
+
+/* === Modal centering + readable width (fix “sinks to the left”) === */
+.modal{
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center !important;     /* hard center vertically */
+  justify-content: center !important; /* hard center horizontally */
+}
+.modal.active{ display: flex; }
+
+/* Keep 20px gutters on both sides and auto-center the dialog */
+.modal .dialog{
+  box-sizing: border-box;
+  margin: 10px auto !important;
+  width: min(1200px, calc(100vw - 40px)) !important; /* 20px L/R gutters */
+  max-height: 96vh;
+  border-radius: 14px;
+}
+
+/* If “sheet-mode” is ever used, still keep it readable & aligned */
+#m-modal.sheet-mode{
+  justify-content: flex-end !important; /* sheet slides from right */
+}
+#m-modal.sheet-mode .dialog{
+  width: min(860px, calc(100vw - 20px)) !important;
+  height: 100vh;
+  border-radius: 0;
+}
+
+/* Ensure course detail content never feels stuck to one side */
+#mm-body{
+  padding: 12px;
 }

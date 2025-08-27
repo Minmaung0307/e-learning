@@ -279,7 +279,13 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
 }
 
   // ---- Modal + Sidebar helpers ----
-  function openModal(id) { $('#' + id)?.classList.add('active'); }
+  // ---- Modal + Sidebar helpers ----
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('sheet-mode'); // ensure centered dialog by default
+  el.classList.add('active');
+}
   function closeModal(id) { $('#' + id)?.classList.remove('active'); }
   const closeSidebar = () => { document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
 
