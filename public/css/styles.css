@@ -355,3 +355,6 @@ body.theme-sunrise::after{
 .contact-grid{ display:grid; grid-template-columns:1.3fr .7fr; gap:14px }
 @media (max-width: 840px){ .contact-grid{ grid-template-columns:1fr } }
 .contact-aside .tip{ background:var(--tint-8); border:1px dashed var(--border); padding:10px; border-radius:12px }
+
+#m-modal.sheet-mode .dialog{ transform: translateX(24px); }
+#m-modal.active.sheet-mode .dialog{ transform: translateX(0); }

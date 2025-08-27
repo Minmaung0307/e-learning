@@ -2520,6 +2520,151 @@ function enforceReadableCardText() {
   // Also run once now (in case we're already rendered)
   try { postRenderEnhancements(); } catch {}
 })();
+
+/* === In-page Course Detail (Full-screen Overlay) + Hover Sidebar (Desktop/Tablet) === */
+(function overlayAndSidebarPatch(){
+  const STYLE_ID = 'lh-overlay-and-sidebar';
+  const css = `
+  :root{
+    --sb-collapsed: 76px;
+    --sb-expanded: 256px;
+  }
+
+  /* ---------------------- FULL-SCREEN COURSE DETAIL OVERLAY ---------------------- */
+  /* Toggle by adding .sheet-mode on #m-modal (done by JS below when opening a course) */
+  #m-modal.sheet-mode .dialog{
+    position: fixed;
+    inset: 0;                  /* full screen */
+    max-width: none;
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    padding: 16px clamp(12px, 3vw, 28px);
+    transform: translateY(18px);
+    opacity: 0;
+    transition: transform .28s cubic-bezier(.2,.8,.2,1), opacity .28s ease;
+    overflow: auto;
+  }
+  #m-modal.active.sheet-mode .dialog{
+    transform: translateY(0);
+    opacity: 1;
+  }
+  /* Sticky header with a clear Back control */
+  #m-modal.sheet-mode .head{
+    position: sticky; top: 0; z-index: 2;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0 12px 0;
+    background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,255,255,.86));
+    border-bottom: 1px solid var(--border, rgba(0,0,0,.08));
+    backdrop-filter: blur(6px);
+  }
+  #m-modal.sheet-mode .head #mm-close{
+    display: inline-flex; gap: 6px; align-items: center;
+  }
+  /* Detail body panels remain readable on any background */
+  #m-modal.sheet-mode #mm-body .section-box{
+    background: rgba(255,255,255,.96) !important;
+    border: 1px solid var(--border, rgba(0,0,0,.08));
+    border-radius: 12px; padding: 12px;
+  }
+  #m-modal.sheet-mode #paypal-zone{
+    background: rgba(255,255,255,.96) !important;
+    border: 1px solid var(--border, rgba(0,0,0,.08));
+    border-radius: 12px; padding: 10px;
+  }
+  /* Hide the thumbnail column on the detail page and use full width for info */
+  #m-modal.sheet-mode #mm-body .course-full{ grid-template-columns: 1fr !important; }
+  #m-modal.sheet-mode #mm-body .course-full > div:first-child{ display:none !important; }
+
+  /* ---------------------- DESKTOP/TABLET HOVER SIDEBAR ---------------------- */
+  @media (min-width: 768px){
+    .app .sidebar{
+      position: fixed; left: 0; top: 0; bottom: 0;
+      width: var(--sb-collapsed);
+      z-index: 1000;                     /* overlays content on expand */
+      transition: width .25s ease;
+      will-change: width;
+    }
+    /* Keep main content margin fixed to collapsed width → no content shift */
+    .app > div{ margin-left: var(--sb-collapsed); }
+
+    /* Expand on hover (icons → labels reveal) */
+    .app .sidebar:hover{ width: var(--sb-expanded); }
+    .app .sidebar .title,
+    .app .sidebar .nav .item span{
+      opacity: 0; pointer-events: none;
+      transition: opacity .18s ease;
+      white-space: nowrap;
+    }
+    .app .sidebar:hover .title,
+    .app .sidebar:hover .nav .item span{
+      opacity: 1; pointer-events: auto;
+    }
+    .app .sidebar .nav .item{
+      padding: 10px 12px;
+      transition: background-color .15s ease, transform .15s ease;
+    }
+    .app .sidebar .nav .item:hover{
+      background: rgba(0,0,0,.05);
+      transform: translateX(2px);
+    }
+    /* Ensure the backdrop used for mobile doesn't interfere on desktop */
+    #backdrop{ display: none !important; }
+  }
+
+  /* Mobile stays as-is (hamburger / drawer) — no hover behavior applied */
+  `;
+
+  // inject CSS once
+  (function injectCSS(){
+    let s = document.getElementById(STYLE_ID);
+    if (!s){ s = document.createElement('style'); s.id = STYLE_ID; document.head.appendChild(s); }
+    s.textContent = css;
+  })();
+
+  /* ---------------------- JS: open course detail as in-page overlay ---------------------- */
+  // We tag the next modal open as a "course detail" when the user clicks a course card action.
+  let nextIsCourseDetail = false;
+  document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('button[data-open], button[data-open-course]');
+    if (!trigger) return;
+    nextIsCourseDetail = true;
+  }, true);
+
+  function onModalOpenIfCourse(){
+    const modal = document.getElementById('m-modal');
+    if (!modal || !modal.classList.contains('active')) return;
+
+    if (nextIsCourseDetail){
+      modal.classList.add('sheet-mode');        // make it full-screen overlay
+      // Make the close button read “Back”
+      const closeBtn = document.getElementById('mm-close');
+      if (closeBtn) closeBtn.innerHTML = '<i class="ri-arrow-left-line"></i> Back';
+    }
+    nextIsCourseDetail = false;
+  }
+
+  // Observe #m-modal to toggle sheet-mode cleanly on open/close.
+  function attachModalObserver(){
+    const modal = document.getElementById('m-modal');
+    if (!modal || modal.__overlayObserver) return;
+    const obs = new MutationObserver(() => {
+      if (modal.classList.contains('active')) onModalOpenIfCourse();
+      else modal.classList.remove('sheet-mode');
+    });
+    obs.observe(modal, { attributes:true, attributeFilter:['class'] });
+    modal.__overlayObserver = obs;
+  }
+
+  // Run after every render
+  const __render = render;
+  render = function(){
+    __render.apply(this, arguments);
+    attachModalObserver();
+  };
+  // And attempt immediately (in case we’re already on an app view)
+  attachModalObserver();
+})();
   
   // ---- Auth
 auth.onAuthStateChanged(async (user) => {
