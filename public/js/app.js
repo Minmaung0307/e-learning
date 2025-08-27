@@ -2343,6 +2343,183 @@ function enforceReadableCardText() {
       return VALID_ROLES.includes(role) ? role : 'student';
     } catch { return 'student'; }
   }
+
+  /* === Card → Detail Theme Bridge + Adaptive Text (Courses & My Learning) === */
+(function cardToDetailThemePatch(){
+  const STYLE_ID = 'lh-card-theme-bridge';
+  const GRAD_CLASSES = ['bg-grad-1','bg-grad-2','bg-grad-3','bg-grad-4','bg-grad-5','bg-grad-6'];
+
+  // Map each gradient to the preferred text theme for accessibility.
+  // (All below gradients are light → dark text; if you add darker gradients, map them to 'light'.)
+  const TEXT_THEME = {
+    'bg-grad-1':'dark', 'bg-grad-2':'dark', 'bg-grad-3':'dark',
+    'bg-grad-4':'dark', 'bg-grad-5':'dark', 'bg-grad-6':'dark'
+  };
+
+  // Inject styles (gradients, text themes, modal readability, hide thumbnail column)
+  (function injectCSS(){
+    const css = `
+    /* Pastel / soft two-tone gradients (cohesive + readable) */
+    .bg-grad-1{ background-image: linear-gradient(135deg,#d4fc79,#96e6a1) !important; }
+    .bg-grad-2{ background-image: linear-gradient(135deg,#a1c4fd,#c2e9fb) !important; }
+    .bg-grad-3{ background-image: linear-gradient(135deg,#fbc2eb,#a6c1ee) !important; }
+    .bg-grad-4{ background-image: linear-gradient(135deg,#ffecd2,#fcb69f) !important; }
+    .bg-grad-5{ background-image: linear-gradient(135deg,#f6d365,#fda085) !important; }
+    .bg-grad-6{ background-image: linear-gradient(135deg,#e0c3fc,#8ec5fc) !important; }
+
+    /* Make gradients show on cards even if a default card background exists */
+    .card.course-card{ background-color: transparent !important; }
+
+    /* Readable text themes (used for both cards and modal content) */
+    .theme-text-dark, .theme-text-dark :where(h1,h2,h3,h4,h5,h6,p,div,span,li,td,th,small,strong,em,label,button){
+      color:#0b1220 !important;
+    }
+    .theme-text-dark .muted{ color: rgba(11,18,32,.66) !important; }
+    .theme-text-light, .theme-text-light :where(h1,h2,h3,h4,h5,h6,p,div,span,li,td,th,small,strong,em,label,button){
+      color:#ffffff !important;
+    }
+    .theme-text-light .muted{ color: rgba(255,255,255,.85) !important; }
+
+    /* Solid, non-transparent modal with inherited gradient */
+    #m-modal.active .dialog{
+      background-color: #fff;            /* fallback if no gradient class is set */
+      background-image: none;
+      box-shadow: 0 24px 60px rgba(0,0,0,.25);
+      backdrop-filter: none !important;
+    }
+    /* When a gradient class is applied to the dialog, use it as the background */
+    #m-modal.active .dialog.bg-grad-1,
+    #m-modal.active .dialog.bg-grad-2,
+    #m-modal.active .dialog.bg-grad-3,
+    #m-modal.active .dialog.bg-grad-4,
+    #m-modal.active .dialog.bg-grad-5,
+    #m-modal.active .dialog.bg-grad-6{
+      background-color: transparent;
+      background-repeat: no-repeat;
+      background-size: cover;
+    }
+
+    /* Hide the left thumbnail column inside the detail view and give content full width */
+    #mm-body .course-full{ grid-template-columns: 1fr !important; }
+    #mm-body .course-full > div:first-child{ display:none !important; }
+
+    /* Keep inner sections (Outline / Lesson Quizzes / PayPal) on solid panels for highest legibility */
+    #mm-body .section-box{
+      background: rgba(255,255,255,.92) !important;
+      border:1px solid var(--border, rgba(0,0,0,.08));
+      border-radius:12px;
+      padding:12px;
+    }
+    #paypal-zone{
+      background: rgba(255,255,255,.92) !important;
+      border:1px solid var(--border, rgba(0,0,0,.08));
+      border-radius:12px;
+      padding:10px;
+    }
+
+    /* Ensure card text stays readable on gradients as well */
+    .course-card.theme-text-dark .short,
+    .course-card.theme-text-light .short{ opacity:.95; }
+    `;
+    let s = document.getElementById(STYLE_ID);
+    if (!s){ s = document.createElement('style'); s.id = STYLE_ID; document.head.appendChild(s); }
+    s.textContent = css;
+  })();
+
+  // Deterministic assignment: same course id → same gradient every render.
+  function hashId(id=''){
+    let h = 0;
+    for (let i=0;i<id.length;i++){ h = ((h<<5)-h) + id.charCodeAt(i); h |= 0; }
+    return Math.abs(h);
+  }
+  function pickGradient(id){ return GRAD_CLASSES[ hashId(id) % GRAD_CLASSES.length ]; }
+
+  function applyCardSkins(){
+    document.querySelectorAll('.course-card').forEach(card => {
+      // Try to get a stable id (prefers element id; else look for embedded buttons carrying ids)
+      const id = card.getAttribute('id')
+        || card.querySelector('[data-open]')?.getAttribute('data-open')
+        || card.querySelector('[data-open-course]')?.getAttribute('data-open-course')
+        || '';
+      if (!id) return;
+
+      // remove old classes, then add the new gradient and text theme
+      GRAD_CLASSES.forEach(c => card.classList.remove(c));
+      card.classList.remove('theme-text-dark','theme-text-light');
+
+      const g = pickGradient(id);
+      card.classList.add(g);
+      const theme = TEXT_THEME[g] || 'dark';
+      card.classList.add(theme === 'light' ? 'theme-text-light' : 'theme-text-dark');
+    });
+  }
+
+  // Capture which card theme was clicked, then apply it when the modal is shown.
+  let nextThemeClass = null;
+
+  // Listen for clicks on "Details" (Courses) and "Open" (My Learning)
+  document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('button[data-open], button[data-open-course]');
+    if (!trigger) return;
+    const card = trigger.closest('.course-card');
+    if (!card) return;
+
+    // Find the gradient class on the card
+    const g = Array.from(card.classList).find(c => c.startsWith('bg-grad-'));
+    nextThemeClass = g || null;
+  }, true);
+
+  function clearModalTheme(dialog){
+    if (!dialog) return;
+    GRAD_CLASSES.forEach(c => dialog.classList.remove(c));
+    dialog.classList.remove('theme-text-dark','theme-text-light');
+  }
+  function applyModalTheme(){
+    const modal = document.getElementById('m-modal');
+    if (!modal || !modal.classList.contains('active')) return;
+    const dialog = modal.querySelector('.dialog'); if (!dialog) return;
+
+    clearModalTheme(dialog);
+
+    const g = nextThemeClass;
+    if (!g){ return; }
+
+    dialog.classList.add(g);
+    const theme = TEXT_THEME[g] || 'dark';
+    dialog.classList.add(theme === 'light' ? 'theme-text-light' : 'theme-text-dark');
+  }
+
+  // Re-apply skins after every render and watch modal open/close to set theme
+  function postRenderEnhancements(){
+    try { applyCardSkins(); } catch {}
+    try {
+      const modal = document.getElementById('m-modal');
+      if (!modal) return;
+      // Observe class changes to know when modal opens/closes
+      if (modal.__themeObs) return; // only once per modal instance
+      const obs = new MutationObserver((muts) => {
+        for (const m of muts){
+          if (m.attributeName === 'class'){
+            if (modal.classList.contains('active')) applyModalTheme();
+            else { clearModalTheme(modal.querySelector('.dialog')); nextThemeClass = null; }
+          }
+        }
+      });
+      obs.observe(modal, { attributes:true });
+      modal.__themeObs = obs;
+    } catch {}
+  }
+
+  // Wrap the existing render() so our enhancements run every time the UI re-renders.
+  const __origRender = render;
+  render = function(){
+    __origRender.apply(this, arguments);
+    postRenderEnhancements();
+  };
+
+  // Also run once now (in case we're already rendered)
+  try { postRenderEnhancements(); } catch {}
+})();
   
   // ---- Auth
 auth.onAuthStateChanged(async (user) => {
