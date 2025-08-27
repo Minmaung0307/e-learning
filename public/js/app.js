@@ -243,6 +243,11 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
       users.map(p => `<option value="${profileKey(p)}">${p.name || p.email}</option>`).join('');
   }
 
+  function isLightPaneRoute(route){
+  return route === 'courses' || route === 'learning' || route === 'course-detail';
+  // If you later want the detail page to be light too, add: || route === 'course-detail'
+}
+
   // ---- Theme (instant) ----
   function applyTheme() {
     if (!document.body) return;
@@ -328,7 +333,9 @@ function closeModal(id) {
 
   function layout(content) {
   const hero = heroForRoute(state.route);
-  const mainTheme = state.route === 'course-detail' ? (state.mainThemeClass || '') : '';
+  const isLight = isLightPaneRoute(state.route);
+const mainTheme = state.route === 'course-detail' ? (state.mainThemeClass || '') : '';
+const mainClasses = [isLight ? 'light-pane' : '', mainTheme].filter(Boolean).join(' ');
   return `
     <div class="app">
       <aside class="sidebar" id="sidebar">
@@ -383,7 +390,7 @@ function closeModal(id) {
           </div>
         </div>
 
-        <div class="main ${mainTheme}" id="main">${content}</div>
+        <div class="main ${mainTheme} ${mainClasses}" id="main">${content}</div>
 
         <!-- In-pane modal (no full page overlay) -->
         <div class="modal" id="m-modal" aria-hidden="true">

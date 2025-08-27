@@ -655,3 +655,49 @@ body.theme-sunrise::after{
 
 /* Make outline/quizzes sections pleasant */
 .section-box h4 { margin: 0 0 6px 0; }
+
+/* ---- Light content pane (keeps dark shell for body/sidebar) ---- */
+.main.light-pane {
+  background: #ffffff;
+  /* Re-scope design tokens only inside the content area */
+  --panel: #ffffff;
+  --text: #0b1220;        /* deep navy for strong readability */
+  --muted: #475569;       /* slate-600 */
+  --border: #e5eaf0;      /* soft light border */
+  --tint-8:  rgba(59,130,246,.12);
+  --tint-15: rgba(59,130,246,.22);
+  --tint-25: rgba(59,130,246,.35);
+}
+
+/* Ensure common components adopt light look inside the pane */
+.main.light-pane .card {
+  background: var(--panel);
+  color: var(--text);
+  border-color: var(--border);
+}
+.main.light-pane .muted { color: var(--muted); }
+.main.light-pane .badge { border-color: var(--border); }
+
+.main.light-pane .input,
+.main.light-pane textarea.input,
+.main.light-pane select.input {
+  background: #ffffff;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.main.light-pane .btn.ghost {
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/* Optional: slightly soften the page hero when inside the light pane */
+.main.light-pane .page-hero {
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.02), transparent 60%),
+    var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Keep the gutters you asked for earlier */
+.main { padding: 0 20px 20px; }
