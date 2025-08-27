@@ -324,7 +324,7 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
         <div class="footer"><div class="muted" id="copyright" style="font-size:12px">© ${nowYear()}</div></div>
       </aside>
 
-      <div>
+      <div class="shell">
         <div class="topbar">
           <div style="display:flex;align-items:center;gap:10px">
             <button class="btn ghost" id="burger" title="Menu"><i class="ri-menu-line"></i></button>
@@ -508,7 +508,7 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
     return `
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">My Learning</h3>
-        <div class="grid cols-2">
+        <div class="grid cols-2" data-sec="learning">
           ${list.map(c => `
             <div class="card course-card">
               <div class="img"><img src="${c.coverImage || '/icons/learnhub-cap.svg'}" alt="${c.title || ''}"/></div>
