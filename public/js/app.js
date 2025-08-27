@@ -1981,110 +1981,96 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
   }
 
   // drop-in: replace previous injector and keep onReady(injectCourseCardStyles)
+// drop-in: replace previous injector and keep onReady(injectCourseCardStyles)
 function injectCourseCardStyles() {
   const ID = 'lh-course-card-styles';
   if (document.getElementById(ID)) return;
+
   const css = `
-  /* ---- Base course card structure (flex column for bottom-aligned CTA) ---- */
+  /* ============ 1) COURSES GRID: 3 / 2 / 1 columns ============ */
+  [data-sec="courses"].grid{
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0,1fr)) !important; /* desktop */
+    gap:12px;
+  }
+  @media (max-width: 1024px){
+    [data-sec="courses"].grid{ grid-template-columns: repeat(2, minmax(0,1fr)) !important; } /* tablet */
+  }
+  @media (max-width: 640px){
+    [data-sec="courses"].grid{ grid-template-columns: 1fr !important; } /* mobile */
+  }
+
+  /* ============ 2) CARD LAYOUT (uniform height + bottom CTA) ============ */
   .card.course-card{
-    display:flex;
-    flex-direction:column;
-    min-height:460px; /* uniform baseline height */
-    border-radius:16px;
-    overflow:hidden; /* keeps rounded corners on image */
+    display:flex; flex-direction:column;
+    min-height:460px;
+    border-radius:16px; overflow:hidden;
     transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
-    background: var(--card-bg, #fff);
+    background: var(--card-bg, #fff); /* will be overridden by gradients below */
+    box-shadow:0 6px 16px rgba(0,0,0,.08);
   }
   .card.course-card:hover{ transform: translateY(-2px); }
 
-  /* ---- Image: contain (no cropping) + gentle letterbox background ---- */
-  .course-card .img,
-  .course-card .card-image-container{
-    width:100%;
-    height:200px;              /* adjust as desired */
-    background:#f0f2f5;        /* light bg for letterboxing */
-    display:flex; align-items:center; justify-content:center;
-  }
-  @media (max-width: 720px){
-    .course-card .img,
-    .course-card .card-image-container{ height:170px; }
-  }
-  .course-card .img img,
-  .course-card .card-image{
-    width:100%; height:100%;
-    object-fit: contain;       /* key: show entire image */
-    filter: var(--card-img-filter, none);
-    display:block;
-  }
+  /* ============ 3) IMAGE: show entire image (no cropping) ============ */
+  .course-card .img{ width:100%; height:200px; background:#f0f2f5; display:flex; align-items:center; justify-content:center; }
+  @media (max-width:720px){ .course-card .img{ height:170px; } }
+  .course-card .img img{ width:100%; height:100%; object-fit:contain; filter: var(--card-img-filter, none); display:block; }
 
-  /* ---- Content grows, CTA sits at the bottom ---- */
+  /* ============ 4) CONTENT AREA (readable text + bottom meta) ============ */
   .course-card .card-body{
     display:flex; flex-direction:column; flex:1;
     padding:12px;
+    color:#1f2937; /* slate-800 for readability on gradients */
+    background: transparent;
     font-family: var(--card-font, inherit);
-    color: var(--card-text, inherit);
-    background: var(--card-bg, transparent);
   }
   .course-card .header{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
-  .course-card .title{ font-weight:800; font-size:16px; line-height:1.3; }
-  .course-card .badge{
-    background: var(--cc-badge-bg, rgba(0,0,0,.06));
-    color: var(--cc-badge-text, inherit);
-    padding:3px 8px; border-radius:999px; font-size:12px;
-  }
-  .course-card .summary{ margin-top:6px; }
-  .course-card .short{ font-size:13px; color:var(--muted); }
-  .course-card .short.clamp{
-    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
-  }
-  .course-card .short-toggle{
-    margin-top:4px; background:none; border:0; color:var(--primary,#0ea5e9); cursor:pointer; font-size:12px; padding:0;
-  }
+  .course-card .title{ font-weight:800; font-size:16px; line-height:1.3; color:#111827; }
+  .course-card .muted{ color:rgba(17,24,39,.7); }
+  .course-card .short{ font-size:13px; color:rgba(17,24,39,.85); }
+  .course-card .short.clamp{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .course-card .short-toggle{ margin-top:4px; background:none; border:0; color:var(--primary,#0ea5e9); cursor:pointer; font-size:12px; padding:0; }
   .course-card .benefits{ list-style:none; margin:10px 0 0 0; padding:0; display:grid; gap:6px; }
-  .course-card .benefits li{ display:flex; gap:8px; align-items:flex-start; font-size:13px; }
+  .course-card .benefits li{ display:flex; gap:8px; align-items:flex-start; font-size:13px; color:#1f2937; }
   .course-card .benefits i{ font-size:16px; opacity:.85; margin-top:1px; }
 
-  /* Push this row to the bottom of the card */
+  /* Badge stays readable on gradients */
+  .course-card .badge{
+    background: rgba(255,255,255,.6);
+    color:#111827;
+    border:1px solid rgba(0,0,0,.06);
+    padding:3px 8px; border-radius:999px; font-size:12px;
+  }
+
+  /* Bottom row (price + CTA) pinned to bottom via margin-top:auto on meta */
   .course-card .meta{
-    margin-top:auto;            /* <— bottom alignment */
-    display:flex; justify-content:space-between; align-items:center;
-    gap:8px; padding-top:8px;
+    margin-top:auto;
+    display:flex; justify-content:space-between; align-items:center; gap:8px; padding-top:8px;
   }
-  .course-card .price{ font-weight:800; font-size:16px; }
-  .course-card .cta.btn{ padding:8px 12px; border-radius:10px; }
+  .course-card .price{ font-weight:800; font-size:16px; color:#111827; }
+  .course-card .cta.btn{ padding:8px 12px; border-radius:10px; background:#111827; color:#fff; }
 
-  /* ---- Dynamic, varied shadows (cycles by position in grid) ---- */
-  /* base shadow (used as fallback) */
-  .card.course-card{ box-shadow:0 6px 16px rgba(0,0,0,.08); }
+  /* ============ 5) Varied shadows for depth (already present, kept/expanded) ============ */
+  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+1){ box-shadow: 0 6px 18px rgba(14,165,233,.18); }     /* soft blue */
+  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+2){ box-shadow: 0 8px 22px rgba(17,24,39,.16), 0 2px 6px rgba(0,0,0,.06); } /* layered gray */
+  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+3){ box-shadow: 0 6px 18px rgba(244,114,182,.18); }     /* warm pink */
+  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+1):hover{ box-shadow: 0 12px 30px rgba(14,165,233,.28); }
+  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+2):hover{ box-shadow: 0 14px 34px rgba(17,24,39,.22), 0 3px 10px rgba(0,0,0,.08); }
+  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+3):hover{ box-shadow: 0 12px 30px rgba(244,114,182,.28); }
 
-  /* apply pretty variants on the courses grid and other grids that list course cards */
-  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+1),
-  .grid.cols-2 > .card.course-card:nth-child(3n+1){
-    box-shadow: 0 6px 18px rgba(14,165,233,.18); /* soft blue */
-  }
-  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+2),
-  .grid.cols-2 > .card.course-card:nth-child(3n+2){
-    box-shadow: 0 8px 22px rgba(17,24,39,.16), 0 2px 6px rgba(0,0,0,.06); /* layered gray */
-  }
-  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+3),
-  .grid.cols-2 > .card.course-card:nth-child(3n+3){
-    box-shadow: 0 6px 18px rgba(244,114,182,.18); /* warm tint */
-  }
+  /* ============ 6) Subtle two-tone gradients (Option A: CSS-only) ============ */
+  /* We assign a gradient to --card-bg per position; cards with explicit inline --card-bg keep their own style. */
+  [data-sec="courses"] > .card.course-card:nth-child(6n+1){ --card-bg: linear-gradient(135deg,#a1c4fd,#c2e9fb); } /* sky */
+  [data-sec="courses"] > .card.course-card:nth-child(6n+2){ --card-bg: linear-gradient(135deg,#d4fc79,#96e6a1); } /* mint */
+  [data-sec="courses"] > .card.course-card:nth-child(6n+3){ --card-bg: linear-gradient(135deg,#ffecd2,#fcb69f); } /* peach */
+  [data-sec="courses"] > .card.course-card:nth-child(6n+4){ --card-bg: linear-gradient(135deg,#fbc2eb,#a6c1ee); } /* lavender */
+  [data-sec="courses"] > .card.course-card:nth-child(6n+5){ --card-bg: linear-gradient(135deg,#e0c3fc,#8ec5fc); } /* lilac-blue */
+  [data-sec="courses"] > .card.course-card:nth-child(6n+6){ --card-bg: linear-gradient(135deg,#fdfbfb,#ebedee); } /* soft gray */
 
-  /* hover intensification per variant */
-  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+1):hover,
-  .grid.cols-2 > .card.course-card:nth-child(3n+1):hover{
-    box-shadow: 0 12px 30px rgba(14,165,233,.28);
-  }
-  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+2):hover,
-  .grid.cols-2 > .card.course-card:nth-child(3n+2):hover{
-    box-shadow: 0 14px 34px rgba(17,24,39,.22), 0 3px 10px rgba(0,0,0,.08);
-  }
-  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+3):hover,
-  .grid.cols-2 > .card.course-card:nth-child(3n+3):hover{
-    box-shadow: 0 12px 30px rgba(244,114,182,.28);
-  }
+  /* In case a theme class sets text, keep it dark for readability on all gradients */
+  .card.course-card, .card.course-card *{ color: inherit; }
   `;
+
   const style = document.createElement('style');
   style.id = ID;
   style.textContent = css;
