@@ -531,16 +531,95 @@ body.theme-sunrise::after{
 }
 
 /* If “sheet-mode” is ever used, still keep it readable & aligned */
-/* #m-modal.sheet-mode{
+#m-modal.sheet-mode{
   justify-content: flex-end !important; /* sheet slides from right */
-/* } */
-/* #m-modal.sheet-mode .dialog{
+}
+#m-modal.sheet-mode .dialog{
   width: min(860px, calc(100vw - 20px)) !important;
   height: 100vh;
   border-radius: 0;
-} */ 
+}
 
 /* Ensure course detail content never feels stuck to one side */
 #mm-body{
   padding: 12px;
 }
+
+/* Anchor the right column so the modal can sit inside it */
+.content-col { position: relative; min-width: 0; }
+
+/* Main content gutters (20px left/right on every page) */
+.main { width: 100%; padding: 0 20px 20px; }
+
+/* In-pane modal (fills only the content column) */
+#content-col .modal {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;                /* above content, below topmost UI */
+}
+#content-col .modal.active { display: flex; }
+
+/* Backdrop sits only over the content column, not the whole app */
+#content-col .modal-backdrop { display: none; }
+#content-col .modal.active + .modal-backdrop {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: rgba(0,0,0,.35);
+  z-index: 39;
+}
+
+/* Dialog: solid, readable, buttons always visible */
+#content-col .modal .dialog {
+  box-sizing: border-box;
+  width: min(1200px, calc(100% - 40px));      /* 20px side gutters */
+  max-height: min(96vh, calc(100% - 40px));
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header / footer stick and remain clickable above content */
+#content-col .modal .head,
+#content-col .modal .foot {
+  position: sticky;
+  z-index: 2;                 /* keeps buttons above scroll area */
+  background: var(--panel);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+#content-col .modal .foot {
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+  bottom: 0;
+}
+
+/* Scroll only the body; don’t let long content hide buttons */
+#content-col .modal .body {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 12px;
+}
+
+/* Ensure all modal buttons are visible/contrasty */
+#content-col .modal .btn { filter: none; opacity: 1; }
+#content-col .modal .btn.ghost { color: var(--text); border: 1px solid var(--border); }
+
+/* Make course cover in detail readable & uncropped */
+.course-cover-thumb {
+  object-fit: contain;                 /* never crop */
+  background: rgba(255,255,255,.05);   /* letterbox for odd ratios */
+  border: 1px solid var(--border);
+}
+
+/* (Optional) If you previously set a full-screen modal elsewhere, this overrides it */
+.modal { pointer-events: auto; }        /* ensure inner clicks work */

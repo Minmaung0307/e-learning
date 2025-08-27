@@ -279,8 +279,28 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
 }
 
   // ---- Modal + Sidebar helpers ----
-  function openModal(id) { $('#' + id)?.classList.add('active'); }
-  function closeModal(id) { $('#' + id)?.classList.remove('active'); }
+// ---- Modal helpers (in-pane) ----
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('active');
+  el.setAttribute('aria-hidden', 'false');
+  const body = el.querySelector('.body');
+  if (body) body.scrollTop = 0;
+  // enable the local backdrop
+  const bd = document.getElementById('mm-backdrop');
+  if (bd) bd.style.display = 'block';
+}
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('active');
+  el.setAttribute('aria-hidden', 'true');
+  // hide the local backdrop
+  const bd = document.getElementById('mm-backdrop');
+  if (bd) bd.style.display = 'none';
+}
   const closeSidebar = () => { document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
 
   // ---- Router / Layout ----
@@ -294,8 +314,8 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
   }
 
   function layout(content) {
-    const hero = heroForRoute(state.route);
-    return `
+  const hero = heroForRoute(state.route);
+  return `
     <div class="app">
       <aside class="sidebar" id="sidebar">
         <div class="brand" id="brand">
@@ -324,7 +344,8 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
         <div class="footer"><div class="muted" id="copyright" style="font-size:12px">© ${nowYear()}</div></div>
       </aside>
 
-      <div class="shell">
+      <!-- CONTENT COLUMN becomes the anchor for the in-pane modal -->
+      <div class="content-col" id="content-col">
         <div class="topbar">
           <div style="display:flex;align-items:center;gap:10px">
             <button class="btn ghost" id="burger" title="Menu"><i class="ri-menu-line"></i></button>
@@ -349,15 +370,22 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
         </div>
 
         <div class="main" id="main">${content}</div>
-      </div>
-    </div>
 
-    <div class="modal" id="m-modal"><div class="dialog">
-      <div class="head"><strong id="mm-title">Modal</strong><button class="btn ghost" id="mm-close">Close</button></div>
-      <div class="body" id="mm-body"></div>
-      <div class="foot" id="mm-foot"></div>
-    </div></div><div class="modal-backdrop"></div>`;
-  }
+        <!-- In-pane modal (no full page overlay) -->
+        <div class="modal" id="m-modal" aria-hidden="true">
+          <div class="dialog">
+            <div class="head">
+              <strong id="mm-title">Modal</strong>
+              <button class="btn ghost" id="mm-close"><i class="ri-close-line"></i> Close</button>
+            </div>
+            <div class="body" id="mm-body"></div>
+            <div class="foot" id="mm-foot"></div>
+          </div>
+        </div>
+        <div class="modal-backdrop" id="mm-backdrop"></div>
+      </div>
+    </div>`;
+}
 
   // ---- Views ----
   const vLogin = () => `
@@ -1141,6 +1169,14 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
     $('#theme-font')?.addEventListener('change', (e) => { state.theme.font = e.target.value; localStorage.setItem('lh.font', state.theme.font); applyTheme(); });
 
     $('#mm-close')?.addEventListener('click', () => closeModal('m-modal'));
+
+    // Close when clicking the in-pane backdrop
+document.getElementById('mm-backdrop')?.addEventListener('click', () => closeModal('m-modal'));
+
+// Close on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal('m-modal');
+});
   }
 
   function wireRoute() {
