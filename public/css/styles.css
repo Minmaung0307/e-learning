@@ -446,19 +446,36 @@ body.theme-sunrise::after{
 .card .actions, .meta, .search-inline{ flex-wrap: wrap; }
 
 /* ===== Courses + My Learning: force 3 / 2 / 1 columns ===== */
+/* Courses + My Learning — 4 / 3 / 2 / 1 columns */
 [data-sec="courses"].grid,
-[data-sec="learning"].grid{
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
-  gap: 12px;
+.grid.cols-2:has(.card.course-card){
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0,1fr)) !important; /* ≥1440px */
+  gap: 18px;
 }
-@media (max-width: 1100px){
+
+/* ≤1440px → 3 columns */
+@media (max-width: 1440px){
   [data-sec="courses"].grid,
-  [data-sec="learning"].grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .grid.cols-2:has(.card.course-card){
+    grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+  }
 }
-@media (max-width: 680px){
+
+/* ≤1024px → 2 columns */
+@media (max-width: 1024px){
   [data-sec="courses"].grid,
-  [data-sec="learning"].grid{ grid-template-columns: 1fr; }
+  .grid.cols-2:has(.card.course-card){
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+  }
+}
+
+/* ≤768px → 1 column */
+@media (max-width: 768px){
+  [data-sec="courses"].grid,
+  .grid.cols-2:has(.card.course-card){
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* ===== Card images: never crop; keep the letterbox bg ===== */
@@ -701,3 +718,33 @@ body.theme-sunrise::after{
 
 /* Keep the gutters you asked for earlier */
 .main { padding: 0 20px 20px; }
+
+/* Modal footer always visible & padded */
+.modal .foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* Pretty profile card modal */
+.profile-card-modal{
+  background: linear-gradient(135deg,#f8fafc,#eef2ff);
+  color:#0b1220;
+  border:1px solid #e5eaf0;
+  border-radius: 14px;
+  padding: 14px;
+}
+.profile-card-modal .pcm-header{ display:flex; gap:14px; align-items:center; }
+.profile-card-modal .pcm-avatar{
+  width: 84px; height: 84px; border-radius: 50%;
+  object-fit: cover; border: 1px solid #e5eaf0;
+  background: #fff;
+}
+.profile-card-modal .pcm-name{ font-weight: 800; font-size: 18px; line-height: 1.2; }
+.profile-card-modal .pcm-section{ margin-top: 10px; }
+.profile-card-modal .pcm-label{ font-size: 12px; color:#475569; margin-bottom: 4px; text-transform: uppercase; letter-spacing:.02em; }
+.profile-card-modal .pcm-bio{ white-space: pre-wrap; line-height: 1.5; }
+.profile-card-modal .pcm-signature{ max-height: 64px; filter: contrast(1.15); }

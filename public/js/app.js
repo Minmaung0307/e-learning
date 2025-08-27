@@ -75,6 +75,18 @@ mainThemeClass: '',
     n.className = `notification show ${type}`;
     setTimeout(() => n.className = 'notification', 2200);
   };
+
+  // Global error hooks (surface runtime errors instead of silent "freeze")
+window.addEventListener('error', (e) => {
+  try { notify(`Error: ${e.message}`, 'danger'); } catch {}
+  console.error('Global error:', e.error || e);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const msg = e?.reason?.message || e?.reason || 'Unhandled promise rejection';
+  try { notify(msg, 'danger'); } catch {}
+  console.error('Unhandled rejection:', e.reason);
+});
+
   const nowYear = () => new Date().getFullYear();
   const col = (name) => db.collection(name);
   const doc = (name, id) => db.collection(name).doc(id);
@@ -296,7 +308,104 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
   state.unsub.push(unsub); // will be cleaned on sign-out by clearUnsubs()
 }
 
-  // ---- Modal + Sidebar helpers ----
+function drawCertificate(ctx, {name, courseTitle, dateText, certId}) {
+  const W = 2550, H = 3300;
+  // Background
+  ctx.fillStyle = '#fafafa'; ctx.fillRect(0,0,W,H);
+
+  // Ornate border
+  ctx.strokeStyle = '#0b1220'; ctx.lineWidth = 12; ctx.strokeRect(80, 80, W-160, H-160);
+  ctx.strokeStyle = '#7ad3ff'; ctx.lineWidth = 4; ctx.strokeRect(120, 120, W-240, H-240);
+
+  // LearnHub logo mark
+  ctx.save();
+  ctx.globalAlpha = 0.06;
+  ctx.fillStyle = '#0b1220';
+  ctx.beginPath();
+  ctx.arc(W/2, H/2, 500, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // Title
+  ctx.fillStyle = '#0b1220';
+  ctx.font = 'bold 120px Georgia, "Times New Roman", serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Certificate of Completion', W/2, 520);
+
+  // Subtitle
+  ctx.font = '28px "Segoe UI", Inter, system-ui, sans-serif';
+  ctx.fillStyle = '#334155';
+  ctx.fillText('This certifies that', W/2, 680);
+
+  // Name
+  ctx.font = 'bold 96px Georgia, "Times New Roman", serif';
+  ctx.fillStyle = '#0b1220';
+  ctx.fillText(name, W/2, 820);
+
+  // Course line
+  ctx.font = '28px "Segoe UI", Inter, system-ui, sans-serif';
+  ctx.fillStyle = '#334155';
+  ctx.fillText('has successfully completed the course', W/2, 930);
+
+  // Course title
+  wrapCenter(ctx, courseTitle, W/2, 1020, 42, 1600, 'bold 64px "Times New Roman", Georgia, serif', '#0b1220');
+
+  // Meta row
+  ctx.font = '28px "Segoe UI", Inter, system-ui, sans-serif';
+  ctx.fillStyle = '#0b1220';
+  ctx.textAlign = 'left';
+  ctx.fillText(`Date: ${dateText}`, 420, 1380);
+  ctx.fillText(`Certificate ID: ${certId}`, 420, 1440);
+  ctx.fillText('Organization: LearnHub', 420, 1500);
+
+  // Signature line + label
+  ctx.beginPath();
+  ctx.moveTo(W-1000, 1420); ctx.lineTo(W-400, 1420); ctx.strokeStyle = '#0b1220'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.font = '24px "Segoe UI", Inter, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#334155';
+  ctx.fillText('Authorized Signature', W-700, 1460);
+
+  // Seal
+  drawSeal(ctx, W-600, 1000, 120);
+}
+
+function drawSeal(ctx, x, y, r) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI*2);
+  ctx.fillStyle = '#0b1220'; ctx.fill();
+  ctx.lineWidth = 8; ctx.strokeStyle = '#7ad3ff'; ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 38px Inter, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('LEARN', x, y-8);
+  ctx.fillText('HUB', x, y+38);
+  ctx.restore();
+}
+
+function wrapCenter(ctx, text, cx, startY, lineHeight, maxWidth, font, fillStyle){
+  ctx.save();
+  ctx.font = font;
+  ctx.fillStyle = fillStyle;
+  ctx.textAlign = 'center';
+  const words = (text||'').split(/\s+/);
+  let line = '', y = startY, lines = [];
+  for (const w of words){
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxWidth){
+      if (line) lines.push(line);
+      line = w;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  lines.forEach((ln,i) => ctx.fillText(ln, cx, y + i*lineHeight));
+  ctx.restore();
+}
+
 // ---- Modal helpers (in-pane) ----
 function openModal(id) {
   const el = document.getElementById(id);
@@ -770,46 +879,51 @@ const mainClasses = [isLight ? 'light-pane' : '', mainTheme].filter(Boolean).joi
   }
 
   function vProfile() {
-    const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || { name: '', bio: '', portfolio: '', avatar: '', signature: '' };
-    return `
-      <div class="grid cols-2">
-        <div class="card"><div class="card-body">
-          <h3 style="margin:0 0 8px 0">My Profile</h3>
-          <div class="grid">
-            <input id="pf-name" class="input" placeholder="Name" value="${me.name || ''}"/>
-            <input id="pf-portfolio" class="input" placeholder="Portfolio URL" value="${me.portfolio || ''}"/>
-            <textarea id="pf-bio" class="input" placeholder="Short bio">${me.bio || ''}</textarea>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <input id="pf-avatar" type="file" accept="image/*" style="display:none"/>
-              <input id="pf-sign" type="file" accept="image/*" style="display:none"/>
-              <button class="btn" id="pf-save"><i class="ri-save-3-line"></i> Save</button>
-              <button class="btn ghost" id="pf-pick"><i class="ri-image-add-line"></i> Avatar</button>
-              <button class="btn ghost" id="pf-pick-sign"><i class="ri-pen-nib-line"></i> Signature</button>
-              <button class="btn danger" id="pf-delete"><i class="ri-delete-bin-6-line"></i> Delete profile</button>
-              <button class="btn secondary" id="pf-view"><i class="ri-id-card-line"></i> View Card</button>
-            </div>
+  const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) ||
+             { name: '', bio: '', portfolio: '', avatar: '', signature: '' };
+  return `
+    <div class="grid" style="grid-template-columns:1fr; gap:10px">
+      <div class="card"><div class="card-body">
+        <h3 style="margin:0 0 8px 0">My Profile</h3>
+        <div class="grid">
+          <input id="pf-name" class="input" placeholder="Name" value="${me.name || ''}"/>
+          <input id="pf-portfolio" class="input" placeholder="Portfolio URL" value="${me.portfolio || ''}"/>
+          <textarea id="pf-bio" class="input" placeholder="Short bio" style="min-height:120px">${me.bio || ''}</textarea>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="pf-avatar" type="file" accept="image/*" style="display:none"/>
+            <input id="pf-sign" type="file" accept="image/*" style="display:none"/>
+            <button class="btn" id="pf-save"><i class="ri-save-3-line"></i> Save</button>
+            <button class="btn ghost" id="pf-pick"><i class="ri-image-add-line"></i> Avatar</button>
+            <button class="btn ghost" id="pf-pick-sign"><i class="ri-pen-nib-line"></i> Signature</button>
+            <button class="btn secondary" id="pf-view"><i class="ri-id-card-line"></i> View Card</button>
+            <button class="btn danger" id="pf-delete"><i class="ri-delete-bin-6-line"></i> Delete Profile</button>
           </div>
-        </div></div>
+        </div>
+      </div></div>
 
-        <div class="card"><div class="card-body">
-          <h3 style="margin:0 0 8px 0">Transcript</h3>
-          <div class="table-wrap">
-            <table class="table">
-              <thead><tr><th>Course</th><th>Best Score</th><th>Certificate</th></tr></thead>
-              <tbody>
-                ${buildTranscript(auth.currentUser?.uid).map(r => `
-                  <tr>
-                    <td>${r.courseTitle}</td>
-                    <td class="num">${r.best}%</td>
-                    <td>${r.completed ? `<button class="btn" data-cert="${r.courseId}"><i class="ri-award-line"></i> Download</button>` : '—'}</td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div></div>
-      </div>
-    `;
-  }
+      <div class="card"><div class="card-body">
+        <h3 style="margin:0 0 8px 0">Transcript</h3>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Course</th><th>Best Score</th><th>Certificate</th></tr></thead>
+            <tbody>
+              ${buildTranscript(auth.currentUser?.uid).map(r => `
+                <tr>
+                  <td>${r.courseTitle}</td>
+                  <td class="num">${r.best}%</td>
+                  <td>
+                    ${r.completed
+                      ? `<button class="btn" data-cert="${r.courseId}"><i class="ri-award-line"></i> Download</button>`
+                      : '—'}
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div></div>
+    </div>
+  `;
+}
 
   // --- Guide view (compact) ---
   function vGuide(){
@@ -1103,6 +1217,13 @@ const mainClasses = [isLight ? 'light-pane' : '', mainTheme].filter(Boolean).joi
           </div>
           <div id="roster-out" class="muted" style="margin-top:8px"></div>
         </div></div>
+        <div class="card" style="grid-column:1/-1"><div class="card-body">
+  <h3 style="margin:0 0 8px 0">Design Previews</h3>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn" id="preview-cert"><i class="ri-award-line"></i> Preview Certificate</button>
+    <button class="btn ghost" id="preview-transcript"><i class="ri-file-text-line"></i> Preview Transcript</button>
+  </div>
+</div></div>
       </div>
     `;
   }
@@ -1988,51 +2109,66 @@ if (btn) {
     });
 
     $('#pf-view')?.addEventListener('click', () => {
-      const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || {};
-      $('#mm-title').textContent = 'Profile Card';
-      $('#mm-body').innerHTML = `
-        <div class="grid">
-          <div style="display:flex;gap:12px;align-items:center">
-            <img src="${me.avatar || '/icons/learnhub-cap.svg'}" alt="avatar" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:1px solid var(--border)"/>
-            <div>
-              <div style="font-weight:800">${me.name || me.email || '—'}</div>
-              <div class="muted">${me.email || ''}</div>
-            </div>
-          </div>
-          <div>${(me.bio || '').replace(/</g, '&lt;')}</div>
-          ${me.signature ? `<div class="muted">Signature:</div><img src="${me.signature}" alt="signature" style="max-height:48px">` : ''}
-        </div>`;
-      $('#mm-foot').innerHTML = `<button class="btn ghost" id="mm-ok">Close</button>`; openModal('m-modal');
-      $('#mm-ok').onclick = () => closeModal('m-modal');
-    });
+  const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || {};
+  $('#mm-title').textContent = 'Profile Card';
+
+  $('#mm-body').innerHTML = `
+    <div class="profile-card-modal">
+      <div class="pcm-header">
+        <img src="${me.avatar || '/icons/learnhub-cap.svg'}" alt="avatar" class="pcm-avatar"/>
+        <div class="pcm-id">
+          <div class="pcm-name">${(me.name || me.email || '—').replace(/</g,'&lt;')}</div>
+          <div class="pcm-email muted">${(me.email || '').replace(/</g,'&lt;')}</div>
+        </div>
+      </div>
+      <div class="pcm-section">
+        <div class="pcm-label">Bio</div>
+        <div class="pcm-bio">${(me.bio || '—').replace(/</g,'&lt;')}</div>
+      </div>
+      ${me.signature ? `
+      <div class="pcm-section">
+        <div class="pcm-label">Signature</div>
+        <img src="${me.signature}" alt="signature" class="pcm-signature"/>
+      </div>` : ``}
+    </div>
+  `;
+  $('#mm-foot').innerHTML = `<button class="btn" id="mm-ok"><i class="ri-check-line"></i> Close</button>`;
+  openModal('m-modal');
+  $('#mm-ok').onclick = () => closeModal('m-modal');
+});
 
     $('#main').addEventListener('click', async (e) => {
-      const b = e.target.closest?.('button[data-cert]'); if (!b) return;
-      const courseId = b.getAttribute('data-cert');
-      const course = state.courses.find(c => c.id === courseId) || {};
-      const p = state.profiles.find(x => x.uid === auth.currentUser?.uid) || { name: auth.currentUser.email };
+  const b = e.target.closest?.('button[data-cert]'); if (!b) return;
+  const courseId = b.getAttribute('data-cert');
+  const course = state.courses.find(c => c.id === courseId) || {};
+  const p = state.profiles.find(x => x.uid === auth.currentUser?.uid) || { name: auth.currentUser.email };
+  const name = p.name || auth.currentUser.email || 'Student';
+  const courseTitle = course.title || courseId;
+  const certId = 'LH-' + (courseId || 'xxxx').slice(0,6).toUpperCase() + '-' + (auth.currentUser.uid || 'user').slice(0,6).toUpperCase();
+  const canvas = document.createElement('canvas');
+  canvas.width = 2550; canvas.height = 3300;
+  const ctx = canvas.getContext('2d');
+  drawCertificate(ctx, { name, courseTitle, certId, dateText: new Date().toLocaleDateString() });
 
-      const canvas = document.createElement('canvas'); canvas.width = 1400; canvas.height = 1000;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#0b0d10'; ctx.fillRect(0, 0, 1400, 1000);
-      ctx.strokeStyle = '#7ad3ff'; ctx.lineWidth = 8; ctx.strokeRect(60, 60, 1280, 880);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 60px Inter'; ctx.fillText('Certificate of Completion', 340, 240);
-      ctx.font = '28px Inter';
-      ctx.fillText(`Awarded to: ${p.name || p.email}`, 340, 320);
-      ctx.fillText(`Course: ${course.title || courseId}`, 340, 370);
-      ctx.fillText(`Organization: LearnHub`, 340, 420);
-      const id = 'LH-' + (courseId || 'xxxx').slice(0, 6).toUpperCase() + '-' + (auth.currentUser.uid || 'user').slice(0, 6).toUpperCase();
-      ctx.fillText(`Certificate ID: ${id}`, 340, 470);
-      ctx.fillText(`Date: ${new Date().toLocaleDateString()}`, 340, 520);
-      if (p.signature) {
-        const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => { ctx.drawImage(img, 980, 540, 260, 80); finish(); };
-        img.src = p.signature;
-      } else { finish(); }
-      function finish() {
-        ctx.fillStyle = '#fff'; ctx.font = '20px Inter'; ctx.fillText('Authorized Signature', 1000, 640);
-        const url = canvas.toDataURL('image/png'); const a = document.createElement('a'); a.href = url; a.download = `certificate_${course.title || courseId}.png`; a.click();
-      }
-    });
+  // Optional signature overlay
+  if (p.signature) {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      // draw signature centered on the signature line
+      const w = 520, h = 160;
+      ctx.drawImage(img, canvas.width - 700 - w/2, 1290, w, h);
+      finish();
+    };
+    img.onerror = finish;
+    img.src = p.signature;
+  } else {
+    finish();
+  }
+  function finish(){
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a'); a.href = url; a.download = `certificate_${courseTitle}.png`; a.click();
+  }
+});
   }
 
   // ---- Admin
@@ -2100,6 +2236,50 @@ if (btn) {
       const arr = s.data()?.participants || [];
       $('#roster-out').textContent = `Participants: ${arr.join(', ') || '—'}`;
     });
+
+    $('#preview-cert')?.addEventListener('click', () => {
+  $('#mm-title').textContent = 'Certificate Preview';
+  $('#mm-body').innerHTML = `<canvas id="cert-preview" width="2550" height="3300" style="width:min(100%,800px);height:auto;display:block;margin:auto;border:1px solid var(--border);border-radius:12px;background:#fff"></canvas>`;
+  $('#mm-foot').innerHTML = `<button class="btn" id="mm-close-prev">Close</button>`;
+  openModal('m-modal');
+  $('#mm-close-prev').onclick = () => closeModal('m-modal');
+
+  const ctx = document.getElementById('cert-preview').getContext('2d');
+  drawCertificate(ctx, {
+    name: 'Student Name',
+    courseTitle: 'Sample Course for Design Approval',
+    certId: 'LH-SAMPLE-000001',
+    dateText: new Date().toLocaleDateString()
+  });
+});
+
+$('#preview-transcript')?.addEventListener('click', () => {
+  $('#mm-title').textContent = 'Transcript Preview';
+  $('#mm-body').innerHTML = `
+    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;max-width:900px;margin:auto;color:#0b1220">
+      <div style="text-align:center;font-weight:800;font-size:22px;margin-bottom:6px">LearnHub — Official Transcript</div>
+      <div class="muted" style="text-align:center;margin-bottom:10px">This is a design preview.</div>
+      <table class="table" style="width:100%;border-collapse:collapse;font-size:14px">
+        <thead>
+          <tr><th style="text-align:left;border-bottom:1px solid #e5eaf0;padding:6px 8px">Course</th>
+              <th style="text-align:right;border-bottom:1px solid #e5eaf0;padding:6px 8px">Best Score</th>
+              <th style="text-align:left;border-bottom:1px solid #e5eaf0;padding:6px 8px">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9">Foundations of Cloud</td><td style="text-align:right;padding:6px 8px;border-bottom:1px solid #f1f5f9">92%</td><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9">Completed</td></tr>
+          <tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9">Data Analysis Basics</td><td style="text-align:right;padding:6px 8px;border-bottom:1px solid #f1f5f9">84%</td><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9">Completed</td></tr>
+          <tr><td style="padding:6px 8px">Intro to Web Development</td><td style="text-align:right;padding:6px 8px">—</td><td style="padding:6px 8px">In Progress</td></tr>
+        </tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;margin-top:12px">
+        <div>Printed on: ${new Date().toLocaleDateString()}</div>
+        <div>Registrar • LearnHub</div>
+      </div>
+    </div>`;
+  $('#mm-foot').innerHTML = `<button class="btn" id="mm-close-prev2">Close</button>`;
+  openModal('m-modal');
+  $('#mm-close-prev2').onclick = () => closeModal('m-modal');
+});
   }
 
   // ---- Announcements (Dashboard)
@@ -2394,57 +2574,47 @@ function enforceReadableCardText() {
 })();
 
 // Fix: solid, readable course detail modal (no transparency) + non-cropping cover
+// Fix: solid, readable course detail modal (no transparency) + non-cropping cover
 (function fixCourseDetailReadability(){
   const ID = 'lh-course-detail-solid';
+  if (document.getElementById(ID)) return;
   const css = `
-  /* Make the modal sheet solid and high-contrast */
+  .modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 100; }
+  .modal.active { display: flex; }
   .modal .dialog{
+    width: min(1400px, 98vw);
+    max-height: 96vh;
+    display: flex;
+    flex-direction: column;
     background: var(--panel, #ffffff) !important;
+    border: 1px solid var(--border, #e5eaf0);
+    border-radius: 14px;
     box-shadow: 0 24px 60px rgba(0,0,0,.25);
-    backdrop-filter: none !important;
+    overflow: hidden;
   }
-  .modal .dialog .head,
-  .modal .dialog .body,
-  .modal .dialog .foot{
-    background: transparent !important;
+  .modal .head, .modal .foot{
+    position: sticky;
+    left: 0; right: 0;
+    z-index: 2;
+    background: linear-gradient(180deg, rgba(255,255,255,.06), transparent 60%), var(--panel);
   }
-
-  /* Force readable text in the opened course view */
-  #mm-body, #mm-body :where(h1,h2,h3,h4,h5,h6,p,div,span,li,td,th,small,strong,em,label){
-    color:#0b1220 !important;
-  }
-  #mm-body .muted{ color:rgba(11,18,32,.65) !important; }
-
-  /* Solid section boxes inside the course detail */
-  #mm-body .section-box{
-    background: var(--panel, #ffffff) !important;
-    border:1px solid var(--border, rgba(0,0,0,.08));
-    border-radius:12px;
-    padding:12px;
-  }
-  #mm-body .section-box h4{ margin:0 0 8px 0; }
-
-  /* Non-cropping cover inside the course detail sheet */
-  .course-cover-thumb{
-    width:100% !important;
-    height:200px !important;
-    object-fit:contain !important;
-    background:#f0f2f5 !important;   /* subtle letterbox */
-    border-radius:10px;
-    border:1px solid var(--border, rgba(0,0,0,.08));
-  }
-
-  /* Optional: ensure PayPal zone rests on a solid base too */
-  #paypal-zone{
+  .modal .body{
+    flex: 1 1 auto;
+    overflow: auto;
     background: var(--panel, #ffffff);
-    border-radius:12px;
-    border:1px solid var(--border, rgba(0,0,0,.08));
-    padding:10px;
   }
-  `;
-  let el = document.getElementById(ID);
-  if (!el){ el = document.createElement('style'); el.id = ID; document.head.appendChild(el); }
-  el.textContent = css;
+  /* Thumb in detail view must never crop */
+  .course-cover-thumb{
+    width: 100%;
+    height: clamp(220px, 30vh, 320px);
+    object-fit: contain !important;
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }`;
+  const el = document.createElement('style');
+  el.id = ID; el.textContent = css;
+  document.head.appendChild(el);
 })();
 
   // ---- Transcript
