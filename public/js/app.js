@@ -2203,6 +2203,60 @@ function enforceReadableCardText() {
   el.textContent = css;
 })();
 
+// Fix: solid, readable course detail modal (no transparency) + non-cropping cover
+(function fixCourseDetailReadability(){
+  const ID = 'lh-course-detail-solid';
+  const css = `
+  /* Make the modal sheet solid and high-contrast */
+  .modal .dialog{
+    background: var(--panel, #ffffff) !important;
+    box-shadow: 0 24px 60px rgba(0,0,0,.25);
+    backdrop-filter: none !important;
+  }
+  .modal .dialog .head,
+  .modal .dialog .body,
+  .modal .dialog .foot{
+    background: transparent !important;
+  }
+
+  /* Force readable text in the opened course view */
+  #mm-body, #mm-body :where(h1,h2,h3,h4,h5,h6,p,div,span,li,td,th,small,strong,em,label){
+    color:#0b1220 !important;
+  }
+  #mm-body .muted{ color:rgba(11,18,32,.65) !important; }
+
+  /* Solid section boxes inside the course detail */
+  #mm-body .section-box{
+    background: var(--panel, #ffffff) !important;
+    border:1px solid var(--border, rgba(0,0,0,.08));
+    border-radius:12px;
+    padding:12px;
+  }
+  #mm-body .section-box h4{ margin:0 0 8px 0; }
+
+  /* Non-cropping cover inside the course detail sheet */
+  .course-cover-thumb{
+    width:100% !important;
+    height:200px !important;
+    object-fit:contain !important;
+    background:#f0f2f5 !important;   /* subtle letterbox */
+    border-radius:10px;
+    border:1px solid var(--border, rgba(0,0,0,.08));
+  }
+
+  /* Optional: ensure PayPal zone rests on a solid base too */
+  #paypal-zone{
+    background: var(--panel, #ffffff);
+    border-radius:12px;
+    border:1px solid var(--border, rgba(0,0,0,.08));
+    padding:10px;
+  }
+  `;
+  let el = document.getElementById(ID);
+  if (!el){ el = document.createElement('style'); el.id = ID; document.head.appendChild(el); }
+  el.textContent = css;
+})();
+
   // ---- Transcript
   function buildTranscript(uid) {
     const byCourse = {};
