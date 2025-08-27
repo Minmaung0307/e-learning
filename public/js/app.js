@@ -1980,71 +1980,113 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
     });
   }
 
-  function injectCourseCardStyles() {
-  if (document.getElementById('lh-course-card-styles')) return;
+  // drop-in: replace previous injector and keep onReady(injectCourseCardStyles)
+function injectCourseCardStyles() {
+  const ID = 'lh-course-card-styles';
+  if (document.getElementById(ID)) return;
   const css = `
+  /* ---- Base course card structure (flex column for bottom-aligned CTA) ---- */
   .card.course-card{
+    display:flex;
+    flex-direction:column;
+    min-height:460px; /* uniform baseline height */
     border-radius:16px;
-    box-shadow:0 6px 16px rgba(0,0,0,.08);
-    transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease,background .18s ease;
-    overflow:hidden;
+    overflow:hidden; /* keeps rounded corners on image */
+    transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+    background: var(--card-bg, #fff);
   }
-  .card.course-card:hover{
-    transform:translateY(-2px);
-    box-shadow:0 12px 28px rgba(0,0,0,.14);
-    border-color:var(--primary,#0ea5e9);
-  }
-  .course-card .img img{
-    display:block;width:100%;height:180px;object-fit:cover;
-    filter:var(--card-img-filter,none);
-  }
-  @media (max-width:720px){ .course-card .img img{ height:150px; } }
+  .card.course-card:hover{ transform: translateY(-2px); }
 
+  /* ---- Image: contain (no cropping) + gentle letterbox background ---- */
+  .course-card .img,
+  .course-card .card-image-container{
+    width:100%;
+    height:200px;              /* adjust as desired */
+    background:#f0f2f5;        /* light bg for letterboxing */
+    display:flex; align-items:center; justify-content:center;
+  }
+  @media (max-width: 720px){
+    .course-card .img,
+    .course-card .card-image-container{ height:170px; }
+  }
+  .course-card .img img,
+  .course-card .card-image{
+    width:100%; height:100%;
+    object-fit: contain;       /* key: show entire image */
+    filter: var(--card-img-filter, none);
+    display:block;
+  }
+
+  /* ---- Content grows, CTA sits at the bottom ---- */
   .course-card .card-body{
+    display:flex; flex-direction:column; flex:1;
     padding:12px;
     font-family: var(--card-font, inherit);
     color: var(--card-text, inherit);
     background: var(--card-bg, transparent);
   }
-  .course-card .header{
-    display:flex;justify-content:space-between;align-items:center;gap:8px;
-  }
-  .course-card .title{
-    font-weight:800;font-size:16px;line-height:1.3;
-  }
+  .course-card .header{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .course-card .title{ font-weight:800; font-size:16px; line-height:1.3; }
   .course-card .badge{
-    background:var(--cc-badge-bg,rgba(0,0,0,.06));
-    color:var(--cc-badge-text,inherit);
-    padding:3px 8px;border-radius:999px;font-size:12px;
+    background: var(--cc-badge-bg, rgba(0,0,0,.06));
+    color: var(--cc-badge-text, inherit);
+    padding:3px 8px; border-radius:999px; font-size:12px;
   }
-
   .course-card .summary{ margin-top:6px; }
   .course-card .short{ font-size:13px; color:var(--muted); }
   .course-card .short.clamp{
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
   }
   .course-card .short-toggle{
-    margin-top:4px;background:none;border:0;color:var(--primary);cursor:pointer;font-size:12px;padding:0;
+    margin-top:4px; background:none; border:0; color:var(--primary,#0ea5e9); cursor:pointer; font-size:12px; padding:0;
   }
+  .course-card .benefits{ list-style:none; margin:10px 0 0 0; padding:0; display:grid; gap:6px; }
+  .course-card .benefits li{ display:flex; gap:8px; align-items:flex-start; font-size:13px; }
+  .course-card .benefits i{ font-size:16px; opacity:.85; margin-top:1px; }
 
-  .course-card .benefits{
-    list-style:none;margin:10px 0 0 0;padding:0;display:grid;gap:6px;
-  }
-  .course-card .benefits li{
-    display:flex;gap:8px;align-items:flex-start;font-size:13px;
-  }
-  .course-card .benefits i{ font-size:16px;opacity:.85;margin-top:1px; }
-
+  /* Push this row to the bottom of the card */
   .course-card .meta{
-    display:flex;justify-content:space-between;align-items:center;margin-top:12px;
+    margin-top:auto;            /* <— bottom alignment */
+    display:flex; justify-content:space-between; align-items:center;
+    gap:8px; padding-top:8px;
   }
-  .course-card .price{ font-weight:800;font-size:16px; }
-  .course-card .cta.btn{
-    padding:8px 12px;border-radius:10px;
+  .course-card .price{ font-weight:800; font-size:16px; }
+  .course-card .cta.btn{ padding:8px 12px; border-radius:10px; }
+
+  /* ---- Dynamic, varied shadows (cycles by position in grid) ---- */
+  /* base shadow (used as fallback) */
+  .card.course-card{ box-shadow:0 6px 16px rgba(0,0,0,.08); }
+
+  /* apply pretty variants on the courses grid and other grids that list course cards */
+  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+1),
+  .grid.cols-2 > .card.course-card:nth-child(3n+1){
+    box-shadow: 0 6px 18px rgba(14,165,233,.18); /* soft blue */
+  }
+  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+2),
+  .grid.cols-2 > .card.course-card:nth-child(3n+2){
+    box-shadow: 0 8px 22px rgba(17,24,39,.16), 0 2px 6px rgba(0,0,0,.06); /* layered gray */
+  }
+  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+3),
+  .grid.cols-2 > .card.course-card:nth-child(3n+3){
+    box-shadow: 0 6px 18px rgba(244,114,182,.18); /* warm tint */
+  }
+
+  /* hover intensification per variant */
+  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+1):hover,
+  .grid.cols-2 > .card.course-card:nth-child(3n+1):hover{
+    box-shadow: 0 12px 30px rgba(14,165,233,.28);
+  }
+  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+2):hover,
+  .grid.cols-2 > .card.course-card:nth-child(3n+2):hover{
+    box-shadow: 0 14px 34px rgba(17,24,39,.22), 0 3px 10px rgba(0,0,0,.08);
+  }
+  .grid[data-sec="courses"] > .card.course-card:nth-child(3n+3):hover,
+  .grid.cols-2 > .card.course-card:nth-child(3n+3):hover{
+    box-shadow: 0 12px 30px rgba(244,114,182,.28);
   }
   `;
   const style = document.createElement('style');
-  style.id = 'lh-course-card-styles';
+  style.id = ID;
   style.textContent = css;
   document.head.appendChild(style);
 }
