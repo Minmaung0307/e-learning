@@ -440,70 +440,93 @@ function wrapCenter(ctx, text, cx, startY, lineHeight, maxWidth, font, fillStyle
 }
 
 // ---- Modal + Sidebar helpers ----
-// ---- Modal + Sidebar helpers ----
+// ---- Modal + Sidebar helpers (singleton, safe) ----
 function openModal(id) {
   ensureModalDOM();
   const m = document.getElementById(id);
   if (!m) return;
   m.classList.add('active');
 
-  // show exactly this backdrop; hide any others just in case
   const bd = m.nextElementSibling;
-  document.querySelectorAll('.modal-backdrop').forEach(b => (b.style.display = 'none'));
-  if (bd && bd.classList.contains('modal-backdrop')) {
-    bd.style.display = 'block';
-    bd.classList.add('active');
-  }
+  // hide any stray backdrops, then show ours
+  document.querySelectorAll('.modal-backdrop').forEach(b => { b.style.display = 'none'; b.classList.remove('active'); });
+  if (bd && bd.classList.contains('modal-backdrop')) { bd.style.display = 'block'; bd.classList.add('active'); }
 }
 function closeModal(id) {
   const m = document.getElementById(id);
   if (m) m.classList.remove('active');
-  // hide ALL backdrops to guarantee the page is clickable again
-  document.querySelectorAll('.modal-backdrop').forEach(b => {
-    b.style.display = 'none';
-    b.classList.remove('active');
-  });
+  document.querySelectorAll('.modal-backdrop').forEach(b => { b.style.display = 'none'; b.classList.remove('active'); });
 }
-const closeSidebar = () => {
-  document.body.classList.remove('sidebar-open');
-  $('#backdrop')?.classList.remove('active');
-};
+const closeSidebar = () => { document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
 
-// Ensure modal DOM exists exactly once (and lives under <body>)
+// Ensure ONLY ONE modal/backdrop exists, wired once, and attached to <body>
 function ensureModalDOM() {
-  // remove extras if a previous build left duplicates
-  const mods = Array.from(document.querySelectorAll('#m-modal'));
-  const bds  = Array.from(document.querySelectorAll('.modal-backdrop'));
-  if (mods.length > 1) mods.slice(1).forEach(n => n.remove());
-  if (bds.length > 1)  bds.slice(1).forEach(n => n.remove());
+  // dedupe if an older layout injected extras
+  Array.from(document.querySelectorAll('#m-modal')).slice(1).forEach(n => n.remove());
+  Array.from(document.querySelectorAll('.modal-backdrop')).slice(1).forEach(n => n.remove());
 
   let m = document.getElementById('m-modal');
   if (!m) {
     const wrap = document.createElement('div');
     wrap.innerHTML = `
       <div class="modal" id="m-modal"><div class="dialog">
-        <div class="head"><strong id="mm-title">Modal</strong>
-          <button class="btn ghost" id="mm-close">Close</button>
+        <div class="head">
+          <button class="btn back" id="mm-close" title="Back"><i class="ri-arrow-left-line"></i> Back</button>
+          <strong id="mm-title" style="margin-left:8px">Modal</strong>
         </div>
         <div class="body" id="mm-body"></div>
         <div class="foot" id="mm-foot"></div>
       </div></div>
       <div class="modal-backdrop"></div>`;
     const frag = document.createDocumentFragment();
-    frag.appendChild(wrap.firstElementChild);   // modal
-    frag.appendChild(wrap.lastChild);           // backdrop (sibling)
+    frag.appendChild(wrap.firstElementChild);
+    frag.appendChild(wrap.lastChild);
     document.body.appendChild(frag);
     m = document.getElementById('m-modal');
   }
-
-  // ensure modal/backdrop live directly under <body>, not inside #root
   const bd = m.nextElementSibling;
   if (m.parentElement !== document.body) document.body.appendChild(m);
   if (bd && bd.parentElement !== document.body) document.body.appendChild(bd);
 
-  // (re)wire close button safely
+  // (re)wire close/back
   document.getElementById('mm-close')?.addEventListener('click', safe(() => closeModal('m-modal')));
+
+  // ESC closes modal
+  if (!document.__escModal) {
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal('m-modal'); });
+    document.__escModal = true;
+  }
 }
+
+// High-contrast Back button + sticky header
+(function modalCSS(){
+  const ID = 'lh-modal-ux';
+  if (document.getElementById(ID)) return;
+  const css = `
+  .modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:100; }
+  .modal.active { display:flex; }
+  .modal .dialog{
+    width:min(1100px,96vw); max-height:96vh; display:flex; flex-direction:column;
+    background:var(--panel,#fff); border:1px solid var(--border,#e5eaf0); border-radius:14px;
+    box-shadow:0 24px 60px rgba(0,0,0,.25); overflow:hidden;
+  }
+  .modal .head{ position:sticky; top:0; display:flex; align-items:center; gap:8px; padding:10px 12px;
+    background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,255,255,.86));
+    border-bottom:1px solid var(--border,#e5eaf0); z-index:2;
+  }
+  .modal .body{ flex:1 1 auto; overflow:auto; background:var(--panel,#fff); padding:12px; }
+  .modal .foot{ padding:10px 12px; border-top:1px solid var(--border,#e5eaf0); background:var(--panel,#fff); position:sticky; bottom:0; z-index:2; }
+  .modal-backdrop{ position:fixed; inset:0; background:rgba(15,23,42,.45); backdrop-filter:blur(2px); display:none; }
+
+  .btn.back{
+    display:inline-flex; align-items:center; gap:6px;
+    border:1px solid var(--border,#d1d8e5); background:#fff; color:#0b1220;
+    padding:6px 10px; border-radius:10px; font-weight:600;
+  }
+  #cd-back{ border:1px solid var(--border,#d1d8e5)!important; background:#fff!important; color:#0b1220!important; }
+  `;
+  const s = document.createElement('style'); s.id = ID; s.textContent = css; document.head.appendChild(s);
+})();
 
 // Call the guard inside openModal so every open is safe
 const _openModal = openModal;
@@ -1514,30 +1537,34 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
         <input id="c-outlineUrl" class="input" placeholder="/data/outlines/your-course.json"/>
         <input id="c-quizzesUrl" class="input" placeholder="/data/lesson-quizzes/your-course.json"/>
       </div>`;
-    $('#mm-foot').innerHTML = `<button class="btn" id="c-save">Save</button>`;
-    openModal('m-modal');
+    $('#mm-foot').innerHTML = `
+  <button class="btn" id="c-save"><i class="ri-save-3-line"></i> Save</button>
+  <button class="btn ghost" id="c-cancel">Cancel</button>`;
+openModal('m-modal');
 
-    on($('#c-save'), 'click', async () => {
-      const t = $('#c-title')?.value.trim(); if (!t) return notify('Title required', 'warn');
-      const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
-      const obj = {
-        title: t,
-        category: $('#c-category')?.value.trim(),
-        credits: +($('#c-credits')?.value || 0),
-        price: +($('#c-price')?.value || 0),
-        short: $('#c-short')?.value.trim(),
-        goals,
-        coverImage: $('#c-cover')?.value.trim(),
-        outlineUrl: $('#c-outlineUrl')?.value.trim(),
-        quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
-        ownerUid: auth.currentUser.uid,
-        ownerEmail: auth.currentUser.email,
-        participants: [auth.currentUser.uid],
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
-      await col('courses').add(obj).then(() => { closeModal('m-modal'); notify('Saved'); })
-        .catch(e => { console.error('Failed to create course:', e); notify((e && (e.code + ': ' + e.message)) || 'Failed to create course', 'danger'); });
-    });
+    on($('#c-cancel'), 'click', () => closeModal('m-modal'));
+on($('#c-save'), 'click', async () => {
+  const t = $('#c-title')?.value.trim(); if (!t) return notify('Title required', 'warn');
+  const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const obj = {
+    title: t,
+    category: $('#c-category')?.value.trim(),
+    credits: +($('#c-credits')?.value || 0),
+    price: +($('#c-price')?.value || 0),
+    short: $('#c-short')?.value.trim(),
+    goals,
+    coverImage: $('#c-cover')?.value.trim(),
+    outlineUrl: $('#c-outlineUrl')?.value.trim(),
+    quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
+    ownerUid: auth.currentUser.uid,
+    ownerEmail: auth.currentUser.email,
+    participants: [auth.currentUser.uid],
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  await col('courses').add(obj)
+    .then(() => { closeModal('m-modal'); notify('Saved'); })
+    .catch(e => { console.error('Failed to create course:', e); notify(e?.message || 'Failed to create course', 'danger'); });
+});
   });
 
   const sec = $('[data-sec="courses"]'); if (!sec || sec.__wired) return; sec.__wired = true;
@@ -1579,19 +1606,34 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
         <input id="c-outlineUrl" class="input" value="${c.outlineUrl || ''}"/>
         <input id="c-quizzesUrl" class="input" value="${c.quizzesUrl || ''}"/>
       </div>`;
-    $('#mm-foot').innerHTML = `<button class="btn" id="c-save">Save</button>`;
-    openModal('m-modal');
-    on($('#c-save'), 'click', async () => {
-      const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
-      await doc('courses', id).set(clean({
-        title: $('#c-title')?.value.trim(), category: $('#c-category')?.value.trim(),
-        credits: +($('#c-credits')?.value || 0), price: +($('#c-price')?.value || 0),
-        short: $('#c-short')?.value.trim(), goals,
-        coverImage: $('#c-cover')?.value.trim(), outlineUrl: $('#c-outlineUrl')?.value.trim(), quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }), { merge: true });
-      closeModal('m-modal'); notify('Saved');
-    });
+    $('#mm-foot').innerHTML = `
+  <button class="btn" id="c-save"><i class="ri-save-3-line"></i> Save</button>
+  <button class="btn ghost" id="c-cancel">Cancel</button>`;
+openModal('m-modal');
+
+on($('#c-cancel'), 'click', () => closeModal('m-modal'));
+on($('#c-save'), 'click', async () => {
+  const t = $('#c-title')?.value.trim(); if (!t) return notify('Title required', 'warn');
+  const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const obj = {
+    title: t,
+    category: $('#c-category')?.value.trim(),
+    credits: +($('#c-credits')?.value || 0),
+    price: +($('#c-price')?.value || 0),
+    short: $('#c-short')?.value.trim(),
+    goals,
+    coverImage: $('#c-cover')?.value.trim(),
+    outlineUrl: $('#c-outlineUrl')?.value.trim(),
+    quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
+    ownerUid: auth.currentUser.uid,
+    ownerEmail: auth.currentUser.email,
+    participants: [auth.currentUser.uid],
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  await col('courses').add(obj)
+    .then(() => { closeModal('m-modal'); notify('Saved'); })
+    .catch(e => { console.error('Failed to create course:', e); notify(e?.message || 'Failed to create course', 'danger'); });
+});
   });
 
   // Delete course
@@ -1695,16 +1737,20 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
         <input id="q-pass" class="input" type="number" value="70" placeholder="Pass score (%)"/>
         <textarea id="q-json" class="input" placeholder='[{"q":"2+2?","choices":["3","4","5"],"answer":1,"feedbackOk":"Correct!","feedbackNo":"Try again"}]'></textarea>
       </div>`;
-    $('#mm-foot').innerHTML = `<button class="btn" id="q-save">Save</button>`;
-    openModal('m-modal');
-    on($('#q-save'), 'click', async () => {
-      const t = $('#q-title')?.value.trim(); const courseId = $('#q-course')?.value; const pass = +($('#q-pass')?.value || 70);
-      if (!t || !courseId) return notify('Fill title & course', 'warn');
-      let items = []; try { items = JSON.parse($('#q-json')?.value || '[]'); } catch { return notify('Invalid JSON', 'danger'); }
-      const course = state.courses.find(c => c.id === courseId) || {};
-      await col('quizzes').add(clean({ title: t, courseId, courseTitle: course.title, passScore: pass, items, isFinal: true, ownerUid: auth.currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
-      closeModal('m-modal'); notify('Final saved');
-    });
+    $('#mm-foot').innerHTML = `
+  <button class="btn" id="q-save"><i class="ri-save-3-line"></i> Save</button>
+  <button class="btn ghost" id="q-cancel">Back</button>`;
+openModal('m-modal');
+
+on($('#q-cancel'), 'click', () => closeModal('m-modal'));
+on($('#q-save'), 'click', async () => {
+  const t = $('#q-title')?.value.trim(); const courseId = $('#q-course')?.value; const pass = +($('#q-pass')?.value || 70);
+  if (!t || !courseId) return notify('Fill title & course', 'warn');
+  let items = []; try { items = JSON.parse($('#q-json')?.value || '[]'); } catch { return notify('Invalid JSON', 'danger'); }
+  const course = state.courses.find(c => c.id === courseId) || {};
+  await col('quizzes').add(clean({ title: t, courseId, courseTitle: course.title, passScore: pass, items, isFinal: true, ownerUid: auth.currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
+  closeModal('m-modal'); notify('Final saved');
+});
   });
 
   const sec = $('[data-sec="quizzes"]'); if (!sec || sec.__wired) return; sec.__wired = true;
@@ -1774,99 +1820,122 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
         <input id="q-pass" class="input" type="number" value="${q.passScore || 70}"/>
         <textarea id="q-json" class="input">${JSON.stringify(q.items || [], null, 2)}</textarea>
       </div>`;
-    $('#mm-foot').innerHTML = `<button class="btn" id="q-save">Save</button>`;
-    openModal('m-modal');
-    on($('#q-save'), 'click', async () => {
-      let items = []; try { items = JSON.parse($('#q-json')?.value || '[]'); } catch { return notify('Invalid JSON', 'danger'); }
-      await doc('quizzes', id).set(clean({ title: $('#q-title')?.value.trim(), passScore: +($('#q-pass')?.value || 70), items, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }), { merge: true });
-      closeModal('m-modal'); notify('Saved');
-    });
+    $('#mm-foot').innerHTML = `
+  <button class="btn" id="q-save"><i class="ri-save-3-line"></i> Save</button>
+  <button class="btn ghost" id="q-cancel">Back</button>`;
+openModal('m-modal');
+
+on($('#q-cancel'), 'click', () => closeModal('m-modal'));
+on($('#q-save'), 'click', async () => {
+  const t = $('#q-title')?.value.trim(); const courseId = $('#q-course')?.value; const pass = +($('#q-pass')?.value || 70);
+  if (!t || !courseId) return notify('Fill title & course', 'warn');
+  let items = []; try { items = JSON.parse($('#q-json')?.value || '[]'); } catch { return notify('Invalid JSON', 'danger'); }
+  const course = state.courses.find(c => c.id === courseId) || {};
+  await col('quizzes').add(clean({ title: t, courseId, courseTitle: course.title, passScore: pass, items, isFinal: true, ownerUid: auth.currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
+  closeModal('m-modal'); notify('Final saved');
+});
   });
 }
 
   // ---- Chat
   function wireChat() {
-    const box = $('#chat-box');
-    const modeSel = $('#chat-mode');
-    const courseSel = $('#chat-course');
-    const dmSel = $('#chat-dm');
-    const groupInp = $('#chat-group');
-    const input = $('#chat-input');
-    const send = $('#chat-send');
+  const box = $('#chat-box');
+  const modeSel = $('#chat-mode');
+  const courseSel = $('#chat-course');
+  const dmSel = $('#chat-dm');
+  const groupInp = $('#chat-group');
+  const input = $('#chat-input');
+  const send = $('#chat-send');
 
-    populateDmUserSelect();
+  populateDmUserSelect();
 
-    let unsub = null;
+  let unsub = null;
 
-    const uiByMode = () => {
-      const m = modeSel.value;
-      courseSel.classList.toggle('hidden', m !== 'course');
-      dmSel.classList.toggle('hidden', m !== 'dm');
-      groupInp.classList.toggle('hidden', m !== 'group');
-      if (m === 'dm') populateDmUserSelect();
-    };
-    uiByMode();
-    modeSel?.addEventListener('change', () => { uiByMode(); sub(); });
+  const uiByMode = () => {
+    const m = modeSel.value;
+    courseSel.classList.toggle('hidden', m !== 'course');
+    dmSel.classList.toggle('hidden', m !== 'dm');
+    groupInp.classList.toggle('hidden', m !== 'group');
+    if (m === 'dm') populateDmUserSelect();
+  };
 
-    function channelKey() {
-      const m = modeSel.value;
-      if (m === 'course') {
-        const c = courseSel.value; return c ? `course_${c}` : '';
-      } else if (m === 'dm') {
-        const peer = dmSel.value; if (!peer) return '';
-        const pair = [auth.currentUser.uid, peer].sort(); return `dm_${pair[0]}_${pair[1]}`;
-      } else {
-        const gid = (groupInp.value || '').trim(); return gid ? `group_${gid}` : '';
-      }
+  // Pick a sensible default: first course if exists
+  if (!courseSel.value && state.courses.length) courseSel.value = state.courses[0].id;
+  uiByMode();
+
+  function channelKey() {
+    const m = modeSel.value;
+    if (m === 'course') {
+      const c = courseSel.value; return c ? `course_${c}` : '';
+    } else if (m === 'dm') {
+      const peer = dmSel.value; if (!peer) return '';
+      const pair = [auth.currentUser.uid, peer].sort(); return `dm_${pair[0]}_${pair[1]}`;
+    } else {
+      const gid = (groupInp.value || '').trim(); return gid ? `group_${gid}` : '';
     }
+  }
 
-    function paint(msgs) {
-      box.innerHTML = msgs.sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0))
-        .map(m => `
-          <div style="margin-bottom:8px">
-            <div style="font-weight:600">${m.name || m.email || 'User'} <span class="muted" style="font-size:12px">• ${new Date(m.createdAt?.toDate?.() || m.createdAt || Date.now()).toLocaleTimeString()}</span></div>
-            <div>${(m.text || '').replace(/</g, '&lt;')}</div>
-          </div>`).join('');
-      box.scrollTop = box.scrollHeight;
+  function paint(msgs) {
+    if (!Array.isArray(msgs) || !msgs.length) {
+      box.innerHTML = '<div class="muted">No messages yet. Type a message and press Send.</div>';
+      return;
     }
+    box.innerHTML = msgs
+      .sort((a,b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0))
+      .map(m => `
+        <div style="margin-bottom:8px">
+          <div style="font-weight:600">${m.name || m.email || 'User'} <span class="muted" style="font-size:12px">• ${new Date(m.createdAt?.toDate?.() || m.createdAt || Date.now()).toLocaleTimeString()}</span></div>
+          <div>${(m.text || '').replace(/</g, '&lt;')}</div>
+        </div>`).join('');
+    box.scrollTop = box.scrollHeight;
+  }
 
-    function sub() {
-      if (unsub) { try { unsub() } catch { } unsub = null; }
-      if (state._unsubChat) { try { state._unsubChat(); } catch { } state._unsubChat = null; }
-      const ch = channelKey(); if (!ch) { box.innerHTML = '<div class="muted">Pick a channel…</div>'; return; }
-      unsub = col('messages').where('channel', '==', ch).onSnapshot(
-        s => paint(s.docs.map(d => ({ id: d.id, ...d.data() }))),
-        err => console.warn('chat listener error:', err)
-      );
-      state._unsubChat = unsub;
-    }
+  function sub() {
+    if (unsub) { try { unsub(); } catch {} unsub = null; }
+    if (state._unsubChat) { try { state._unsubChat(); } catch {} state._unsubChat = null; }
+    const ch = channelKey();
+    if (!ch) { box.innerHTML = '<div class="muted">Pick a channel (select a course / a user / or enter a group id)…</div>'; return; }
+    unsub = col('messages').where('channel', '==', ch).onSnapshot(
+      s => paint(s.docs.map(d => ({ id: d.id, ...d.data() }))),
+      err => { console.warn('chat listener error:', err); notify('Chat read failed', 'danger'); }
+    );
+    state._unsubChat = unsub;
+  }
 
-    courseSel?.addEventListener('change', () => { populateDmUserSelect(); sub(); });
-    dmSel?.addEventListener('change', sub);
-    groupInp?.addEventListener('input', sub);
-    groupInp?.addEventListener('keydown', (e) => { if (e.key === 'Enter') sub(); });
+  on(modeSel, 'change', () => { uiByMode(); sub(); });
+  on(courseSel, 'change', () => { populateDmUserSelect(); sub(); });
+  on(dmSel, 'change', sub);
+  on(groupInp, 'input', sub);
+  on(groupInp, 'keydown', (e) => { if (e.key === 'Enter') sub(); });
 
-    send?.addEventListener('click', async () => {
-      const ch = channelKey(); const text = input.value.trim(); if (!ch || !text) return;
-      const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || {};
-      const payload = clean({
-        channel: ch,
-        type: modeSel.value,
-        uid: auth.currentUser.uid,
-        email: auth.currentUser.email,
-        name: me.name || '',
-        text,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        courseId: modeSel.value === 'course' ? courseSel.value : undefined,
-        peerUid: modeSel.value === 'dm' ? dmSel.value : undefined,
-        groupId: modeSel.value === 'group' ? groupInp.value.trim() : undefined
-      });
+  on(send, 'click', async () => {
+    const ch = channelKey(); const text = input.value.trim();
+    if (!ch) { notify('Pick a channel (course / DM / group) first', 'warn'); return; }
+    if (!text) return;
+    const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || {};
+    const payload = clean({
+      channel: ch,
+      type: modeSel.value,
+      uid: auth.currentUser.uid,
+      email: auth.currentUser.email,
+      name: me.name || '',
+      text,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      courseId: modeSel.value === 'course' ? courseSel.value : undefined,
+      peerUid: modeSel.value === 'dm' ? dmSel.value : undefined,
+      groupId: modeSel.value === 'group' ? groupInp.value.trim() : undefined
+    });
+    try {
       await col('messages').add(payload);
       input.value = '';
-    });
+    } catch (e) {
+      console.error(e);
+      notify(e?.message || 'Chat send failed (check Firestore rules)', 'danger');
+    }
+  });
 
-    sub();
-  }
+  sub();
+}
 
   // ---- Contact wiring (EmailJS send) ----
   function wireContact() {
@@ -1939,20 +2008,23 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
       <div class="grid">
         <input id="t-title" class="input" placeholder="Task title"/>
       </div>`;
-    $('#mm-foot').innerHTML = `<button class="btn" id="t-save">Save</button>`;
-    openModal('m-modal');
+    $('#mm-foot').innerHTML = `
+  <button class="btn" id="t-save"><i class="ri-save-3-line"></i> Save</button>
+  <button class="btn ghost" id="t-cancel">Close</button>`;
+openModal('m-modal');
 
-    on($('#t-save'), 'click', async () => {
-      const title = $('#t-title')?.value.trim();
-      if (!title) return notify('Enter a title', 'warn');
-      await col('tasks').add({
-        uid: auth.currentUser.uid,
-        title,
-        status: 'todo',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      closeModal('m-modal'); notify('Task added');
-    });
+on($('#t-cancel'), 'click', () => closeModal('m-modal'));
+on($('#t-save'), 'click', async () => {
+  const title = $('#t-title')?.value.trim();
+  if (!title) return notify('Enter a title', 'warn');
+  await col('tasks').add({
+    uid: auth.currentUser.uid,
+    title,
+    status: 'todo',
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  closeModal('m-modal'); notify('Task added');
+});
   });
 
   // Delete
@@ -1969,12 +2041,23 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
     const t = { id: snap.id, ...snap.data() };
     $('#mm-title').textContent = 'Edit Task';
     $('#mm-body').innerHTML = `<input id="t-title" class="input" value="${t.title || ''}"/>`;
-    $('#mm-foot').innerHTML = `<button class="btn" id="t-save">Save</button>`;
-    openModal('m-modal');
-    on($('#t-save'), 'click', async () => {
-      await doc('tasks', id).set({ title: $('#t-title').value }, { merge: true });
-      closeModal('m-modal'); notify('Saved');
-    });
+    $('#mm-foot').innerHTML = `
+  <button class="btn" id="t-save"><i class="ri-save-3-line"></i> Save</button>
+  <button class="btn ghost" id="t-cancel">Close</button>`;
+openModal('m-modal');
+
+on($('#t-cancel'), 'click', () => closeModal('m-modal'));
+on($('#t-save'), 'click', async () => {
+  const title = $('#t-title')?.value.trim();
+  if (!title) return notify('Enter a title', 'warn');
+  await col('tasks').add({
+    uid: auth.currentUser.uid,
+    title,
+    status: 'todo',
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  closeModal('m-modal'); notify('Task added');
+});
   });
 }
 
@@ -2051,80 +2134,97 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
 
   // ---- Profile
   function wireProfile() {
-    $('#pf-pick')?.addEventListener('click', () => $('#pf-avatar')?.click());
-    $('#pf-pick-sign')?.addEventListener('click', () => $('#pf-sign')?.click());
+  on($('#pf-pick'), 'click', () => $('#pf-avatar')?.click());
+  on($('#pf-pick-sign'), 'click', () => $('#pf-sign')?.click());
 
-    $('#pf-save')?.addEventListener('click', async () => {
+  on($('#pf-save'), 'click', async () => {
+    try {
       const uid = auth.currentUser.uid;
       await doc('profiles', uid).set({
-        name: $('#pf-name')?.value.trim(), portfolio: $('#pf-portfolio')?.value.trim(), bio: $('#pf-bio')?.value.trim(),
+        name: $('#pf-name')?.value.trim(),
+        portfolio: $('#pf-portfolio')?.value.trim(),
+        bio: $('#pf-bio')?.value.trim(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
 
+      // Uploads (if any)
+      if (!stg || !stg.ref) { notify('Storage SDK missing', 'danger'); return; }
+
       const fileA = $('#pf-avatar')?.files?.[0];
       if (fileA) {
-        const ref = stg.ref().child(`avatars/${uid}/${Date.now()}_${fileA.name}`);
-        await ref.put(fileA); const url = await ref.getDownloadURL();
-        await doc('profiles', uid).set({ avatar: url }, { merge: true });
+        const refA = stg.ref().child(`avatars/${uid}/${Date.now()}_${fileA.name}`);
+        await refA.put(fileA);
+        const urlA = await refA.getDownloadURL();
+        await doc('profiles', uid).set({ avatar: urlA, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
       }
+
       const fileS = $('#pf-sign')?.files?.[0];
       if (fileS) {
-        const ref = stg.ref().child(`signatures/${uid}/${Date.now()}_${fileS.name}`);
-        await ref.put(fileS); const url = await ref.getDownloadURL();
-        await doc('profiles', uid).set({ signature: url }, { merge: true });
+        const refS = stg.ref().child(`signatures/${uid}/${Date.now()}_${fileS.name}`);
+        await refS.put(fileS);
+        const urlS = await refS.getDownloadURL();
+        await doc('profiles', uid).set({ signature: urlS, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
       }
+
       notify('Profile saved');
-    });
-
-    $('#pf-delete')?.addEventListener('click', async () => {
-      const uid = auth.currentUser.uid;
-      await doc('profiles', uid).delete();
-      notify('Profile deleted');
-    });
-
-    $('#pf-view')?.addEventListener('click', () => {
-  const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || {};
-  $('#mm-title').textContent = 'Profile Card';
-$('#mm-body').innerHTML = `
-  <div style="
-    background:linear-gradient(135deg,#f8fafc,#eef2ff);
-    color:#0b1220; border:1px solid var(--border);
-    border-radius:14px; padding:16px; display:grid; gap:12px">
-    <div style="display:flex;gap:12px;align-items:center">
-      <img src="${me.avatar || '/icons/learnhub-cap.svg'}" alt="avatar"
-           style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:1px solid var(--border); background:#fff"/>
-      <div>
-        <div style="font-weight:800;font-size:18px">${me.name || me.email || '—'}</div>
-        <div class="muted" style="color:#334155">${me.email || ''}</div>
-      </div>
-    </div>
-    <div style="white-space:pre-wrap; line-height:1.5">${(me.bio || '').replace(/</g, '&lt;')}</div>
-    ${me.signature ? `
-      <div>
-        <div class="muted" style="color:#475569;margin-bottom:4px">Signature</div>
-        <img src="${me.signature}" alt="signature" style="max-height:60px; background:#fff; border:1px solid var(--border); border-radius:8px; padding:6px">
-      </div>` : ''}
-  </div>`;
-$('#mm-foot').innerHTML = `<button class="btn" id="mm-ok">Close</button>`;
-openModal('m-modal');
-$('#mm-ok').onclick = () => closeModal('m-modal');
-});
-
-    $('#main').addEventListener('click', safe(async (e) => {
-  const b = e.target.closest?.('button[data-cert]'); if (!b) return;
-  const courseId = b.getAttribute('data-cert');
-  const course = state.courses.find(c => c.id === courseId) || {};
-  const p = state.profiles.find(x => x.uid === auth.currentUser?.uid) || { name: auth.currentUser.email };
-  const certId = 'LH-' + (courseId || 'xxxx').slice(0,6).toUpperCase() + '-' + (auth.currentUser.uid || 'user').slice(0,6).toUpperCase();
-  renderCertificatePNG({
-    name: p.name || p.email,
-    courseTitle: course.title || courseId,
-    dateText: new Date().toLocaleDateString(),
-    certId,
-    logoUrl: '/icons/learnhub-cap.svg'
+      // force a light refresh so the new avatar shows in the profile view immediately
+      render();
+    } catch (e) {
+      console.error(e);
+      notify(e?.message || 'Save failed', 'danger');
+    }
   });
-}));
-  }
+
+  on($('#pf-delete'), 'click', async () => {
+    const uid = auth.currentUser.uid;
+    await doc('profiles', uid).delete();
+    notify('Profile deleted');
+  });
+
+  on($('#pf-view'), 'click', () => {
+    const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || {};
+    $('#mm-title').textContent = 'Profile Card';
+    $('#mm-body').innerHTML = `
+      <div style="
+        background:linear-gradient(135deg,#f8fafc,#eef2ff);
+        color:#0b1220; border:1px solid var(--border);
+        border-radius:14px; padding:16px; display:grid; gap:12px">
+        <div style="display:flex;gap:12px;align-items:center">
+          <img src="${me.avatar || '/icons/learnhub-cap.svg'}" alt="avatar"
+               style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:1px solid var(--border); background:#fff"/>
+          <div>
+            <div style="font-weight:800;font-size:18px">${me.name || me.email || '—'}</div>
+            <div class="muted" style="color:#334155">${me.email || ''}</div>
+          </div>
+        </div>
+        <div style="white-space:pre-wrap; line-height:1.5">${(me.bio || '').replace(/</g, '&lt;')}</div>
+        ${me.signature ? `
+          <div>
+            <div class="muted" style="color:#475569;margin-bottom:4px">Signature</div>
+            <img src="${me.signature}" alt="signature" style="max-height:60px; background:#fff; border:1px solid var(--border); border-radius:8px; padding:6px">
+          </div>` : ''}
+      </div>`;
+    $('#mm-foot').innerHTML = `<button class="btn" id="mm-ok">Close</button>`;
+    openModal('m-modal');
+    on($('#mm-ok'), 'click', () => closeModal('m-modal'));
+  });
+
+  // Certificate button (unchanged)
+  on($('#main'), 'click', async (e) => {
+    const b = e.target.closest?.('button[data-cert]'); if (!b) return;
+    const courseId = b.getAttribute('data-cert');
+    const course = state.courses.find(c => c.id === courseId) || {};
+    const p = state.profiles.find(x => x.uid === auth.currentUser?.uid) || { name: auth.currentUser.email };
+    const certId = 'LH-' + (courseId || 'xxxx').slice(0,6).toUpperCase() + '-' + (auth.currentUser.uid || 'user').slice(0,6).toUpperCase();
+    renderCertificatePNG({
+      name: p.name || p.email,
+      courseTitle: course.title || courseId,
+      dateText: new Date().toLocaleDateString(),
+      certId,
+      logoUrl: '/icons/learnhub-cap.svg'
+    });
+  });
+}
 
   // ---- Admin
   function wireAdmin() {
