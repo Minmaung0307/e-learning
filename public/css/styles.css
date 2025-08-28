@@ -765,3 +765,10 @@ body.theme-sunrise::after{
   border-color:#e5eaf0;
 }
 .main.light-content .muted { color:#475569; }
+
+.btn.back{
+  display:inline-flex; align-items:center; gap:6px;
+  border:1px solid var(--border,#d1d8e5); background:#fff; color:#0b1220;
+  padding:6px 10px; border-radius:10px; font-weight:600;
+}
+#cd-back{ border:1px solid var(--border,#d1d8e5)!important; background:#fff!important; color:#0b1220!important; }

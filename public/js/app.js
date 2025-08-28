@@ -26,19 +26,32 @@
 
   // ---- EmailJS (Contact page) ----
   // Provide keys via window.__EMAILJS_CONFIG = { publicKey, serviceId, templateId, toEmail? }
-  function ensureEmailJsInit() {
-    try {
-      const cfg = window.__EMAILJS_CONFIG || window.__EMAILJS || {};
-      if (!window.emailjs || !cfg.publicKey) return false;
-      if (!ensureEmailJsInit._did) {
-        emailjs.init(cfg.publicKey);
-        ensureEmailJsInit._did = true;
-      }
-      return true;
-    } catch {
-      return false;
+  // ---- EmailJS (Contact page) ----
+function getEmailJsConfig() {
+  const o = window.__EMAILJS_CONFIG || window.__EMAILJS || {};
+  return {
+    publicKey:  o.publicKey  || window.__EMAILJS_PUBLIC_KEY  || o.PUBLIC_KEY  || o.public_key,
+    serviceId:  o.serviceId  || window.__EMAILJS_SERVICE_ID  || o.SERVICE_ID  || o.service_id,
+    templateId: o.templateId || window.__EMAILJS_TEMPLATE_ID || o.TEMPLATE_ID || o.template_id,
+    toEmail:    o.toEmail     || o.TO_EMAIL || null
+  };
+}
+
+function ensureEmailJsInit() {
+  try {
+    if (!window.emailjs) return false;
+    const cfg = getEmailJsConfig();
+    if (!cfg.publicKey) return false;
+    if (!ensureEmailJsInit._did) {
+      emailjs.init(cfg.publicKey);
+      ensureEmailJsInit._did = true;
     }
-  }
+    return true;
+  } catch { return false; }
+}
+
+// Try once on page load, but we'll also init lazily right before sending
+window.addEventListener('load', () => { try { ensureEmailJsInit(); } catch {} });
 
   // ---- State ----
   const state = {
@@ -119,6 +132,30 @@ const delegate = (root, selector, type, handler, opts) => {
     if (t && root.contains(t)) handler(e, t);
   }), opts);
 };
+
+
+// ---- Busy UI + robust safe write wrapper ----
+function withBusy(btn, label='Saving…') {
+  if (!btn) return () => {};
+  const prev = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<i class="ri-loader-4-line" style="animation:spin 1s linear infinite"></i> ${label}`;
+  return () => { btn.disabled = false; btn.innerHTML = prev; };
+}
+
+async function safeWrite(btn, op, { ok='Saved', close=true } = {}) {
+  const done = withBusy(btn);
+  try {
+    await Promise.resolve().then(op);   // normalize sync/async
+    notify(ok);
+    if (close) closeModal('m-modal');
+  } catch (e) {
+    console.error('Write failed:', e);
+    notify(e?.message || 'Action failed', 'danger');
+  } finally {
+    done();
+  }
+}
 
   const nowYear = () => new Date().getFullYear();
   const col = (name) => db.collection(name);
@@ -1537,14 +1574,15 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
         <input id="c-outlineUrl" class="input" placeholder="/data/outlines/your-course.json"/>
         <input id="c-quizzesUrl" class="input" placeholder="/data/lesson-quizzes/your-course.json"/>
       </div>`;
-    $('#mm-foot').innerHTML = `
+    // New Course foot
+$('#mm-foot').innerHTML = `
   <button class="btn" id="c-save"><i class="ri-save-3-line"></i> Save</button>
   <button class="btn ghost" id="c-cancel">Cancel</button>`;
 openModal('m-modal');
 
-    on($('#c-cancel'), 'click', () => closeModal('m-modal'));
-on($('#c-save'), 'click', async () => {
-  const t = $('#c-title')?.value.trim(); if (!t) return notify('Title required', 'warn');
+on($('#c-cancel'), 'click', () => closeModal('m-modal'));
+on($('#c-save'), 'click', (e) => safeWrite(e.currentTarget, async () => {
+  const t = $('#c-title')?.value.trim(); if (!t) throw new Error('Title required');
   const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
   const obj = {
     title: t,
@@ -1561,10 +1599,26 @@ on($('#c-save'), 'click', async () => {
     participants: [auth.currentUser.uid],
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   };
-  await col('courses').add(obj)
-    .then(() => { closeModal('m-modal'); notify('Saved'); })
-    .catch(e => { console.error('Failed to create course:', e); notify(e?.message || 'Failed to create course', 'danger'); });
-});
+  await col('courses').add(obj);
+}));
+
+// Edit Course foot
+$('#mm-foot').innerHTML = `
+  <button class="btn" id="c-save"><i class="ri-save-3-line"></i> Save</button>
+  <button class="btn ghost" id="c-cancel">Cancel</button>`;
+on($('#c-cancel'), 'click', () => closeModal('m-modal'));
+on($('#c-save'), 'click', (e) => safeWrite(e.currentTarget, async () => {
+  const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
+  await doc('courses', id).set(clean({
+    title: $('#c-title')?.value.trim(), category: $('#c-category')?.value.trim(),
+    credits: +($('#c-credits')?.value || 0), price: +($('#c-price')?.value || 0),
+    short: $('#c-short')?.value.trim(), goals,
+    coverImage: $('#c-cover')?.value.trim(),
+    outlineUrl: $('#c-outlineUrl')?.value.trim(),
+    quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }), { merge: true });
+}));
   });
 
   const sec = $('[data-sec="courses"]'); if (!sec || sec.__wired) return; sec.__wired = true;
@@ -1945,56 +1999,52 @@ on($('#q-save'), 'click', async () => {
     // init SDK if available
     ensureEmailJsInit();
 
-    sendBtn.addEventListener('click', async () => {
-      const name = $('#ct-name')?.value.trim();
-      const email = $('#ct-email')?.value.trim();
-      const subject = $('#ct-subject')?.value.trim();
-      const message = $('#ct-message')?.value.trim();
-      const cfg = window.__EMAILJS_CONFIG || window.__EMAILJS || {};
+    on($('#ct-send'), 'click', async () => {
+  const name = $('#ct-name')?.value.trim();
+  const email = $('#ct-email')?.value.trim();
+  const subject = $('#ct-subject')?.value.trim();
+  const message = $('#ct-message')?.value.trim();
+  const cfg = getEmailJsConfig();
 
-      if (!name || !email || !subject || !message) { notify('Fill all fields', 'warn'); return; }
-      if (!window.emailjs) { notify('EmailJS SDK missing (see index.html snippet)', 'danger'); return; }
-      if (!cfg.serviceId || !cfg.templateId) { notify('EmailJS serviceId/templateId missing', 'danger'); return; }
+  if (!name || !email || !subject || !message) { notify('Fill all fields', 'warn'); return; }
+  if (!window.emailjs) { notify('EmailJS SDK missing (include their script in index.html)', 'danger'); return; }
+  if (!cfg.serviceId || !cfg.templateId) { notify('EmailJS serviceId/templateId missing', 'danger'); return; }
 
-      // UI busy
-      const prev = sendBtn.innerHTML;
-      sendBtn.disabled = true;
-      sendBtn.innerHTML = '<i class="ri-loader-4-line" style="animation:spin 1s linear infinite"></i> Sending…';
+  ensureEmailJsInit(); // lazy init right before send
 
-      try {
-        // Optional: persist to Firestore for audit/helpdesk
-        try {
-          await col('contact').add({
-            uid: auth.currentUser?.uid || null,
-            name, email, subject, message,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-        } catch (_) {}
+  const btn = $('#ct-send');
+  const done = withBusy(btn, 'Sending…');
+  try {
+    // optional: persist to Firestore
+    try {
+      await col('contact').add({
+        uid: auth.currentUser?.uid || null,
+        name, email, subject, message,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch (_) {}
 
-        const params = {
-          from_name: name,
-          from_email: email,
-          subject,
-          message,
-          reply_to: email,
-          to_email: cfg.toEmail || undefined,
-          user_uid: auth.currentUser?.uid || '',
-          app_name: 'LearnHub'
-        };
-
-        ensureEmailJsInit(); // in case route changed before init
-        await emailjs.send(cfg.serviceId, cfg.templateId, params);
-        notify('Message sent — thank you!');
-        $('#ct-subject').value = '';
-        $('#ct-message').value = '';
-      } catch (e) {
-        console.error('EmailJS send failed:', e);
-        notify(e?.text || e?.message || 'Send failed', 'danger');
-      } finally {
-        sendBtn.disabled = false;
-        sendBtn.innerHTML = prev;
-      }
+    await emailjs.send(cfg.serviceId, cfg.templateId, {
+      from_name: name,
+      from_email: email,
+      subject,
+      message,
+      reply_to: email,
+      to_email: cfg.toEmail || undefined,
+      user_uid: auth.currentUser?.uid || '',
+      app_name: 'LearnHub'
     });
+
+    notify('Message sent — thank you!');
+    $('#ct-subject').value = '';
+    $('#ct-message').value = '';
+  } catch (e) {
+    console.error('EmailJS send failed:', e);
+    notify(e?.text || e?.message || 'Send failed', 'danger');
+  } finally {
+    done();
+  }
+});
   }
 
   // ---- Tasks
@@ -2008,23 +2058,32 @@ on($('#q-save'), 'click', async () => {
       <div class="grid">
         <input id="t-title" class="input" placeholder="Task title"/>
       </div>`;
-    $('#mm-foot').innerHTML = `
+    // New Task foot
+$('#mm-foot').innerHTML = `
   <button class="btn" id="t-save"><i class="ri-save-3-line"></i> Save</button>
   <button class="btn ghost" id="t-cancel">Close</button>`;
 openModal('m-modal');
 
 on($('#t-cancel'), 'click', () => closeModal('m-modal'));
-on($('#t-save'), 'click', async () => {
+on($('#t-save'), 'click', (e) => safeWrite(e.currentTarget, async () => {
   const title = $('#t-title')?.value.trim();
-  if (!title) return notify('Enter a title', 'warn');
+  if (!title) throw new Error('Enter a title');
   await col('tasks').add({
     uid: auth.currentUser.uid,
     title,
     status: 'todo',
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
-  closeModal('m-modal'); notify('Task added');
-});
+}, { ok:'Task added' }));
+
+// Edit Task foot
+$('#mm-foot').innerHTML = `
+  <button class="btn" id="t-save"><i class="ri-save-3-line"></i> Save</button>
+  <button class="btn ghost" id="t-cancel">Close</button>`;
+on($('#t-cancel'), 'click', () => closeModal('m-modal'));
+on($('#t-save'), 'click', (e) => safeWrite(e.currentTarget, async () => {
+  await doc('tasks', id).set({ title: $('#t-title').value }, { merge: true });
+}));
   });
 
   // Delete
@@ -2137,43 +2196,36 @@ on($('#t-save'), 'click', async () => {
   on($('#pf-pick'), 'click', () => $('#pf-avatar')?.click());
   on($('#pf-pick-sign'), 'click', () => $('#pf-sign')?.click());
 
-  on($('#pf-save'), 'click', async () => {
-    try {
-      const uid = auth.currentUser.uid;
-      await doc('profiles', uid).set({
-        name: $('#pf-name')?.value.trim(),
-        portfolio: $('#pf-portfolio')?.value.trim(),
-        bio: $('#pf-bio')?.value.trim(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
+  on($('#pf-save'), 'click', (e) => safeWrite(e.currentTarget, async () => {
+  const uid = auth.currentUser.uid;
+  await doc('profiles', uid).set({
+    name: $('#pf-name')?.value.trim(),
+    portfolio: $('#pf-portfolio')?.value.trim(),
+    bio: $('#pf-bio')?.value.trim(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
 
-      // Uploads (if any)
-      if (!stg || !stg.ref) { notify('Storage SDK missing', 'danger'); return; }
+  if (!stg || !stg.ref) throw new Error('Storage SDK missing');
 
-      const fileA = $('#pf-avatar')?.files?.[0];
-      if (fileA) {
-        const refA = stg.ref().child(`avatars/${uid}/${Date.now()}_${fileA.name}`);
-        await refA.put(fileA);
-        const urlA = await refA.getDownloadURL();
-        await doc('profiles', uid).set({ avatar: urlA, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-      }
+  const fileA = $('#pf-avatar')?.files?.[0];
+  if (fileA) {
+    const refA = stg.ref().child(`avatars/${uid}/${Date.now()}_${fileA.name}`);
+    await refA.put(fileA);
+    const urlA = await refA.getDownloadURL();
+    await doc('profiles', uid).set({ avatar: urlA, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  }
 
-      const fileS = $('#pf-sign')?.files?.[0];
-      if (fileS) {
-        const refS = stg.ref().child(`signatures/${uid}/${Date.now()}_${fileS.name}`);
-        await refS.put(fileS);
-        const urlS = await refS.getDownloadURL();
-        await doc('profiles', uid).set({ signature: urlS, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-      }
+  const fileS = $('#pf-sign')?.files?.[0];
+  if (fileS) {
+    const refS = stg.ref().child(`signatures/${uid}/${Date.now()}_${fileS.name}`);
+    await refS.put(fileS);
+    const urlS = await refS.getDownloadURL();
+    await doc('profiles', uid).set({ signature: urlS, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  }
 
-      notify('Profile saved');
-      // force a light refresh so the new avatar shows in the profile view immediately
-      render();
-    } catch (e) {
-      console.error(e);
-      notify(e?.message || 'Save failed', 'danger');
-    }
-  });
+  // show new media right away
+  render();
+}, { ok:'Profile saved' }));
 
   on($('#pf-delete'), 'click', async () => {
     const uid = auth.currentUser.uid;

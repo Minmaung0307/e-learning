@@ -5,7 +5,7 @@ service cloud.firestore {
     /* ---------- Helpers ---------- */
     function signedIn() { return request.auth != null; }
 
-    // Checks admin flag in /roles/{uid} (optional collection you manage)
+    // Checks admin flag in /roles/{uid}
     function isAdmin() {
       return signedIn()
         && exists(/databases/$(database)/documents/roles/$(request.auth.uid))
@@ -16,21 +16,33 @@ service cloud.firestore {
     function isOwner()   { return signedIn() && resource.data.uid == request.auth.uid; }
     function isCreator() { return signedIn() && request.resource.data.uid == request.auth.uid; }
 
+    // Course participant check for chat (uses courses/{id}.participants array)
+    function isParticipant(courseId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/courses/$(courseId))
+        && request.auth.uid in get(/databases/$(database)/documents/courses/$(courseId)).data.participants;
+    }
+
+    // Deterministic DM channel key
+    function dmKey(u1, u2) {
+      return 'dm_' + (u1 < u2 ? u1 : u2) + '_' + (u1 < u2 ? u2 : u1);
+    }
+
     /* ---------- Public content ---------- */
-    match /courses/{id}        { allow read: if true; allow write: if isAdmin(); }
-    match /quizzes/{id}        { allow read: if true; allow write: if isAdmin(); }
-    match /announcements/{id}  { allow read: if true; allow write: if isAdmin(); }
+    match /courses/{id}        { allow read: if true;      allow write: if isAdmin(); }
+    match /quizzes/{id}        { allow read: if true;      allow write: if isAdmin(); }
+    match /announcements/{id}  { allow read: if true;      allow write: if isAdmin(); }
 
     /* ---------- Profiles ---------- */
     match /profiles/{uid} {
       allow read: if signedIn();
-      allow create: if isCreator();               // request.resource.data.uid == auth.uid
-      allow update, delete: if isOwner() || isAdmin(); // resource.data.uid == auth.uid
+      allow create: if isCreator();                         // request.resource.data.uid == auth.uid
+      allow update, delete: if isOwner() || isAdmin();      // resource.data.uid == auth.uid
     }
 
     /* ---------- Top-level user-scoped collections ---------- */
     match /enrollments/{docId} {
-      // For queries, make sure the client uses .where('uid','==', auth.uid)
+      // For queries, the client should use .where('uid','==',auth.uid)
       allow read: if signedIn() && isOwner();
       allow create: if isCreator();
       allow update, delete: if isOwner() || isAdmin();
@@ -49,6 +61,72 @@ service cloud.firestore {
       allow read: if signedIn() && isOwner();
       allow create: if isCreator();
       allow update, delete: if isOwner() || isAdmin();
+    }
+
+    /* ---------- Messages (Course / DM / Group chat) ---------- */
+    match /messages/{mid} {
+      // READ
+      allow read: if
+        // Course channel read: must be a participant of that course
+        (resource.data.type == 'course'
+          && resource.data.channel == 'course_' + resource.data.courseId
+          && isParticipant(resource.data.courseId))
+        // DM read: must be one of the two UIDs and channel must match the normalized dmKey
+        || (resource.data.type == 'dm'
+          && resource.data.channel == dmKey(resource.data.uid, resource.data.peerUid)
+          && (request.auth.uid == resource.data.uid || request.auth.uid == resource.data.peerUid))
+        // Group read: any signed-in user
+        || (resource.data.type == 'group'
+          && resource.data.channel == 'group_' + resource.data.groupId
+          && signedIn())
+        // Admin override
+        || isAdmin();
+
+      // CREATE
+      allow create: if signedIn() && (
+        // Course write: author must be participant; channel must be 'course_{courseId}'
+        (request.resource.data.type == 'course'
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.channel == 'course_' + request.resource.data.courseId
+          && isParticipant(request.resource.data.courseId))
+        // DM write: author must be one side; channel must be normalized dmKey
+        || (request.resource.data.type == 'dm'
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.channel == dmKey(request.auth.uid, request.resource.data.peerUid))
+        // Group write: any signed-in author to 'group_{groupId}'
+        || (request.resource.data.type == 'group'
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.channel == 'group_' + request.resource.data.groupId)
+        // Admin override
+        || isAdmin()
+      );
+
+      // UPDATE/DELETE: only original author or admin
+      allow update, delete: if signedIn() && (
+        request.auth.uid == resource.data.uid || isAdmin()
+      );
+    }
+
+    /* ---------- Contact form (optional, used by EmailJS audit) ---------- */
+    match /contact/{docId} {
+      // Users can create their own messages; admins can read (support/helpdesk)
+      allow create: if signedIn();
+      allow read: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    /* ---------- Payments (optional client-side capture log) ---------- */
+    match /payments/{docId} {
+      // Owner can read their own record; admin can read all
+      allow read: if (signedIn() && isOwner()) || isAdmin();
+      // Create only by the owner (uid == auth.uid); basic shape checks
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.amount is number
+        && request.resource.data.amount >= 0
+        && request.resource.data.provider is string;
+      // No client updates/deletes; keep immutable (admin may manage if needed)
+      allow update, delete: if isAdmin();
     }
 
     /* ---------- If you also store under users/{uid}/... ---------- */
@@ -76,6 +154,10 @@ service cloud.firestore {
         allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.auth.uid == uid;
         allow update, delete: if (signedIn() && resource.data.uid == request.auth.uid && request.auth.uid == uid) || isAdmin();
       }
+      // If you ever nest messages, mirror the /messages rules here (optional)
+      match /messages/{mid} {
+        allow read, create, update, delete: if false; // not used; keep closed
+      }
     }
 
     /* ---------- Collection group support (works anywhere in the tree) ---------- */
@@ -99,10 +181,12 @@ service cloud.firestore {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if (signedIn() && resource.data.uid == request.auth.uid) || isAdmin();
     }
+
+    /* ---------- Roles ---------- */
     match /roles/{userId} {
-  allow read: if request.auth != null && request.auth.uid == userId;
-  allow write: if request.auth != null
-               && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin';
-}
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if request.auth != null
+                   && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'admin';
+    }
   }
 }
