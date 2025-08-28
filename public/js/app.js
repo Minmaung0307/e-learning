@@ -55,24 +55,25 @@
     messages: [],
     tasks: [],
     profiles: [],
-    notes: [],
+    // notes: [],
     announcements: [],
     myEnrolledIds: new Set(),
     unsub: [],
     _unsubChat: null,
     currentCourseId: null,
-detailPrevRoute: null,
-mainThemeClass: '',
+detailPrevRoute: 'courses',
+// mainThemeClass: '',
   };
 
-  // ---- Utils ----
-  const $ = (s, r = document) => {
-  if ((s === '#mm-title' || s === '#mm-body' || s === '#mm-foot' || s === '#m-modal') && !document.getElementById('m-modal')) {
-    // don’t use $ inside ensureModalDOM to avoid loops
-    ensureModalDOM();
-  }
-  return r.querySelector(s);
-};
+   // ---- Utils & Stability Wrappers ----
+//   const $ = (s, r = document) => {
+//   if ((s === '#mm-title' || s === '#mm-body' || s === '#mm-foot' || s === '#m-modal') && !document.getElementById('m-modal')) {
+//     // don’t use $ inside ensureModalDOM to avoid loops
+//     ensureModalDOM();
+//   }
+//   return r.querySelector(s);
+// }; 
+ const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const notify = (msg, type = 'ok') => {
     const n = $('#notification');
@@ -439,38 +440,68 @@ function wrapCenter(ctx, text, cx, startY, lineHeight, maxWidth, font, fillStyle
 }
 
 // ---- Modal + Sidebar helpers ----
+// ---- Modal + Sidebar helpers ----
 function openModal(id) {
+  ensureModalDOM();
   const m = document.getElementById(id);
   if (!m) return;
   m.classList.add('active');
+
+  // show exactly this backdrop; hide any others just in case
   const bd = m.nextElementSibling;
-  if (bd && bd.classList.contains('modal-backdrop')) bd.style.display = 'block';
+  document.querySelectorAll('.modal-backdrop').forEach(b => (b.style.display = 'none'));
+  if (bd && bd.classList.contains('modal-backdrop')) {
+    bd.style.display = 'block';
+    bd.classList.add('active');
+  }
 }
 function closeModal(id) {
   const m = document.getElementById(id);
-  if (!m) return;
-  m.classList.remove('active');
-  const bd = m.nextElementSibling;
-  if (bd && bd.classList.contains('modal-backdrop')) bd.style.display = 'none';
+  if (m) m.classList.remove('active');
+  // hide ALL backdrops to guarantee the page is clickable again
+  document.querySelectorAll('.modal-backdrop').forEach(b => {
+    b.style.display = 'none';
+    b.classList.remove('active');
+  });
 }
-const closeSidebar = () => { document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
+const closeSidebar = () => {
+  document.body.classList.remove('sidebar-open');
+  $('#backdrop')?.classList.remove('active');
+};
 
-// Ensure modal DOM exists (defensive)
+// Ensure modal DOM exists exactly once (and lives under <body>)
 function ensureModalDOM() {
-  if (document.getElementById('m-modal')) return;
-  const wrap = document.createElement('div');
-  wrap.innerHTML = `
-    <div class="modal" id="m-modal"><div class="dialog">
-      <div class="head"><strong id="mm-title">Modal</strong><button class="btn ghost" id="mm-close">Close</button></div>
-      <div class="body" id="mm-body"></div>
-      <div class="foot" id="mm-foot"></div>
-    </div></div><div class="modal-backdrop"></div>`;
-  // append both siblings in correct order
-  const frag = document.createDocumentFragment();
-  frag.appendChild(wrap.firstElementChild);
-  frag.appendChild(wrap.lastChild);
-  document.body.appendChild(frag);
-  // wire the close button safely
+  // remove extras if a previous build left duplicates
+  const mods = Array.from(document.querySelectorAll('#m-modal'));
+  const bds  = Array.from(document.querySelectorAll('.modal-backdrop'));
+  if (mods.length > 1) mods.slice(1).forEach(n => n.remove());
+  if (bds.length > 1)  bds.slice(1).forEach(n => n.remove());
+
+  let m = document.getElementById('m-modal');
+  if (!m) {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div class="modal" id="m-modal"><div class="dialog">
+        <div class="head"><strong id="mm-title">Modal</strong>
+          <button class="btn ghost" id="mm-close">Close</button>
+        </div>
+        <div class="body" id="mm-body"></div>
+        <div class="foot" id="mm-foot"></div>
+      </div></div>
+      <div class="modal-backdrop"></div>`;
+    const frag = document.createDocumentFragment();
+    frag.appendChild(wrap.firstElementChild);   // modal
+    frag.appendChild(wrap.lastChild);           // backdrop (sibling)
+    document.body.appendChild(frag);
+    m = document.getElementById('m-modal');
+  }
+
+  // ensure modal/backdrop live directly under <body>, not inside #root
+  const bd = m.nextElementSibling;
+  if (m.parentElement !== document.body) document.body.appendChild(m);
+  if (bd && bd.parentElement !== document.body) document.body.appendChild(bd);
+
+  // (re)wire close button safely
   document.getElementById('mm-close')?.addEventListener('click', safe(() => closeModal('m-modal')));
 }
 
@@ -552,13 +583,7 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
 
     <!-- Toasts -->
     <div id="notification" class="notification"></div>
-
-    <!-- Persistent modal skeleton -->
-    <div class="modal" id="m-modal"><div class="dialog">
-      <div class="head"><strong id="mm-title">Modal</strong><button class="btn ghost" id="mm-close">Close</button></div>
-      <div class="body" id="mm-body"></div>
-      <div class="foot" id="mm-foot"></div>
-    </div></div><div class="modal-backdrop"></div>`;
+  `;
 }
 
   // ---- Views ----
@@ -2984,6 +3009,13 @@ auth.onAuthStateChanged(async (user) => {
   } catch {}
 
   onReady(applyTheme);
+  onReady(() => {
+  // if an old layout injected extra modals/backdrops, clean them up once
+  const mods = Array.from(document.querySelectorAll('#m-modal'));
+  const bds  = Array.from(document.querySelectorAll('.modal-backdrop'));
+  if (mods.length > 1) mods.slice(1).forEach(n => n.remove());
+  if (bds.length > 1)  bds.slice[1]?.forEach?.(n => n.remove()); // guard
+});
   sync();
   onReady(render);
 });
