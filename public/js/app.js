@@ -191,12 +191,13 @@
     };
   }
 
-  async function safeWrite(btn, op, { ok = "Saved", close = true } = {}) {
+  // replace your safeWrite with this one (only one copy in the file)
+  async function safeWrite(btn, op, { ok = "Saved", closeFirst = false } = {}) {
     const done = withBusy(btn);
     try {
-      await Promise.resolve().then(op); // normalize sync/async
+      if (closeFirst) closeModal("m-modal"); // optimistic close
+      await Promise.resolve().then(op);
       notify(ok);
-      if (close) closeModal("m-modal");
     } catch (e) {
       console.error("Write failed:", e);
       notify(e?.message || "Action failed", "danger");
@@ -1498,6 +1499,40 @@
     )}${lane("done", "Done", "#10b981")}</div>`;
   }
 
+  function buildTranscript(uid) {
+    if (!uid) return [];
+    const finals = new Map(); // courseId -> { passScore, courseTitle }
+    (state.quizzes || [])
+      .filter((q) => q.isFinal && q.courseId)
+      .forEach((q) =>
+        finals.set(q.courseId, {
+          passScore: +q.passScore || 70,
+          courseTitle: q.courseTitle || "—",
+        })
+      );
+
+    const bestByCourse = new Map(); // courseId -> best score
+    (state.attempts || [])
+      .filter((a) => a.uid === uid && a.courseId)
+      .forEach((a) => {
+        const s = +a.score || 0;
+        bestByCourse.set(
+          a.courseId,
+          Math.max(bestByCourse.get(a.courseId) || 0, s)
+        );
+      });
+
+    return Array.from(finals.entries()).map(([courseId, meta]) => {
+      const best = bestByCourse.get(courseId) || 0;
+      return {
+        courseId,
+        courseTitle: meta.courseTitle,
+        best,
+        completed: best >= meta.passScore,
+      };
+    });
+  }
+
   function vProfile() {
     const me = state.profiles.find((p) => p.uid === auth.currentUser?.uid) || {
       name: "",
@@ -2259,13 +2294,9 @@
       await window
         .seedDemoCourses()
         .then(() => notify("Demo courses added"))
-        .catch((e) => {
-          console.error(e);
-          notify(
-            (e && e.code + ": " + e.message) || "Failed to seed",
-            "danger"
-          );
-        });
+        .catch((e) =>
+          notify((e && e.code + ": " + e.message) || "Failed to seed", "danger")
+        );
     });
 
     // NEW COURSE
@@ -2273,132 +2304,52 @@
       if (!canTeach()) return notify("Instructors/Admins only", "warn");
       $("#mm-title").textContent = "New Course";
       $("#mm-body").innerHTML = `
-    <div class="grid">
-      <input id="c-title" class="input" placeholder="Title"/>
-      <input id="c-category" class="input" placeholder="Category"/>
-      <input id="c-credits" class="input" type="number" placeholder="Credits" value="0"/>
-      <input id="c-price" class="input" type="number" placeholder="Price" value="0"/>
-      <textarea id="c-short" class="input" placeholder="Short description"></textarea>
-      <textarea id="c-goals" class="input" placeholder="Goals (one per line)"></textarea>
-      <input id="c-cover" class="input" placeholder="Cover image URL (https://…)"/>
-      <input id="c-outlineUrl" class="input" placeholder="/data/outlines/your-course.json"/>
-      <input id="c-quizzesUrl" class="input" placeholder="/data/lesson-quizzes/your-course.json"/>
-    </div>`;
+      <div class="grid">
+        <input id="c-title" class="input" placeholder="Title"/>
+        <input id="c-category" class="input" placeholder="Category"/>
+        <input id="c-credits" class="input" type="number" placeholder="Credits" value="0"/>
+        <input id="c-price" class="input" type="number" placeholder="Price" value="0"/>
+        <textarea id="c-short" class="input" placeholder="Short description"></textarea>
+        <textarea id="c-goals" class="input" placeholder="Goals (one per line)"></textarea>
+        <input id="c-cover" class="input" placeholder="Cover image URL (https://…)"/>
+        <input id="c-outlineUrl" class="input" placeholder="/data/outlines/your-course.json"/>
+        <input id="c-quizzesUrl" class="input" placeholder="/data/lesson-quizzes/your-course.json"/>
+      </div>`;
       $("#mm-foot").innerHTML = `<button class="btn" id="c-save">Save</button>`;
       openModal("m-modal");
 
-      const saveBtn = $("#c-save");
-      on(saveBtn, "click", async () => {
+      const btn = $("#c-save");
+      on(btn, "click", async () => {
         const title = $("#c-title")?.value.trim();
         if (!title) return notify("Title required", "warn");
-
         const goals = ($("#c-goals")?.value || "")
           .split("\n")
           .map((s) => s.trim())
           .filter(Boolean);
-        const payload = clean({
-          title,
-          category: $("#c-category")?.value.trim(),
-          credits: +($("#c-credits")?.value || 0),
-          price: +($("#c-price")?.value || 0),
-          short: $("#c-short")?.value.trim(),
-          goals,
-          coverImage: $("#c-cover")?.value.trim(),
-          outlineUrl: $("#c-outlineUrl")?.value.trim(),
-          quizzesUrl: $("#c-quizzesUrl")?.value.trim(),
-          ownerUid: auth.currentUser.uid,
-          ownerEmail: auth.currentUser.email,
-          participants: [auth.currentUser.uid],
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        });
 
-        try {
-          saveBtn.disabled = true;
-          saveBtn.textContent = "Saving…";
-          await col("courses").add(payload);
-          closeModal("m-modal");
-          notify("Saved");
-        } catch (e) {
-          console.error("Failed to create course:", e);
-          notify(e?.message || "Failed to create course", "danger");
-        } finally {
-          saveBtn.disabled = false;
-          saveBtn.textContent = "Save";
-        }
-      });
-    });
-
-    // EDIT COURSE
-    delegate(sec, "button[data-edit]", "click", async (_e, btn) => {
-      if (!canTeach()) return notify("No permission", "warn");
-      const courseId = btn.getAttribute("data-edit");
-      const snap = await doc("courses", courseId).get();
-      if (!snap.exists) return;
-      const c = { id: snap.id, ...snap.data() };
-
-      $("#mm-title").textContent = "Edit Course";
-      $("#mm-body").innerHTML = `
-    <div class="grid">
-      <input id="c-title" class="input" value="${(c.title || "").replace(
-        /"/g,
-        "&quot;"
-      )}"/>
-      <input id="c-category" class="input" value="${(c.category || "").replace(
-        /"/g,
-        "&quot;"
-      )}"/>
-      <input id="c-credits" class="input" type="number" value="${
-        c.credits || 0
-      }"/>
-      <input id="c-price" class="input" type="number" value="${c.price || 0}"/>
-      <textarea id="c-short" class="input">${c.short || ""}</textarea>
-      <textarea id="c-goals" class="input">${(c.goals || []).join(
-        "\n"
-      )}</textarea>
-      <input id="c-cover" class="input" value="${(c.coverImage || "").replace(
-        /"/g,
-        "&quot;"
-      )}"/>
-      <input id="c-outlineUrl" class="input" value="${(
-        c.outlineUrl || ""
-      ).replace(/"/g, "&quot;")}"/>
-      <input id="c-quizzesUrl" class="input" value="${(
-        c.quizzesUrl || ""
-      ).replace(/"/g, "&quot;")}"/>
-    </div>`;
-      $("#mm-foot").innerHTML = `<button class="btn" id="c-save">Save</button>`;
-      openModal("m-modal");
-
-      const saveBtn = $("#c-save");
-      on(saveBtn, "click", async () => {
-        const goals = ($("#c-goals")?.value || "")
-          .split("\n")
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const update = clean({
-          title: $("#c-title")?.value.trim(),
-          category: $("#c-category")?.value.trim(),
-          credits: +($("#c-credits")?.value || 0),
-          price: +($("#c-price")?.value || 0),
-          short: $("#c-short")?.value.trim(),
-          goals,
-          coverImage: $("#c-cover")?.value.trim(),
-          outlineUrl: $("#c-outlineUrl")?.value.trim(),
-          quizzesUrl: $("#c-quizzesUrl")?.value.trim(),
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        });
-        try {
-          saveBtn.disabled = true;
-          saveBtn.textContent = "Saving…";
-          await doc("courses", courseId).set(update, { merge: true });
-          closeModal("m-modal");
-          notify("Saved");
-        } catch (e) {
-          notify(e?.message || "Failed to save course", "danger");
-        } finally {
-          saveBtn.disabled = false;
-          saveBtn.textContent = "Save";
-        }
+        await safeWrite(
+          btn,
+          async () => {
+            await col("courses").add(
+              clean({
+                title,
+                category: $("#c-category")?.value.trim(),
+                credits: +($("#c-credits")?.value || 0),
+                price: +($("#c-price")?.value || 0),
+                short: $("#c-short")?.value.trim(),
+                goals,
+                coverImage: $("#c-cover")?.value.trim(),
+                outlineUrl: $("#c-outlineUrl")?.value.trim(),
+                quizzesUrl: $("#c-quizzesUrl")?.value.trim(),
+                ownerUid: auth.currentUser.uid,
+                ownerEmail: auth.currentUser.email,
+                participants: [auth.currentUser.uid],
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              })
+            );
+          },
+          { ok: "Saved", closeFirst: true }
+        );
       });
     });
 
@@ -2424,18 +2375,24 @@
       go("course-detail");
     });
 
-    // Edit course
+    // Edit course (UPDATE the same doc)
     delegate(sec, "button[data-edit]", "click", async (_e, btn) => {
       if (!canTeach()) return notify("No permission", "warn");
-      const id = btn.getAttribute("data-edit");
-      const snap = await doc("courses", id).get();
+      const courseId = btn.getAttribute("data-edit");
+      const snap = await doc("courses", courseId).get();
       if (!snap.exists) return;
       const c = { id: snap.id, ...snap.data() };
+
       $("#mm-title").textContent = "Edit Course";
       $("#mm-body").innerHTML = `
       <div class="grid">
-        <input id="c-title" class="input" value="${c.title || ""}"/>
-        <input id="c-category" class="input" value="${c.category || ""}"/>
+        <input id="c-title" class="input" value="${(c.title || "").replace(
+          /"/g,
+          "&quot;"
+        )}"/>
+        <input id="c-category" class="input" value="${(
+          c.category || ""
+        ).replace(/"/g, "&quot;")}"/>
         <input id="c-credits" class="input" type="number" value="${
           c.credits || 0
         }"/>
@@ -2446,48 +2403,50 @@
         <textarea id="c-goals" class="input">${(c.goals || []).join(
           "\n"
         )}</textarea>
-        <input id="c-cover" class="input" value="${c.coverImage || ""}"/>
-        <input id="c-outlineUrl" class="input" value="${c.outlineUrl || ""}"/>
-        <input id="c-quizzesUrl" class="input" value="${c.quizzesUrl || ""}"/>
+        <input id="c-cover" class="input" value="${(c.coverImage || "").replace(
+          /"/g,
+          "&quot;"
+        )}"/>
+        <input id="c-outlineUrl" class="input" value="${(
+          c.outlineUrl || ""
+        ).replace(/"/g, "&quot;")}"/>
+        <input id="c-quizzesUrl" class="input" value="${(
+          c.quizzesUrl || ""
+        ).replace(/"/g, "&quot;")}"/>
       </div>`;
-      $("#mm-foot").innerHTML = `
-  <button class="btn" id="c-save"><i class="ri-save-3-line"></i> Save</button>
-  <button class="btn ghost" id="c-cancel">Cancel</button>`;
+      $(
+        "#mm-foot"
+      ).innerHTML = `<button class="btn" id="c-save">Save</button><button class="btn ghost" id="c-cancel">Back</button>`;
       openModal("m-modal");
 
       on($("#c-cancel"), "click", () => closeModal("m-modal"));
-      on($("#c-save"), "click", async () => {
-        const t = $("#c-title")?.value.trim();
-        if (!t) return notify("Title required", "warn");
+      const btnSave = $("#c-save");
+      on(btnSave, "click", async () => {
         const goals = ($("#c-goals")?.value || "")
           .split("\n")
           .map((s) => s.trim())
           .filter(Boolean);
-        const obj = {
-          title: t,
-          category: $("#c-category")?.value.trim(),
-          credits: +($("#c-credits")?.value || 0),
-          price: +($("#c-price")?.value || 0),
-          short: $("#c-short")?.value.trim(),
-          goals,
-          coverImage: $("#c-cover")?.value.trim(),
-          outlineUrl: $("#c-outlineUrl")?.value.trim(),
-          quizzesUrl: $("#c-quizzesUrl")?.value.trim(),
-          ownerUid: auth.currentUser.uid,
-          ownerEmail: auth.currentUser.email,
-          participants: [auth.currentUser.uid],
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        };
-        await col("courses")
-          .add(obj)
-          .then(() => {
-            closeModal("m-modal");
-            notify("Saved");
-          })
-          .catch((e) => {
-            console.error("Failed to create course:", e);
-            notify(e?.message || "Failed to create course", "danger");
-          });
+        await safeWrite(
+          btnSave,
+          async () => {
+            await doc("courses", courseId).set(
+              clean({
+                title: $("#c-title")?.value.trim(),
+                category: $("#c-category")?.value.trim(),
+                credits: +($("#c-credits")?.value || 0),
+                price: +($("#c-price")?.value || 0),
+                short: $("#c-short")?.value.trim(),
+                goals,
+                coverImage: $("#c-cover")?.value.trim(),
+                outlineUrl: $("#c-outlineUrl")?.value.trim(),
+                quizzesUrl: $("#c-quizzesUrl")?.value.trim(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+              }),
+              { merge: true }
+            );
+          },
+          { ok: "Saved", closeFirst: true }
+        );
       });
     });
 
@@ -2495,8 +2454,12 @@
     delegate(sec, "button[data-del]", "click", async (_e, btn) => {
       if (!canTeach()) return notify("No permission", "warn");
       const id = btn.getAttribute("data-del");
-      await doc("courses", id).delete();
-      notify("Course deleted");
+      try {
+        await doc("courses", id).delete();
+        notify("Course deleted");
+      } catch (e) {
+        notify(e?.message || "Delete failed", "danger");
+      }
     });
   }
 
@@ -2504,55 +2467,56 @@
     const courseId = state.currentCourseId;
     const c = state.courses.find((x) => x.id === courseId) || {};
 
-    // Back to where we came from
     on($("#cd-back"), "click", () => {
       go(state.detailPrevRoute || "courses");
     });
-
-    // Finals
     on($("#cd-finals"), "click", () => {
       state.searchQ = c.title || "";
       go("assessments");
     });
 
     // Enroll (free)
-    on("#cd-enroll")?.addEventListener("click", async () => {
-      await col("enrollments").add({
-        uid: auth.currentUser.uid,
-        courseId: c.id,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        course: {
-          id: c.id,
-          title: c.title,
-          category: c.category,
-          credits: c.credits,
-          coverImage: c.coverImage,
-        },
-      });
+    on($("#cd-enroll"), "click", async () => {
       try {
-        await doc("courses", c.id).set(
-          {
-            participants: firebase.firestore.FieldValue.arrayUnion(
-              auth.currentUser.uid
-            ),
+        await col("enrollments").add({
+          uid: auth.currentUser.uid,
+          courseId: c.id,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          course: {
+            id: c.id,
+            title: c.title,
+            category: c.category,
+            credits: c.credits,
+            coverImage: c.coverImage,
           },
-          { merge: true }
-        );
-      } catch {}
-      notify("Enrolled");
-      // Refresh detail view to reflect status
-      render();
+        });
+        try {
+          await doc("courses", c.id).set(
+            {
+              participants: firebase.firestore.FieldValue.arrayUnion(
+                auth.currentUser.uid
+              ),
+            },
+            { merge: true }
+          );
+        } catch {}
+        notify("Enrolled");
+        render();
+      } catch (e) {
+        notify(e?.message || "Enroll failed", "danger");
+      }
     });
 
     // Pay & Enroll (lazy-mount PayPal)
-    on("#cd-show-pay")?.addEventListener("click", () => {
+    on($("#cd-show-pay"), "click", () => {
       setupPayPalForCourse(c);
-      document
-        .getElementById("paypal-zone")
-        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      $("#paypal-zone")?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
     });
 
-    // Load Outline JSON
+    // Outline JSON
     const outlineBox = document.getElementById("cd-outline");
     if (c.outlineUrl) {
       fetchJSON(c.outlineUrl)
@@ -2567,7 +2531,7 @@
       outlineBox.innerHTML = `<div class="muted">No outline URL for this course.</div>`;
     }
 
-    // Load Lesson Quizzes JSON
+    // Lesson Quizzes JSON
     const quizBox = document.getElementById("cd-lesson-quizzes");
     if (c.quizzesUrl) {
       fetchJSON(c.quizzesUrl)
@@ -2612,48 +2576,59 @@
   function wireAssessments() {
     on($("#new-quiz"), "click", () => {
       if (!canTeach()) return notify("Instructors/Admins only", "warn");
+
       $("#mm-title").textContent = "New Final";
       $("#mm-body").innerHTML = `
-      <div class="grid">
-        <input id="q-title" class="input" placeholder="Final title"/>
-        <select id="q-course" class="input">${state.courses
+    <div class="grid">
+      <input id="q-title" class="input" placeholder="Final title"/>
+      <select id="q-course" class="input">
+        ${state.courses
           .map((c) => `<option value="${c.id}">${c.title}</option>`)
-          .join("")}</select>
-        <input id="q-pass" class="input" type="number" value="70" placeholder="Pass score (%)"/>
-        <textarea id="q-json" class="input" placeholder='[{"q":"2+2?","choices":["3","4","5"],"answer":1,"feedbackOk":"Correct!","feedbackNo":"Try again"}]'></textarea>
-      </div>`;
-      $("#mm-foot").innerHTML = `
-  <button class="btn" id="q-save"><i class="ri-save-3-line"></i> Save</button>
-  <button class="btn ghost" id="q-cancel">Back</button>`;
+          .join("")}
+      </select>
+      <input id="q-pass" class="input" type="number" value="70" placeholder="Pass score (%)"/>
+      <textarea id="q-json" class="input" placeholder='[{"q":"2+2?","choices":["3","4","5"],"answer":1,"feedbackOk":"Correct!","feedbackNo":"Try again"}]'></textarea>
+    </div>`;
+      $(
+        "#mm-foot"
+      ).innerHTML = `<button class="btn" id="q-save">Save</button><button class="btn ghost" id="q-cancel">Back</button>`;
       openModal("m-modal");
 
       on($("#q-cancel"), "click", () => closeModal("m-modal"));
-      on($("#q-save"), "click", async () => {
+
+      const btnSave = $("#q-save");
+      on(btnSave, "click", async () => {
         const t = $("#q-title")?.value.trim();
         const courseId = $("#q-course")?.value;
         const pass = +($("#q-pass")?.value || 70);
         if (!t || !courseId) return notify("Fill title & course", "warn");
+
         let items = [];
         try {
           items = JSON.parse($("#q-json")?.value || "[]");
         } catch {
           return notify("Invalid JSON", "danger");
         }
+
         const course = state.courses.find((c) => c.id === courseId) || {};
-        await col("quizzes").add(
-          clean({
-            title: t,
-            courseId,
-            courseTitle: course.title,
-            passScore: pass,
-            items,
-            isFinal: true,
-            ownerUid: auth.currentUser.uid,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          })
+        await safeWrite(
+          btnSave,
+          async () => {
+            await col("quizzes").add(
+              clean({
+                title: t,
+                courseId,
+                courseTitle: course.title,
+                passScore: pass,
+                items,
+                isFinal: true,
+                ownerUid: auth.currentUser.uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              })
+            );
+          },
+          { ok: "Final saved", closeFirst: true }
         );
-        closeModal("m-modal");
-        notify("Final saved");
       });
     });
 
@@ -2754,49 +2729,49 @@
 
       $("#mm-title").textContent = "Edit Final";
       $("#mm-body").innerHTML = `
-      <div class="grid">
-        <input id="q-title" class="input" value="${q.title || ""}"/>
-        <input id="q-pass" class="input" type="number" value="${
-          q.passScore || 70
-        }"/>
-        <textarea id="q-json" class="input">${JSON.stringify(
-          q.items || [],
-          null,
-          2
-        )}</textarea>
-      </div>`;
-      $("#mm-foot").innerHTML = `
-  <button class="btn" id="q-save"><i class="ri-save-3-line"></i> Save</button>
-  <button class="btn ghost" id="q-cancel">Back</button>`;
+    <div class="grid">
+      <input id="q-title" class="input" value="${(q.title || "").replace(
+        /"/g,
+        "&quot;"
+      )}"/>
+      <input id="q-pass" class="input" type="number" value="${
+        q.passScore || 70
+      }"/>
+      <textarea id="q-json" class="input">${JSON.stringify(
+        q.items || [],
+        null,
+        2
+      )}</textarea>
+    </div>`;
+      $(
+        "#mm-foot"
+      ).innerHTML = `<button class="btn" id="q-save"><i class="ri-save-3-line"></i> Save</button><button class="btn ghost" id="q-cancel">Back</button>`;
       openModal("m-modal");
 
       on($("#q-cancel"), "click", () => closeModal("m-modal"));
       on($("#q-save"), "click", async () => {
         const t = $("#q-title")?.value.trim();
-        const courseId = $("#q-course")?.value;
         const pass = +($("#q-pass")?.value || 70);
-        if (!t || !courseId) return notify("Fill title & course", "warn");
+        if (!t) return notify("Title required", "warn");
         let items = [];
         try {
           items = JSON.parse($("#q-json")?.value || "[]");
         } catch {
           return notify("Invalid JSON", "danger");
         }
-        const course = state.courses.find((c) => c.id === courseId) || {};
-        await col("quizzes").add(
+
+        await doc("quizzes", id).set(
           clean({
             title: t,
-            courseId,
-            courseTitle: course.title,
             passScore: pass,
             items,
-            isFinal: true,
-            ownerUid: auth.currentUser.uid,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          })
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          }),
+          { merge: true }
         );
+
         closeModal("m-modal");
-        notify("Final saved");
+        notify("Final updated");
       });
     });
   }
@@ -3032,10 +3007,9 @@
     // Add Task
     delegate(sec, "#addTask", "click", async () => {
       $("#mm-title").textContent = "New Task";
-      $("#mm-body").innerHTML = `
-      <div class="grid">
-        <input id="t-title" class="input" placeholder="Task title"/>
-      </div>`;
+      $(
+        "#mm-body"
+      ).innerHTML = `<div class="grid"><input id="t-title" class="input" placeholder="Task title"/></div>`;
       $("#mm-foot").innerHTML = `<button class="btn" id="t-save">Save</button>`;
       openModal("m-modal");
 
@@ -3043,23 +3017,18 @@
       on(saveBtn, "click", async () => {
         const title = $("#t-title")?.value.trim();
         if (!title) return notify("Enter a title", "warn");
-        try {
-          saveBtn.disabled = true;
-          saveBtn.textContent = "Saving…";
-          await col("tasks").add({
-            uid: auth.currentUser.uid,
-            title,
-            status: "todo",
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          });
-          closeModal("m-modal");
-          notify("Task added");
-        } catch (e) {
-          notify(e?.message || "Failed to add task", "danger");
-        } finally {
-          saveBtn.disabled = false;
-          saveBtn.textContent = "Save";
-        }
+        await safeWrite(
+          saveBtn,
+          async () => {
+            await col("tasks").add({
+              uid: auth.currentUser.uid,
+              title,
+              status: "todo",
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+          },
+          { ok: "Task added", closeFirst: true }
+        );
       });
     });
 
@@ -3509,25 +3478,21 @@
       ).innerHTML = `<button class="btn" id="an-save">Save</button>`;
       openModal("m-modal");
 
+      // New announcement save:
       const saveBtn = $("#an-save");
       on(saveBtn, "click", async () => {
-        try {
-          saveBtn.disabled = true;
-          saveBtn.textContent = "Saving…";
-          await col("announcements").add({
-            title: $("#an-title")?.value.trim(),
-            body: $("#an-body")?.value.trim(),
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            uid: auth.currentUser.uid,
-          });
-          closeModal("m-modal");
-          notify("Announcement posted");
-        } catch (e) {
-          notify(e?.message || "Save failed", "danger");
-        } finally {
-          saveBtn.disabled = false;
-          saveBtn.textContent = "Save";
-        }
+        await safeWrite(
+          saveBtn,
+          async () => {
+            await col("announcements").add({
+              title: $("#an-title")?.value.trim(),
+              body: $("#an-body")?.value.trim(),
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              uid: auth.currentUser.uid,
+            });
+          },
+          { ok: "Announcement posted", closeFirst: true }
+        );
       });
     });
 
@@ -3632,7 +3597,6 @@
     });
   }
 
-  // drop-in: replace previous injector and keep onReady(injectCourseCardStyles)
   // drop-in: replace previous injector and keep onReady(injectCourseCardStyles)
   function injectCourseCardStyles() {
     const ID = "lh-course-card-styles";
@@ -3861,16 +3825,33 @@
     el.textContent = css;
   })();
 
+  (function ensureModalUXFix() {
+    const ID = "lh-modal-ux-fix";
+    if (document.getElementById(ID)) return;
+    const s = document.createElement("style");
+    s.id = ID;
+    s.textContent = `
+    .modal .foot .btn.ghost{
+      background:#fff; color:#0b1220; border:1px solid var(--border,#d1d8e5);
+    }
+    .modal .foot{ backdrop-filter:saturate(1.1) blur(2px); }
+  `;
+    document.head.appendChild(s);
+  })();
 
-  (function ensureBackButtonStyles(){
-  const ID='lh-back-button-style'; if (document.getElementById(ID)) return;
-  const css = `
+  (function ensureBackButtonStyles() {
+    const ID = "lh-back-button-style";
+    if (document.getElementById(ID)) return;
+    const css = `
     #cd-back.btn{ background:#111827;color:#fff;border:1px solid #0b1220; }
     .theme-light #cd-back.btn{ background:#0b1220;color:#fff;border-color:#0b1220; }
     #cd-back.btn i{ opacity:.9 }
   `;
-  const el=document.createElement('style'); el.id=ID; el.textContent=css; document.head.appendChild(el);
-})();
+    const el = document.createElement("style");
+    el.id = ID;
+    el.textContent = css;
+    document.head.appendChild(el);
+  })();
 
   // Fix: solid, readable course detail modal (no transparency) + non-cropping cover
   (function fixCourseDetailReadability() {
