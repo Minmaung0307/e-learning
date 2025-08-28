@@ -87,6 +87,21 @@ window.addEventListener('unhandledrejection', (e) => {
   console.error('Unhandled rejection:', e.reason);
 });
 
+// Safety wrapper for event handlers (prevents "freeze" on thrown/rejected handlers)
+const safe = (fn) => function(...args){
+  try{
+    const r = fn.apply(this, args);
+    if (r && typeof r.then === 'function') r.catch(err => {
+      console.error('Async handler error:', err);
+      try { notify(err?.message || 'Action failed', 'danger'); } catch {}
+    });
+    return r;
+  }catch(err){
+    console.error('Handler error:', err);
+    try { notify(err?.message || 'Action failed', 'danger'); } catch {}
+  }
+};
+
   const nowYear = () => new Date().getFullYear();
   const col = (name) => db.collection(name);
   const doc = (name, id) => db.collection(name).doc(id);
@@ -406,29 +421,22 @@ function wrapCenter(ctx, text, cx, startY, lineHeight, maxWidth, font, fillStyle
   ctx.restore();
 }
 
-// ---- Modal helpers (in-pane) ----
+// ---- Modal + Sidebar helpers ----
 function openModal(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.add('active');
-  el.setAttribute('aria-hidden', 'false');
-  const body = el.querySelector('.body');
-  if (body) body.scrollTop = 0;
-  // enable the local backdrop
-  const bd = document.getElementById('mm-backdrop');
-  if (bd) bd.style.display = 'block';
+  const m = document.getElementById(id);
+  if (!m) return;
+  m.classList.add('active');
+  const bd = m.nextElementSibling;
+  if (bd && bd.classList.contains('modal-backdrop')) bd.style.display = 'block';
 }
-
 function closeModal(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.remove('active');
-  el.setAttribute('aria-hidden', 'true');
-  // hide the local backdrop
-  const bd = document.getElementById('mm-backdrop');
-  if (bd) bd.style.display = 'none';
+  const m = document.getElementById(id);
+  if (!m) return;
+  m.classList.remove('active');
+  const bd = m.nextElementSibling;
+  if (bd && bd.classList.contains('modal-backdrop')) bd.style.display = 'none';
 }
-  const closeSidebar = () => { document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
+const closeSidebar = () => { document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
 
   // ---- Router / Layout ----
   const routes = ['dashboard','courses','course-detail','learning','assessments','chat','tasks','profile','admin','guide','settings','search','contact'];
@@ -442,79 +450,19 @@ function closeModal(id) {
 
   function layout(content) {
   const hero = heroForRoute(state.route);
-  const isLight = isLightPaneRoute(state.route);
-const mainTheme = state.route === 'course-detail' ? (state.mainThemeClass || '') : '';
-const mainClasses = [isLight ? 'light-pane' : '', mainTheme].filter(Boolean).join(' ');
+  const lightRoutes = new Set(['courses','learning','course-detail']);
+  const mainClass = lightRoutes.has(state.route) ? 'main light-content' : 'main';
   return `
     <div class="app">
-      <aside class="sidebar" id="sidebar">
-        <div class="brand" id="brand">
-          <div class="logo"><img src="/icons/learnhub-cap.svg" alt="LearnHub"/></div>
-          <div class="title">LearnHub</div>
-        </div>
-        <div class="nav" id="side-nav">
-          ${[
-            ['dashboard', 'Dashboard', 'ri-dashboard-line'],
-            ['courses', 'Courses', 'ri-book-2-line'],
-            ['learning', 'My Learning', 'ri-graduation-cap-line'],
-            ['assessments', 'Finals', 'ri-file-list-3-line'],
-            ['chat', 'Course Chat', 'ri-chat-3-line'],
-            ['tasks', 'Tasks', 'ri-list-check-2'],
-            ['profile', 'Profile', 'ri-user-3-line'],
-            ['admin', 'Admin', 'ri-shield-star-line'],
-            ['guide', 'Guide', 'ri-compass-3-line'],
-            ['contact', 'Contact', 'ri-mail-send-line'],
-            ['settings', 'Settings', 'ri-settings-3-line']
-          ].map(([r, label, ic]) => `
-            <div class="item ${state.route === r ? 'active' : ''} ${r === 'admin' && !canManageUsers() ? 'hidden' : ''}"
-                 role="button" tabindex="0" data-route="${r}">
-              <i class="${ic}"></i><span>${label}</span>
-            </div>`).join('')}
-        </div>
-        <div class="footer"><div class="muted" id="copyright" style="font-size:12px">© ${nowYear()}</div></div>
-      </aside>
-
-      <!-- CONTENT COLUMN becomes the anchor for the in-pane modal -->
-      <div class="content-col" id="content-col">
-        <div class="topbar">
-          <div style="display:flex;align-items:center;gap:10px">
-            <button class="btn ghost" id="burger" title="Menu"><i class="ri-menu-line"></i></button>
-            <div class="badge"><i class="ri-shield-user-line"></i> ${state.role.toUpperCase()}</div>
-          </div>
-          <div class="search-inline">
-            <input id="globalSearch" class="input" placeholder="Search courses, quizzes, profiles…" autocomplete="off"/>
-            <div id="searchResults" class="search-results"></div>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button class="btn ghost" id="btnLogout"><i class="ri-logout-box-r-line"></i> Logout</button>
-          </div>
-        </div>
+      <aside class="sidebar" id="sidebar"> … </aside>
+      <div>
+        <div class="topbar"> … </div>
         <div id="backdrop"></div>
-
-        <div class="page-hero ${hero.klass}">
-          <i class="${hero.icon}"></i>
-          <div>
-            <div class="t">${hero.title}</div>
-            <div class="s">${hero.sub}</div>
-          </div>
-        </div>
-
-        <div class="main ${mainTheme} ${mainClasses}" id="main">${content}</div>
-
-        <!-- In-pane modal (no full page overlay) -->
-        <div class="modal" id="m-modal" aria-hidden="true">
-          <div class="dialog">
-            <div class="head">
-              <strong id="mm-title">Modal</strong>
-              <button class="btn ghost" id="mm-close"><i class="ri-close-line"></i> Close</button>
-            </div>
-            <div class="body" id="mm-body"></div>
-            <div class="foot" id="mm-foot"></div>
-          </div>
-        </div>
-        <div class="modal-backdrop" id="mm-backdrop"></div>
+        <div class="page-hero ${hero.klass}"> … </div>
+        <div class="${mainClass}" id="main">${content}</div>
       </div>
-    </div>`;
+    </div>
+    <div class="modal" id="m-modal"><div class="dialog"> … </div></div><div class="modal-backdrop"></div>`;
 }
 
   // ---- Views ----
@@ -879,16 +827,16 @@ const mainClasses = [isLight ? 'light-pane' : '', mainTheme].filter(Boolean).joi
   }
 
   function vProfile() {
-  const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) ||
-             { name: '', bio: '', portfolio: '', avatar: '', signature: '' };
+  const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || { name: '', bio: '', portfolio: '', avatar: '', signature: '' };
   return `
     <div class="grid" style="grid-template-columns:1fr; gap:10px">
+      <!-- My Profile -->
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">My Profile</h3>
         <div class="grid">
           <input id="pf-name" class="input" placeholder="Name" value="${me.name || ''}"/>
           <input id="pf-portfolio" class="input" placeholder="Portfolio URL" value="${me.portfolio || ''}"/>
-          <textarea id="pf-bio" class="input" placeholder="Short bio" style="min-height:120px">${me.bio || ''}</textarea>
+          <textarea id="pf-bio" class="input" placeholder="Short bio">${me.bio || ''}</textarea>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <input id="pf-avatar" type="file" accept="image/*" style="display:none"/>
             <input id="pf-sign" type="file" accept="image/*" style="display:none"/>
@@ -896,11 +844,12 @@ const mainClasses = [isLight ? 'light-pane' : '', mainTheme].filter(Boolean).joi
             <button class="btn ghost" id="pf-pick"><i class="ri-image-add-line"></i> Avatar</button>
             <button class="btn ghost" id="pf-pick-sign"><i class="ri-pen-nib-line"></i> Signature</button>
             <button class="btn secondary" id="pf-view"><i class="ri-id-card-line"></i> View Card</button>
-            <button class="btn danger" id="pf-delete"><i class="ri-delete-bin-6-line"></i> Delete Profile</button>
+            <button class="btn danger" id="pf-delete"><i class="ri-delete-bin-6-line"></i> Delete profile</button>
           </div>
         </div>
       </div></div>
 
+      <!-- Transcript -->
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">Transcript</h3>
         <div class="table-wrap">
@@ -911,11 +860,7 @@ const mainClasses = [isLight ? 'light-pane' : '', mainTheme].filter(Boolean).joi
                 <tr>
                   <td>${r.courseTitle}</td>
                   <td class="num">${r.best}%</td>
-                  <td>
-                    ${r.completed
-                      ? `<button class="btn" data-cert="${r.courseId}"><i class="ri-award-line"></i> Download</button>`
-                      : '—'}
-                  </td>
+                  <td>${r.completed ? `<button class="btn" data-cert="${r.courseId}"><i class="ri-award-line"></i> Download</button>` : '—'}</td>
                 </tr>`).join('')}
             </tbody>
           </table>
@@ -1297,34 +1242,30 @@ const mainClasses = [isLight ? 'light-pane' : '', mainTheme].filter(Boolean).joi
   }
 
   function wireShell() {
-    $('#burger')?.addEventListener('click', () => {
-      const open = document.body.classList.contains('sidebar-open');
-      if (open) closeSidebar(); else { document.body.classList.add('sidebar-open'); $('#backdrop')?.classList.add('active'); }
-    });
-    $('#backdrop')?.addEventListener('click', closeSidebar);
-    $('#brand')?.addEventListener('click', closeSidebar);
+    $('#burger')?.addEventListener('click', safe(() => {
+  const open = document.body.classList.contains('sidebar-open');
+  if (open) closeSidebar(); else { document.body.classList.add('sidebar-open'); $('#backdrop')?.classList.add('active'); }
+}));
+$('#backdrop')?.addEventListener('click', safe(closeSidebar));
+$('#brand')?.addEventListener('click', safe(closeSidebar));
 
-    // click to change route
-    $('#side-nav')?.addEventListener('click', e => {
-      const it = e.target.closest?.('.item[data-route]'); if (it) { go(it.getAttribute('data-route')); }
-    });
-    // keyboard (Enter/Space) for a11y
-    $('#side-nav')?.addEventListener('keydown', e => {
-      const it = e.target.closest?.('.item[data-route]');
-      if (!it) return;
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        go(it.getAttribute('data-route'));
-      }
-    });
+$('#side-nav')?.addEventListener('click', safe((e) => {
+  const it = e.target.closest?.('.item[data-route]'); if (it) { go(it.getAttribute('data-route')); }
+}));
+$('#side-nav')?.addEventListener('keydown', safe((e) => {
+  const it = e.target.closest?.('.item[data-route]'); if (!it) return;
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(it.getAttribute('data-route')); }
+}));
 
-    $('#main')?.addEventListener('click', (e) => {
-      const goEl = e.target.closest?.('[data-go]');
-      if (goEl) { go(goEl.getAttribute('data-go')); return; }
-      closeSidebar();
-    });
+$('#main')?.addEventListener('click', safe((e) => {
+  const goEl = e.target.closest?.('[data-go]');
+  if (goEl) { go(goEl.getAttribute('data-go')); return; }
+  closeSidebar();
+}));
 
-    $('#btnLogout')?.addEventListener('click', () => auth.signOut());
+$('#btnLogout')?.addEventListener('click', safe(() => auth.signOut()));
+
+$('#mm-close')?.addEventListener('click', safe(() => closeModal('m-modal')));
 
     // search live
     const input = $('#globalSearch'), results = $('#searchResults');
@@ -2075,6 +2016,77 @@ if (btn) {
     });
   }
 
+  function renderCertificatePNG({ name, courseTitle, dateText, certId, logoUrl }) {
+  // US Letter 8.5x11 at 300dpi = 2550x3300
+  const W = 2550, H = 3300;
+  const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#fafaf9'; ctx.fillRect(0,0,W,H);
+
+  // Ornamental border
+  ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 8; ctx.strokeRect(80,80,W-160,H-160);
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.strokeRect(120,120,W-240,H-240);
+
+  // Seal (simple rosette)
+  ctx.save();
+  ctx.translate(W-420, H-520);
+  ctx.fillStyle = '#0ea5e9';
+  for (let i=0;i<36;i++){ ctx.rotate(Math.PI/18); ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,140,0,Math.PI/12); ctx.fill(); }
+  ctx.restore();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(W-420, H-520, 100, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#0ea5e9'; ctx.font = 'bold 44px Inter'; ctx.textAlign = 'center'; ctx.fillText('LEARNHUB', W-420, H-512);
+  ctx.font = '24px Inter'; ctx.fillText('Seal of Excellence', W-420, H-470);
+
+  // Title
+  ctx.fillStyle = '#111827';
+  ctx.font = 'bold 96px "Georgia", serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Certificate of Completion', W/2, 580);
+
+  // Student name
+  ctx.font = 'bold 72px "Georgia", serif';
+  ctx.fillText(name || 'Student Name', W/2, 860);
+
+  // Subtitle
+  ctx.font = '28px Inter';
+  ctx.fillStyle = '#334155';
+  ctx.fillText('This certifies that', W/2, 800);
+  ctx.fillText('has successfully completed the course', W/2, 920);
+
+  // Course
+  ctx.fillStyle = '#111827';
+  ctx.font = 'bold 48px Inter';
+  ctx.fillText(courseTitle || 'Course Title', W/2, 1000);
+
+  // Date + ID
+  ctx.fillStyle = '#334155';
+  ctx.font = '26px Inter';
+  ctx.fillText(`Date: ${dateText || new Date().toLocaleDateString()}`, W/2, 1080);
+  ctx.fillText(`Certificate ID: ${certId || 'LH-XXXX-XXXX'}`, W/2, 1120);
+
+  // Signature line
+  ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(W/2-300, 1320); ctx.lineTo(W/2+300, 1320); ctx.stroke();
+  ctx.fillStyle = '#111827'; ctx.font = '24px Inter';
+  ctx.fillText('Authorized Signature', W/2, 1360);
+
+  // Logo (optional)
+  if (logoUrl) {
+    const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => {
+      ctx.drawImage(img, 200, 210, 240, 240);
+      finish();
+    }; img.src = logoUrl;
+  } else finish();
+
+  function finish(){
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url; a.download = `certificate_${(courseTitle||'course').replace(/\s+/g,'_')}.png`; a.click();
+  }
+}
+
   // ---- Profile
   function wireProfile() {
     $('#pf-pick')?.addEventListener('click', () => $('#pf-avatar')?.click());
@@ -2111,64 +2123,45 @@ if (btn) {
     $('#pf-view')?.addEventListener('click', () => {
   const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || {};
   $('#mm-title').textContent = 'Profile Card';
-
-  $('#mm-body').innerHTML = `
-    <div class="profile-card-modal">
-      <div class="pcm-header">
-        <img src="${me.avatar || '/icons/learnhub-cap.svg'}" alt="avatar" class="pcm-avatar"/>
-        <div class="pcm-id">
-          <div class="pcm-name">${(me.name || me.email || '—').replace(/</g,'&lt;')}</div>
-          <div class="pcm-email muted">${(me.email || '').replace(/</g,'&lt;')}</div>
-        </div>
+$('#mm-body').innerHTML = `
+  <div style="
+    background:linear-gradient(135deg,#f8fafc,#eef2ff);
+    color:#0b1220; border:1px solid var(--border);
+    border-radius:14px; padding:16px; display:grid; gap:12px">
+    <div style="display:flex;gap:12px;align-items:center">
+      <img src="${me.avatar || '/icons/learnhub-cap.svg'}" alt="avatar"
+           style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:1px solid var(--border); background:#fff"/>
+      <div>
+        <div style="font-weight:800;font-size:18px">${me.name || me.email || '—'}</div>
+        <div class="muted" style="color:#334155">${me.email || ''}</div>
       </div>
-      <div class="pcm-section">
-        <div class="pcm-label">Bio</div>
-        <div class="pcm-bio">${(me.bio || '—').replace(/</g,'&lt;')}</div>
-      </div>
-      ${me.signature ? `
-      <div class="pcm-section">
-        <div class="pcm-label">Signature</div>
-        <img src="${me.signature}" alt="signature" class="pcm-signature"/>
-      </div>` : ``}
     </div>
-  `;
-  $('#mm-foot').innerHTML = `<button class="btn" id="mm-ok"><i class="ri-check-line"></i> Close</button>`;
-  openModal('m-modal');
-  $('#mm-ok').onclick = () => closeModal('m-modal');
+    <div style="white-space:pre-wrap; line-height:1.5">${(me.bio || '').replace(/</g, '&lt;')}</div>
+    ${me.signature ? `
+      <div>
+        <div class="muted" style="color:#475569;margin-bottom:4px">Signature</div>
+        <img src="${me.signature}" alt="signature" style="max-height:60px; background:#fff; border:1px solid var(--border); border-radius:8px; padding:6px">
+      </div>` : ''}
+  </div>`;
+$('#mm-foot').innerHTML = `<button class="btn" id="mm-ok">Close</button>`;
+openModal('m-modal');
+$('#mm-ok').onclick = () => closeModal('m-modal');
 });
 
-    $('#main').addEventListener('click', async (e) => {
+    $('#main').addEventListener('click', safe(async (e) => {
   const b = e.target.closest?.('button[data-cert]'); if (!b) return;
   const courseId = b.getAttribute('data-cert');
   const course = state.courses.find(c => c.id === courseId) || {};
   const p = state.profiles.find(x => x.uid === auth.currentUser?.uid) || { name: auth.currentUser.email };
-  const name = p.name || auth.currentUser.email || 'Student';
-  const courseTitle = course.title || courseId;
   const certId = 'LH-' + (courseId || 'xxxx').slice(0,6).toUpperCase() + '-' + (auth.currentUser.uid || 'user').slice(0,6).toUpperCase();
-  const canvas = document.createElement('canvas');
-  canvas.width = 2550; canvas.height = 3300;
-  const ctx = canvas.getContext('2d');
-  drawCertificate(ctx, { name, courseTitle, certId, dateText: new Date().toLocaleDateString() });
-
-  // Optional signature overlay
-  if (p.signature) {
-    const img = new Image(); img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      // draw signature centered on the signature line
-      const w = 520, h = 160;
-      ctx.drawImage(img, canvas.width - 700 - w/2, 1290, w, h);
-      finish();
-    };
-    img.onerror = finish;
-    img.src = p.signature;
-  } else {
-    finish();
-  }
-  function finish(){
-    const url = canvas.toDataURL('image/png');
-    const a = document.createElement('a'); a.href = url; a.download = `certificate_${courseTitle}.png`; a.click();
-  }
-});
+  renderCertificatePNG({
+    name: p.name || p.email,
+    courseTitle: course.title || courseId,
+    dateText: new Date().toLocaleDateString(),
+    certId,
+    logoUrl: '/icons/learnhub-cap.svg'
+  });
+}));
   }
 
   // ---- Admin

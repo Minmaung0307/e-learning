@@ -193,12 +193,21 @@ img{ max-width:100% }
 .modal .dialog{
   width: min(1400px, 98vw);
   max-height: 96vh;
+  background: var(--panel);            /* solid, readable */
+  box-shadow: 0 24px 60px rgba(0,0,0,.25);
 }
-.modal .head,.modal .foot{ position:sticky; top:0; background:linear-gradient(180deg, rgba(255,255,255,.04), transparent 60%), var(--panel); padding:10px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; z-index:1 }
+.modal .head,.modal .foot{
+  position:sticky; z-index:2;          /* keep buttons visible */
+  background:linear-gradient(180deg, rgba(255,255,255,.06), transparent 60%), var(--panel);
+  padding:10px 12px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  top:0;
+}
 .modal .foot{ top:auto; bottom:0; border-top:1px solid var(--border); border-bottom:none }
-.modal .body{ padding:12px 12px }
-.modal-backdrop{ display:none }
-.modal.active + .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.4); display:block; z-index:99 }
+.modal .body{ padding:12px 12px; overflow:auto; max-height: calc(96vh - 92px); }
+
+.modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; z-index:99; pointer-events:none; }
+.modal.active + .modal-backdrop{ display:block; pointer-events:auto; }
 
 /* Search results popover */
 .search-results{ position:absolute; margin-top:36px; background:var(--panel); border:1px solid var(--border); border-radius:12px; width:100%; max-width:680px; display:none; max-height:300px; overflow:auto; }
@@ -447,34 +456,29 @@ body.theme-sunrise::after{
 
 /* ===== Courses + My Learning: force 3 / 2 / 1 columns ===== */
 /* Courses + My Learning — 4 / 3 / 2 / 1 columns */
+/* Responsive: Courses / My Learning grids */
 [data-sec="courses"].grid,
-.grid.cols-2:has(.card.course-card){
-  display: grid !important;
-  grid-template-columns: repeat(4, minmax(0,1fr)) !important; /* ≥1440px */
-  gap: 18px;
+#main .grid:has(.card.course-card) {
+  display:grid;
+  gap:18px;
+  grid-template-columns: repeat(4, minmax(0,1fr));          /* ≥1440px */
 }
-
-/* ≤1440px → 3 columns */
-@media (max-width: 1440px){
+@media (max-width: 1439px){
   [data-sec="courses"].grid,
-  .grid.cols-2:has(.card.course-card){
-    grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+  #main .grid:has(.card.course-card) {
+    grid-template-columns: repeat(3, minmax(0,1fr));        /* ≥1024px */
   }
 }
-
-/* ≤1024px → 2 columns */
-@media (max-width: 1024px){
+@media (max-width: 1023px){
   [data-sec="courses"].grid,
-  .grid.cols-2:has(.card.course-card){
-    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+  #main .grid:has(.card.course-card) {
+    grid-template-columns: repeat(2, minmax(0,1fr));        /* ≥768px */
   }
 }
-
-/* ≤768px → 1 column */
-@media (max-width: 768px){
+@media (max-width: 767px){
   [data-sec="courses"].grid,
-  .grid.cols-2:has(.card.course-card){
-    grid-template-columns: 1fr !important;
+  #main .grid:has(.card.course-card) {
+    grid-template-columns: 1fr;                             /* <768px */
   }
 }
 
@@ -748,3 +752,16 @@ body.theme-sunrise::after{
 .profile-card-modal .pcm-label{ font-size: 12px; color:#475569; margin-bottom: 4px; text-transform: uppercase; letter-spacing:.02em; }
 .profile-card-modal .pcm-bio{ white-space: pre-wrap; line-height: 1.5; }
 .profile-card-modal .pcm-signature{ max-height: 64px; filter: contrast(1.15); }
+
+/* Light content page card feel (dark shell stays) */
+.main.light-content {
+  background:#ffffff;
+  color:#0b1220;
+  padding: 0 20px 20px;  /* even spacing left/right globally as requested */
+}
+.main.light-content .card {
+  background:#ffffff;
+  color:#0b1220;
+  border-color:#e5eaf0;
+}
+.main.light-content .muted { color:#475569; }
