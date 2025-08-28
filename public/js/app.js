@@ -108,6 +108,17 @@ const safe = (fn) => function(...args){
   }
 };
 
+// --- Safe listener helpers (add once) ---
+const on = (el, type, handler, opts) => { if (el) el.addEventListener(type, safe(handler), opts); };
+
+const delegate = (root, selector, type, handler, opts) => {
+  if (!root) return;
+  root.addEventListener(type, safe((e) => {
+    const t = e.target?.closest?.(selector);
+    if (t && root.contains(t)) handler(e, t);
+  }), opts);
+};
+
   const nowYear = () => new Date().getFullYear();
   const col = (name) => db.collection(name);
   const doc = (name, id) => db.collection(name).doc(id);
@@ -539,7 +550,10 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
       </div>
     </div>
 
-    <!-- KEEP this modal skeleton present at all times -->
+    <!-- Toasts -->
+    <div id="notification" class="notification"></div>
+
+    <!-- Persistent modal skeleton -->
     <div class="modal" id="m-modal"><div class="dialog">
       <div class="head"><strong id="mm-title">Modal</strong><button class="btn ghost" id="mm-close">Close</button></div>
       <div class="body" id="mm-body"></div>
@@ -1324,83 +1338,85 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
   }
 
   function wireShell() {
-    $('#burger')?.addEventListener('click', safe(() => {
-  const open = document.body.classList.contains('sidebar-open');
-  if (open) closeSidebar(); else { document.body.classList.add('sidebar-open'); $('#backdrop')?.classList.add('active'); }
-}));
-$('#backdrop')?.addEventListener('click', safe(closeSidebar));
-$('#brand')?.addEventListener('click', safe(closeSidebar));
-
-$('#side-nav')?.addEventListener('click', safe((e) => {
-  const it = e.target.closest?.('.item[data-route]'); if (it) { go(it.getAttribute('data-route')); }
-}));
-$('#side-nav')?.addEventListener('keydown', safe((e) => {
-  const it = e.target.closest?.('.item[data-route]'); if (!it) return;
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(it.getAttribute('data-route')); }
-}));
-
-$('#main')?.addEventListener('click', safe((e) => {
-  const goEl = e.target.closest?.('[data-go]');
-  if (goEl) { go(goEl.getAttribute('data-go')); return; }
-  closeSidebar();
-}));
-
-$('#btnLogout')?.addEventListener('click', safe(() => auth.signOut()));
-
-$('#mm-close')?.addEventListener('click', safe(() => closeModal('m-modal')));
-
-    // search live
-    const input = $('#globalSearch'), results = $('#searchResults');
-    if (input && results) {
-      let t;
-      input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { state.searchQ = input.value.trim(); go('search'); results.classList.remove('active'); }
-      });
-      input.addEventListener('input', () => {
-        clearTimeout(t); const q = input.value.trim(); if (!q) { results.classList.remove('active'); results.innerHTML = ''; return; }
-        t = setTimeout(() => {
-          const ix = [];
-          state.courses.forEach(c => ix.push({ label: c.title, section: 'Courses', route: 'courses', id: c.id, text: `${c.title} ${c.category || ''}` }));
-          state.quizzes.forEach(qz => ix.push({ label: qz.title, section: 'Finals', route: 'assessments', id: qz.id, text: qz.courseTitle || '' }));
-          state.profiles.forEach(p => ix.push({ label: p.name || p.email, section: 'Profiles', route: 'profile', id: p.uid, text: (p.bio || '') }));
-          const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
-          const out = ix.map(item => {
-            const l = item.label.toLowerCase(), t = (item.text || '').toLowerCase();
-            const ok = tokens.every(tok => l.includes(tok) || t.includes(tok));
-            return ok ? { item, score: tokens.length + (l.includes(tokens[0]) ? 1 : 0) } : null;
-          }).filter(Boolean).sort((a, b) => b.score - a.score).map(x => x.item).slice(0, 12);
-
-          results.innerHTML = out.map(r => `<div class="row" data-route="${r.route}" data-id="${r.id || ''}"><strong>${r.label}</strong> <span class="muted">— ${r.section}</span></div>`).join('');
-          results.classList.add('active');
-          results.querySelectorAll('.row').forEach(row => {
-            row.onclick = () => { const r = row.getAttribute('data-route'); const id = row.getAttribute('data-id'); state.searchQ = q; state.highlightId = id; go(r); results.classList.remove('active'); };
-          });
-        }, 120);
-      });
-
-      document.addEventListener('click', e => {
-        try {
-          if (results && typeof results.contains === 'function' && e.target !== input && !results.contains(e.target)) {
-            results.classList.remove('active');
-          }
-        } catch (_e) { }
-      }, { capture: true });
+  on($('#burger'), 'click', () => {
+    const open = document.body.classList.contains('sidebar-open');
+    if (open) {
+      closeSidebar();
+    } else {
+      document.body.classList.add('sidebar-open');
+      $('#backdrop')?.classList.add('active');
     }
+  });
+  on($('#backdrop'), 'click', closeSidebar);
+  on($('#brand'), 'click', closeSidebar);
 
-    // theme instant
-    $('#theme-palette')?.addEventListener('change', (e) => { state.theme.palette = e.target.value; localStorage.setItem('lh.palette', state.theme.palette); applyTheme(); });
-    $('#theme-font')?.addEventListener('change', (e) => { state.theme.font = e.target.value; localStorage.setItem('lh.font', state.theme.font); applyTheme(); });
+  on($('#side-nav'), 'click', (e) => {
+    const it = e.target.closest?.('.item[data-route]');
+    if (it) go(it.getAttribute('data-route'));
+  });
+  on($('#side-nav'), 'keydown', (e) => {
+    const it = e.target.closest?.('.item[data-route]'); if (!it) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(it.getAttribute('data-route')); }
+  });
 
-    $('#mm-close')?.addEventListener('click', () => closeModal('m-modal'));
+  on($('#main'), 'click', (e) => {
+    const goEl = e.target.closest?.('[data-go]');
+    if (goEl) { go(goEl.getAttribute('data-go')); return; }
+    closeSidebar();
+  });
 
-    // Close when clicking the in-pane backdrop
-document.getElementById('mm-backdrop')?.addEventListener('click', () => closeModal('m-modal'));
+  on($('#btnLogout'), 'click', () => auth.signOut());
+  on($('#mm-close'), 'click', () => closeModal('m-modal'));
 
-// Close on Escape
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeModal('m-modal');
-});
+  // Search live
+  const input = $('#globalSearch'), results = $('#searchResults');
+  if (input && results) {
+    let t;
+    input.addEventListener('keydown', safe((e) => {
+      if (e.key === 'Enter') {
+        state.searchQ = input.value.trim();
+        go('search');
+        results.classList.remove('active');
+      }
+    }));
+    input.addEventListener('input', safe(() => {
+      clearTimeout(t);
+      const q = input.value.trim();
+      if (!q) { results.classList.remove('active'); results.innerHTML = ''; return; }
+      t = setTimeout(() => {
+        const ix = [];
+        state.courses.forEach(c => ix.push({ label: c.title, section: 'Courses', route: 'courses', id: c.id, text: `${c.title} ${c.category || ''}` }));
+        state.quizzes.forEach(qz => ix.push({ label: qz.title, section: 'Finals', route: 'assessments', id: qz.id, text: qz.courseTitle || '' }));
+        state.profiles.forEach(p => ix.push({ label: p.name || p.email, section: 'Profiles', route: 'profile', id: p.uid, text: (p.bio || '') }));
+        const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+        const out = ix.map(item => {
+          const l = item.label.toLowerCase(), t = (item.text || '').toLowerCase();
+          const ok = tokens.every(tok => l.includes(tok) || t.includes(tok));
+          return ok ? { item, score: tokens.length + (l.includes(tokens[0]) ? 1 : 0) } : null;
+        }).filter(Boolean).sort((a, b) => b.score - a.score).map(x => x.item).slice(0, 12);
+
+        results.innerHTML = out.map(r => `<div class="row" data-route="${r.route}" data-id="${r.id || ''}"><strong>${r.label}</strong> <span class="muted">— ${r.section}</span></div>`).join('');
+        results.classList.add('active');
+        $$('#searchResults .row').forEach(row => {
+          row.onclick = safe(() => { const r = row.getAttribute('data-route'); const id = row.getAttribute('data-id'); state.searchQ = q; state.highlightId = id; go(r); results.classList.remove('active'); });
+        });
+      }, 120);
+    }));
+
+    document.addEventListener('click', safe((e) => {
+      if (results && typeof results.contains === 'function' && e.target !== input && !results.contains(e.target)) {
+        results.classList.remove('active');
+      }
+    }), { capture: true });
   }
+
+  // Theme instant
+  on($('#theme-palette'), 'change', (e) => { state.theme.palette = e.target.value; localStorage.setItem('lh.palette', state.theme.palette); applyTheme(); });
+  on($('#theme-font'), 'change', (e) => { state.theme.font = e.target.value; localStorage.setItem('lh.font', state.theme.font); applyTheme(); });
+
+  // Escape closes modal
+  on(document, 'keydown', (e) => { if (e.key === 'Escape') closeModal('m-modal'); });
+}
 
   function wireRoute() {
     switch (state.route) {
@@ -1450,219 +1466,117 @@ document.addEventListener('keydown', (e) => {
   }
 
   // ---- Courses
-  function wireCourses() {
-    // seed demo when there are no courses (button exists in the list header)
-    $('#seed-demo')?.addEventListener('click', async () => {
-      try {
-        await window.seedDemoCourses();
-        notify('Demo courses added');
-      } catch (e) {
-        console.error(e);
-        notify((e && (e.code + ': ' + e.message)) || 'Failed to seed', 'danger');
-      }
+  function wireCourses() {function wireCourses() {
+  on($('#seed-demo'), 'click', async () => {
+    await window.seedDemoCourses().then(() => notify('Demo courses added')).catch(e => {
+      console.error(e);
+      notify((e && (e.code + ': ' + e.message)) || 'Failed to seed', 'danger');
     });
+  });
 
-    $('#add-course')?.addEventListener('click', () => {
-      if (!canTeach()) return notify('Instructors/Admins only', 'warn');
-      $('#mm-title').textContent = 'New Course';
-      $('#mm-body').innerHTML = `
-        <div class="grid">
-          <input id="c-title" class="input" placeholder="Title"/>
-          <input id="c-category" class="input" placeholder="Category"/>
-          <input id="c-credits" class="input" type="number" placeholder="Credits" value="0"/>
-          <input id="c-price" class="input" type="number" placeholder="Price" value="0"/>
-          <textarea id="c-short" class="input" placeholder="Short description"></textarea>
-          <textarea id="c-goals" class="input" placeholder="Goals (one per line)"></textarea>
-          <input id="c-cover" class="input" placeholder="Cover image URL (https://…)"/>
-          <input id="c-outlineUrl" class="input" placeholder="/data/outlines/your-course.json"/>
-          <input id="c-quizzesUrl" class="input" placeholder="/data/lesson-quizzes/your-course.json"/>
-        </div>`;
-      $('#mm-foot').innerHTML = `<button class="btn" id="c-save">Save</button>`;
-      openModal('m-modal');
+  on($('#add-course'), 'click', () => {
+    if (!canTeach()) return notify('Instructors/Admins only', 'warn');
+    $('#mm-title').textContent = 'New Course';
+    $('#mm-body').innerHTML = `
+      <div class="grid">
+        <input id="c-title" class="input" placeholder="Title"/>
+        <input id="c-category" class="input" placeholder="Category"/>
+        <input id="c-credits" class="input" type="number" placeholder="Credits" value="0"/>
+        <input id="c-price" class="input" type="number" placeholder="Price" value="0"/>
+        <textarea id="c-short" class="input" placeholder="Short description"></textarea>
+        <textarea id="c-goals" class="input" placeholder="Goals (one per line)"></textarea>
+        <input id="c-cover" class="input" placeholder="Cover image URL (https://…)"/>
+        <input id="c-outlineUrl" class="input" placeholder="/data/outlines/your-course.json"/>
+        <input id="c-quizzesUrl" class="input" placeholder="/data/lesson-quizzes/your-course.json"/>
+      </div>`;
+    $('#mm-foot').innerHTML = `<button class="btn" id="c-save">Save</button>`;
+    openModal('m-modal');
 
-      $('#c-save').onclick = async () => {
-        const t = $('#c-title')?.value.trim(); if (!t) return notify('Title required', 'warn');
-        const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
-        const obj = {
-          title: t,
-          category: $('#c-category')?.value.trim(),
-          credits: +($('#c-credits')?.value || 0),
-          price: +($('#c-price')?.value || 0),
-          short: $('#c-short')?.value.trim(),
-          goals,
-          coverImage: $('#c-cover')?.value.trim(),
-          outlineUrl: $('#c-outlineUrl')?.value.trim(),
-          quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
-          ownerUid: auth.currentUser.uid,
-          ownerEmail: auth.currentUser.email,
-          participants: [auth.currentUser.uid],
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
-        try {
-          await col('courses').add(obj);
-          closeModal('m-modal'); notify('Saved');
-        } catch (e) {
-          console.error('Failed to create course:', e);
-          notify((e && (e.code + ': ' + e.message)) || 'Failed to create course', 'danger');
-        }
+    on($('#c-save'), 'click', async () => {
+      const t = $('#c-title')?.value.trim(); if (!t) return notify('Title required', 'warn');
+      const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
+      const obj = {
+        title: t,
+        category: $('#c-category')?.value.trim(),
+        credits: +($('#c-credits')?.value || 0),
+        price: +($('#c-price')?.value || 0),
+        short: $('#c-short')?.value.trim(),
+        goals,
+        coverImage: $('#c-cover')?.value.trim(),
+        outlineUrl: $('#c-outlineUrl')?.value.trim(),
+        quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
+        ownerUid: auth.currentUser.uid,
+        ownerEmail: auth.currentUser.email,
+        participants: [auth.currentUser.uid],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
       };
+      await col('courses').add(obj).then(() => { closeModal('m-modal'); notify('Saved'); })
+        .catch(e => { console.error('Failed to create course:', e); notify((e && (e.code + ': ' + e.message)) || 'Failed to create course', 'danger'); });
     });
+  });
 
-    const sec = $('[data-sec="courses"]'); if (!sec || sec.__wired) return; sec.__wired = true;
+  const sec = $('[data-sec="courses"]'); if (!sec || sec.__wired) return; sec.__wired = true;
 
-    sec.addEventListener('click', async (e) => {
-      // expand/collapse long short text
-      const tg = e.target.closest?.('[data-short-toggle]');
-      if (tg) {
-        const wrap = tg.closest('.card-body') || tg.parentElement;
-        const block = wrap?.querySelector('.short');
-        if (block) {
-          const clamped = block.classList.toggle('clamp');
-          tg.textContent = clamped ? 'Read more' : 'Read less';
-        }
-        return; // don't fall through
-      }
+  // Toggle clamped summary
+  delegate(sec, '[data-short-toggle]', 'click', (_e, btn) => {
+    const wrap = btn.closest('.card-body') || btn.parentElement;
+    const block = wrap?.querySelector('.short');
+    if (!block) return;
+    const clamped = block.classList.toggle('clamp');
+    btn.textContent = clamped ? 'Read more' : 'Read less';
+  });
 
-      const openBtn = e.target.closest?.('button[data-open]');
-      const editBtn = e.target.closest?.('button[data-edit]');
-      const delBtn = e.target.closest?.('button[data-del]');
+  // Open detail (SPA)
+  delegate(sec, 'button[data-open]', 'click', (_e, btn) => {
+    const id = btn.getAttribute('data-open');
+    state.currentCourseId = id;
+    state.detailPrevRoute = 'courses';
+    state.mainThemeClass = pickGradientClass(id);
+    go('course-detail');
+  });
 
-    //   if (openBtn) {
-    //     const id = openBtn.getAttribute('data-open');
-    //     const snap = await doc('courses', id).get(); if (!snap.exists) return;
-    //     const c = { id: snap.id, ...snap.data() };
-    //     const enrolled = isEnrolled(c.id);
+  // Edit course
+  delegate(sec, 'button[data-edit]', 'click', async (_e, btn) => {
+    if (!canTeach()) return notify('No permission', 'warn');
+    const id = btn.getAttribute('data-edit');
+    const snap = await doc('courses', id).get(); if (!snap.exists) return;
+    const c = { id: snap.id, ...snap.data() };
+    $('#mm-title').textContent = 'Edit Course';
+    $('#mm-body').innerHTML = `
+      <div class="grid">
+        <input id="c-title" class="input" value="${c.title || ''}"/>
+        <input id="c-category" class="input" value="${c.category || ''}"/>
+        <input id="c-credits" class="input" type="number" value="${c.credits || 0}"/>
+        <input id="c-price" class="input" type="number" value="${c.price || 0}"/>
+        <textarea id="c-short" class="input">${c.short || ''}</textarea>
+        <textarea id="c-goals" class="input">${(c.goals || []).join('\n')}</textarea>
+        <input id="c-cover" class="input" value="${c.coverImage || ''}"/>
+        <input id="c-outlineUrl" class="input" value="${c.outlineUrl || ''}"/>
+        <input id="c-quizzesUrl" class="input" value="${c.quizzesUrl || ''}"/>
+      </div>`;
+    $('#mm-foot').innerHTML = `<button class="btn" id="c-save">Save</button>`;
+    openModal('m-modal');
+    on($('#c-save'), 'click', async () => {
+      const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
+      await doc('courses', id).set(clean({
+        title: $('#c-title')?.value.trim(), category: $('#c-category')?.value.trim(),
+        credits: +($('#c-credits')?.value || 0), price: +($('#c-price')?.value || 0),
+        short: $('#c-short')?.value.trim(), goals,
+        coverImage: $('#c-cover')?.value.trim(), outlineUrl: $('#c-outlineUrl')?.value.trim(), quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }), { merge: true });
+      closeModal('m-modal'); notify('Saved');
+    });
+  });
 
-    //     $('#mm-title').textContent = c.title;
-    //     $('#mm-body').innerHTML = `
-    //       <div class="course-full" style="display:grid;grid-template-columns:250px 1fr;gap:14px;align-items:start">
-    //         <div>
-    //           <img class="course-cover-thumb" src="${c.coverImage || '/icons/learnhub-cap.svg'}" alt="${c.title}" style="width:250px;height:auto;max-width:100%;object-fit:cover;border-radius:10px;border:1px solid var(--border)"/>
-    //         </div>
-    //         <div>
-    //           <div class="muted">${c.category || 'General'} • Credits ${c.credits || 0}</div>
-    //           <p>${(c.short || '').replace(/</g, '&lt;')}</p>
-    //           ${(c.goals?.length ? `<ul class="list-tight">${c.goals.map(g => `<li>${g}</li>`).join('')}</ul>` : '')}
-    //           ${c.price > 0 ? `<div style="margin-top:6px"><strong>Price:</strong> ${money(c.price)}</div>` : ''}
-    //         </div>
-    //       </div>
-
-    //       <div class="section-box" style="margin-top:12px">
-    //         <h4><i class="ri-layout-2-line"></i> Outline</h4>
-    //         <div id="outline-box"><div class="muted">Loading…</div></div>
-    //       </div>
-
-    //       <div class="section-box" style="margin-top:12px">
-    //         <h4><i class="ri-question-answer-line"></i> Lesson Quizzes</h4>
-    //         <div id="lesson-quizzes-box"><div class="muted">Loading…</div></div>
-    //       </div>
-
-    //       <div id="paypal-zone" class="paypal-zone hidden" style="margin-top:14px">
-    //         <div id="paypal-buttons"></div>
-    //       </div>
-    //     `;
-
-    //     $('#mm-foot').innerHTML = `
-    //       <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-    //         ${
-    //           enrolled
-    //             ? `<button class="btn ok" disabled>Enrolled</button>`
-    //             : (c.price > 0
-    //                 ? `<button class="btn" id="show-pay"><i class="ri-bank-card-line"></i> Pay & Enroll (${money(c.price)})</button>`
-    //                 : `<button class="btn" id="enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>`
-    //               )
-    //         }
-    //         <button class="btn ghost" id="open-quiz"><i class="ri-question-line"></i> Finals</button>
-    //       </div>
-    //     `;
-    //     openModal('m-modal');
-
-    //     // Load outline JSON inline
-    //     const outlineBox = document.getElementById('outline-box');
-    //     if (c.outlineUrl) {
-    //       fetchJSON(c.outlineUrl)
-    //         .then(d => { outlineBox.innerHTML = renderOutlineBox(d); })
-    //         .catch(err => { outlineBox.innerHTML = `<div class="muted">Could not load outline (${(err && err.message) || 'error'}).</div>`; });
-    //     } else {
-    //       outlineBox.innerHTML = `<div class="muted">No outline URL for this course.</div>`;
-    //     }
-
-    //     // Load lesson quizzes JSON inline
-    //     const lessonBox = document.getElementById('lesson-quizzes-box');
-    //     if (c.quizzesUrl) {
-    //       fetchJSON(c.quizzesUrl)
-    //         .then(d => { lessonBox.innerHTML = renderLessonQuizzesBox(d); })
-    //         .catch(err => { lessonBox.innerHTML = `<div class="muted">Could not load lesson quizzes (${(err && err.message) || 'error'}).</div>`; });
-    //     } else {
-    //       lessonBox.innerHTML = `<div class="muted">No lesson quizzes URL for this course.</div>`;
-    //     }
-
-    //     // Actions
-    //     document.getElementById('open-quiz')?.addEventListener('click', () => { state.searchQ = c.title; go('assessments'); });
-
-    //     document.getElementById('enroll')?.addEventListener('click', async () => {
-    //       await col('enrollments').add({
-    //         uid: auth.currentUser.uid, courseId: c.id,
-    //         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    //         course: { id: c.id, title: c.title, category: c.category, credits: c.credits, coverImage: c.coverImage }
-    //       });
-    //       try {
-    //         await doc('courses', c.id).set({ participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) }, { merge: true });
-    //       } catch (_e) { }
-    //       closeModal('m-modal'); notify('Enrolled');
-    //     });
-
-    //     document.getElementById('show-pay')?.addEventListener('click', () => setupPayPalForCourse(c));
-    //   }
-
-    if (openBtn) {
-  const id = openBtn.getAttribute('data-open');
-  state.currentCourseId = id;
-  state.detailPrevRoute = 'courses';
-  state.mainThemeClass = pickGradientClass(id);     // match the card theme
-  go('course-detail');                               // SPA-style navigation
+  // Delete course
+  delegate(sec, 'button[data-del]', 'click', async (_e, btn) => {
+    if (!canTeach()) return notify('No permission', 'warn');
+    const id = btn.getAttribute('data-del');
+    await doc('courses', id).delete();
+    notify('Course deleted');
+  });
 }
-
-      if (editBtn) {
-        if (!canTeach()) return notify('No permission', 'warn');
-        const id = editBtn.getAttribute('data-edit'); const snap = await doc('courses', id).get(); if (!snap.exists) return;
-        const c = { id: snap.id, ...snap.data() };
-        $('#mm-title').textContent = 'Edit Course';
-        $('#mm-body').innerHTML = `
-          <div class="grid">
-            <input id="c-title" class="input" value="${c.title || ''}"/>
-            <input id="c-category" class="input" value="${c.category || ''}"/>
-            <input id="c-credits" class="input" type="number" value="${c.credits || 0}"/>
-            <input id="c-price" class="input" type="number" value="${c.price || 0}"/>
-            <textarea id="c-short" class="input">${c.short || ''}</textarea>
-            <textarea id="c-goals" class="input">${(c.goals || []).join('\n')}</textarea>
-            <input id="c-cover" class="input" value="${c.coverImage || ''}"/>
-            <input id="c-outlineUrl" class="input" value="${c.outlineUrl || ''}"/>
-            <input id="c-quizzesUrl" class="input" value="${c.quizzesUrl || ''}"/>
-          </div>`;
-        $('#mm-foot').innerHTML = `<button class="btn" id="c-save">Save</button>`;
-        openModal('m-modal');
-        $('#c-save').onclick = async () => {
-          const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
-          await doc('courses', id).set(clean({
-            title: $('#c-title')?.value.trim(), category: $('#c-category')?.value.trim(),
-            credits: +($('#c-credits')?.value || 0), price: +($('#c-price')?.value || 0),
-            short: $('#c-short')?.value.trim(), goals,
-            coverImage: $('#c-cover')?.value.trim(), outlineUrl: $('#c-outlineUrl')?.value.trim(), quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }), { merge: true });
-          closeModal('m-modal'); notify('Saved');
-        };
-      }
-
-      if (delBtn) {
-        if (!canTeach()) return notify('No permission', 'warn');
-        const id = delBtn.getAttribute('data-del');
-        await doc('courses', id).delete();
-        notify('Course deleted');
-      }
-    });
-  }
 
   function wireCourseDetail(){
   const id = state.currentCourseId;
@@ -1723,185 +1637,127 @@ document.addEventListener('keydown', (e) => {
 
   // ---- Learning
   function wireLearning() {
-    $('#main')?.addEventListener('click', async (e) => {
-      // toggle "Read more"
-      const tg = e.target.closest?.('[data-short-toggle]');
-      if (tg) {
-        const wrap = tg.closest('.card-body') || tg.parentElement;
-        const block = wrap?.querySelector('.short');
-        if (block) {
-          const clamped = block.classList.toggle('clamp');
-          tg.textContent = clamped ? 'Read more' : 'Read less';
-        }
-        return;
-      }
+  const sec = $('[data-sec="learning"]'); if (!sec || sec.__wired) return; sec.__wired = true;
 
-    //   const btn = e.target.closest?.('button[data-open-course]'); if (!btn) return;
-    const btn = e.target.closest?.('button[data-open-course]');
-if (btn) {
-  const id = btn.getAttribute('data-open-course');
-  state.currentCourseId = id;
-  state.detailPrevRoute = 'learning';
-  state.mainThemeClass = pickGradientClass(id);
-  go('course-detail');
-  return;
+  // Toggle clamp
+  delegate(sec, '[data-short-toggle]', 'click', (_e, btn) => {
+    const wrap = btn.closest('.card-body') || btn.parentElement;
+    const block = wrap?.querySelector('.short');
+    if (!block) return;
+    const clamped = block.classList.toggle('clamp');
+    btn.textContent = clamped ? 'Read more' : 'Read less';
+  });
+
+  // Open detail (SPA)
+  delegate(sec, 'button[data-open-course]', 'click', (_e, btn) => {
+    const id = btn.getAttribute('data-open-course');
+    state.currentCourseId = id;
+    state.detailPrevRoute = 'learning';
+    state.mainThemeClass = pickGradientClass(id);
+    go('course-detail');
+  });
 }
-      const id = btn.getAttribute('data-open-course'); const snap = await doc('courses', id).get(); if (!snap.exists) return;
-      const c = { id: snap.id, ...snap.data() };
-
-      $('#mm-title').textContent = c.title;
-      $('#mm-body').innerHTML = `
-        <div class="course-full" style="display:grid;grid-template-columns:250px 1fr;gap:14px;align-items:start">
-          <div>
-            <img class="course-cover-thumb" src="${c.coverImage || '/icons/learnhub-cap.svg'}" alt="${c.title}" style="width:250px;height:auto;max-width:100%;object-fit:cover;border-radius:10px;border:1px solid var(--border)"/>
-          </div>
-          <div>
-            <div class="muted">${c.category || 'General'} • Credits ${c.credits || 0}</div>
-            <p>${(c.short || '').replace(/</g, '&lt;')}</p>
-            ${(c.goals?.length ? `<ul class="list-tight">${c.goals.map(g => `<li>${g}</li>`).join('')}</ul>` : '')}
-          </div>
-        </div>
-
-        <div class="section-box" style="margin-top:12px">
-          <h4><i class="ri-layout-2-line"></i> Outline</h4>
-          <div id="outline-box"><div class="muted">Loading…</div></div>
-        </div>
-
-        <div class="section-box" style="margin-top:12px">
-          <h4><i class="ri-question-answer-line"></i> Lesson Quizzes</h4>
-          <div id="lesson-quizzes-box"><div class="muted">Loading…</div></div>
-        </div>
-      `;
-      $('#mm-foot').innerHTML = `
-        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-          <button class="btn ghost" id="open-quiz"><i class="ri-question-line"></i> Finals</button>
-          <button class="btn" id="mm-close2">Close</button>
-        </div>`;
-      openModal('m-modal');
-
-      document.getElementById('open-quiz')?.addEventListener('click', () => { state.searchQ = c.title; go('assessments'); });
-      document.getElementById('mm-close2')?.addEventListener('click', () => closeModal('m-modal'));
-
-      // Load outline JSON inline
-      const outlineBox = document.getElementById('outline-box');
-      if (c.outlineUrl) {
-        fetchJSON(c.outlineUrl)
-          .then(d => { outlineBox.innerHTML = renderOutlineBox(d); })
-          .catch(err => { outlineBox.innerHTML = `<div class="muted">Could not load outline (${(err && err.message) || 'error'}).</div>`; });
-      } else {
-        outlineBox.innerHTML = `<div class="muted">No outline URL for this course.</div>`;
-      }
-
-      // Load lesson quizzes JSON inline
-      const lessonBox = document.getElementById('lesson-quizzes-box');
-      if (c.quizzesUrl) {
-        fetchJSON(c.quizzesUrl)
-          .then(d => { lessonBox.innerHTML = renderLessonQuizzesBox(d); })
-          .catch(err => { lessonBox.innerHTML = `<div class="muted">Could not load lesson quizzes (${(err && err.message) || 'error'}).</div>`; });
-      } else {
-        lessonBox.innerHTML = `<div class="muted">No lesson quizzes URL for this course.</div>`;
-      }
-    });
-  }
 
   // ---- Finals
   function wireAssessments() {
-    $('#new-quiz')?.addEventListener('click', () => {
-      if (!canTeach()) return notify('Instructors/Admins only', 'warn');
-      $('#mm-title').textContent = 'New Final';
-      $('#mm-body').innerHTML = `
-        <div class="grid">
-          <input id="q-title" class="input" placeholder="Final title"/>
-          <select id="q-course" class="input">${state.courses.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}</select>
-          <input id="q-pass" class="input" type="number" value="70" placeholder="Pass score (%)"/>
-          <textarea id="q-json" class="input" placeholder='[{"q":"2+2?","choices":["3","4","5"],"answer":1,"feedbackOk":"Correct!","feedbackNo":"Try again"}]'></textarea>
-        </div>`;
-      $('#mm-foot').innerHTML = `<button class="btn" id="q-save">Save</button>`;
-      openModal('m-modal');
-      $('#q-save').onclick = async () => {
-        const t = $('#q-title')?.value.trim(); const courseId = $('#q-course')?.value; const pass = +($('#q-pass')?.value || 70);
-        if (!t || !courseId) return notify('Fill title & course', 'warn');
-        let items = []; try { items = JSON.parse($('#q-json')?.value || '[]'); } catch { return notify('Invalid JSON', 'danger'); }
-        const course = state.courses.find(c => c.id === courseId) || {};
-        await col('quizzes').add(clean({ title: t, courseId, courseTitle: course.title, passScore: pass, items, isFinal: true, ownerUid: auth.currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
-        closeModal('m-modal'); notify('Final saved');
-      };
+  on($('#new-quiz'), 'click', () => {
+    if (!canTeach()) return notify('Instructors/Admins only', 'warn');
+    $('#mm-title').textContent = 'New Final';
+    $('#mm-body').innerHTML = `
+      <div class="grid">
+        <input id="q-title" class="input" placeholder="Final title"/>
+        <select id="q-course" class="input">${state.courses.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}</select>
+        <input id="q-pass" class="input" type="number" value="70" placeholder="Pass score (%)"/>
+        <textarea id="q-json" class="input" placeholder='[{"q":"2+2?","choices":["3","4","5"],"answer":1,"feedbackOk":"Correct!","feedbackNo":"Try again"}]'></textarea>
+      </div>`;
+    $('#mm-foot').innerHTML = `<button class="btn" id="q-save">Save</button>`;
+    openModal('m-modal');
+    on($('#q-save'), 'click', async () => {
+      const t = $('#q-title')?.value.trim(); const courseId = $('#q-course')?.value; const pass = +($('#q-pass')?.value || 70);
+      if (!t || !courseId) return notify('Fill title & course', 'warn');
+      let items = []; try { items = JSON.parse($('#q-json')?.value || '[]'); } catch { return notify('Invalid JSON', 'danger'); }
+      const course = state.courses.find(c => c.id === courseId) || {};
+      await col('quizzes').add(clean({ title: t, courseId, courseTitle: course.title, passScore: pass, items, isFinal: true, ownerUid: auth.currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
+      closeModal('m-modal'); notify('Final saved');
     });
+  });
 
-    const sec = $('[data-sec="quizzes"]'); if (!sec || sec.__wired) { return; } sec.__wired = true;
+  const sec = $('[data-sec="quizzes"]'); if (!sec || sec.__wired) return; sec.__wired = true;
 
-    sec.addEventListener('click', async (e) => {
-      const take = e.target.closest?.('button[data-take]'); const edit = e.target.closest?.('button[data-edit]');
-      if (take) {
-        const id = take.getAttribute('data-take'); const snap = await doc('quizzes', id).get(); if (!snap.exists) return;
-        const q = { id: snap.id, ...snap.data() };
-        if (!isEnrolled(q.courseId) && state.role === 'student') return notify('Enroll first', 'warn');
-        $('#mm-title').textContent = q.title;
-        $('#mm-body').innerHTML = (q.items || []).map((it, idx) => `
-          <div class="card"><div class="card-body">
-            <div style="font-weight:700">Q${idx + 1}. ${it.q}</div>
-            <div style="margin-top:6px;display:grid;gap:6px">
-              ${(it.choices || []).map((c, i) => `
-                <label style="display:flex;gap:8px;align-items:center">
-                  <input type="radio" name="q${idx}" value="${i}"/> <span>${c}</span>
-                </label>`).join('')}
-            </div>
-            <div class="muted" id="fb-${idx}" style="margin-top:6px"></div>
-          </div></div>`).join('');
-        $('#mm-foot').innerHTML = `<button class="btn" id="q-submit"><i class="ri-checkbox-circle-line"></i> Submit</button>`;
-        openModal('m-modal');
-        const bodyEl = $('#mm-body');
+  // Take quiz
+  delegate(sec, 'button[data-take]', 'click', async (_e, btn) => {
+    const id = btn.getAttribute('data-take'); const snap = await doc('quizzes', id).get(); if (!snap.exists) return;
+    const q = { id: snap.id, ...snap.data() };
+    if (!isEnrolled(q.courseId) && state.role === 'student') return notify('Enroll first', 'warn');
 
-        bodyEl.onchange = (ev) => {
-          const t = ev.target;
-          if (!t?.name?.startsWith('q')) return;
-          const idx = Number(t.name.slice(1));
-          const it = (q.items || [])[idx];
-          if (!it) return;
-          const val = +t.value;
-          const fb = $(`#fb-${idx}`);
-          if (!fb) return;
-          if (val === +it.answer) { fb.textContent = it.feedbackOk || 'Correct'; fb.style.color = 'var(--ok)'; }
-          else { fb.textContent = it.feedbackNo || 'Incorrect'; fb.style.color = 'var(--danger)'; }
-        };
+    $('#mm-title').textContent = q.title;
+    $('#mm-body').innerHTML = (q.items || []).map((it, idx) => `
+      <div class="card"><div class="card-body">
+        <div style="font-weight:700">Q${idx + 1}. ${it.q}</div>
+        <div style="margin-top:6px;display:grid;gap:6px">
+          ${(it.choices || []).map((c, i) => `
+            <label style="display:flex;gap:8px;align-items:center">
+              <input type="radio" name="q${idx}" value="${i}"/> <span>${c}</span>
+            </label>`).join('')}
+        </div>
+        <div class="muted" id="fb-${idx}" style="margin-top:6px"></div>
+      </div></div>`).join('');
+    $('#mm-foot').innerHTML = `<button class="btn" id="q-submit"><i class="ri-checkbox-circle-line"></i> Submit</button>`;
+    openModal('m-modal');
 
-        bodyEl.scrollTop = 0;
+    const bodyEl = $('#mm-body');
+    bodyEl.addEventListener('change', safe((ev) => {
+      const t = ev.target;
+      if (!t?.name?.startsWith('q')) return;
+      const idx = Number(t.name.slice(1));
+      const it = (q.items || [])[idx];
+      if (!it) return;
+      const val = +t.value;
+      const fb = $(`#fb-${idx}`);
+      if (!fb) return;
+      if (val === +it.answer) { fb.textContent = it.feedbackOk || 'Correct'; fb.style.color = 'var(--ok)'; }
+      else { fb.textContent = it.feedbackNo || 'Incorrect'; fb.style.color = 'var(--danger)'; }
+    }));
 
-        $('#q-submit').onclick = async () => {
-          let correct = 0;
-          (q.items || []).forEach((it, idx) => {
-            const v = (document.querySelector(`input[name="q${idx}"]:checked`)?.value) || '-1';
-            if (+v === +it.answer) correct++;
-          });
-          const total = (q.items || []).length || 1;
-          const score = Math.round((correct / total) * 100);
-          await col('attempts').add({
-            uid: auth.currentUser.uid, email: auth.currentUser.email, quizId: q.id, quizTitle: q.title, courseId: q.courseId, score,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          closeModal('m-modal'); notify(`Your score: ${score}%`);
-        };
-      }
-      if (edit) {
-        const id = edit.getAttribute('data-edit'); const snap = await doc('quizzes', id).get(); if (!snap.exists) return;
-        const q = { id: snap.id, ...snap.data() }; if (!(canTeach() || q.ownerUid === auth.currentUser?.uid)) return notify('No permission', 'warn');
-        $('#mm-title').textContent = 'Edit Final';
-        $('#mm-body').innerHTML = `
-          <div class="grid">
-            <input id="q-title" class="input" value="${q.title || ''}"/>
-            <input id="q-pass" class="input" type="number" value="${q.passScore || 70}"/>
-            <textarea id="q-json" class="input">${JSON.stringify(q.items || [], null, 2)}</textarea>
-          </div>`;
-        $('#mm-foot').innerHTML = `<button class="btn" id="q-save">Save</button>`;
-        openModal('m-modal');
-        $('#q-save').onclick = async () => {
-          let items = []; try { items = JSON.parse($('#q-json')?.value || '[]'); } catch { return notify('Invalid JSON', 'danger'); }
-          await doc('quizzes', id).set(clean({ title: $('#q-title')?.value.trim(), passScore: +($('#q-pass')?.value || 70), items, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }), { merge: true });
-          closeModal('m-modal'); notify('Saved');
-        };
-      }
+    bodyEl.scrollTop = 0;
+
+    on($('#q-submit'), 'click', async () => {
+      let correct = 0;
+      (q.items || []).forEach((it, idx) => {
+        const v = (document.querySelector(`input[name="q${idx}"]:checked`)?.value) || '-1';
+        if (+v === +it.answer) correct++;
+      });
+      const total = (q.items || []).length || 1;
+      const score = Math.round((correct / total) * 100);
+      await col('attempts').add({
+        uid: auth.currentUser.uid, email: auth.currentUser.email, quizId: q.id, quizTitle: q.title, courseId: q.courseId, score,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      closeModal('m-modal'); notify(`Your score: ${score}%`);
     });
-  }
+  });
+
+  // Edit quiz
+  delegate(sec, 'button[data-edit]', 'click', async (_e, btn) => {
+    const id = btn.getAttribute('data-edit'); const snap = await doc('quizzes', id).get(); if (!snap.exists) return;
+    const q = { id: snap.id, ...snap.data() }; if (!(canTeach() || q.ownerUid === auth.currentUser?.uid)) return notify('No permission', 'warn');
+
+    $('#mm-title').textContent = 'Edit Final';
+    $('#mm-body').innerHTML = `
+      <div class="grid">
+        <input id="q-title" class="input" value="${q.title || ''}"/>
+        <input id="q-pass" class="input" type="number" value="${q.passScore || 70}"/>
+        <textarea id="q-json" class="input">${JSON.stringify(q.items || [], null, 2)}</textarea>
+      </div>`;
+    $('#mm-foot').innerHTML = `<button class="btn" id="q-save">Save</button>`;
+    openModal('m-modal');
+    on($('#q-save'), 'click', async () => {
+      let items = []; try { items = JSON.parse($('#q-json')?.value || '[]'); } catch { return notify('Invalid JSON', 'danger'); }
+      await doc('quizzes', id).set(clean({ title: $('#q-title')?.value.trim(), passScore: +($('#q-pass')?.value || 70), items, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }), { merge: true });
+      closeModal('m-modal'); notify('Saved');
+    });
+  });
+}
 
   // ---- Chat
   function wireChat() {
