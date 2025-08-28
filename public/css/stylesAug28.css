@@ -1,0 +1,774 @@
+/* ===== Base tokens ===== */
+:root, .theme-sunrise{
+  --bg:#0b0d10; --panel:#12161b; --text:#e9eef5; --muted:#9db0c5;
+  --primary:#7ad3ff; --primary-2:#35a4df; --ok:#10b981; --warn:#f59e0b; --danger:#ef4444;
+  --border:#22303f;
+  --on-primary:#001018; --on-ok:#001a10; --on-danger:#ffffff;
+  --tint-8:rgba(122,211,255,.08); --tint-15:rgba(122,211,255,.15); --tint-25:rgba(122,211,255,.25);
+  --page-glow-a: rgba(122,211,255,.10);
+  --page-glow-b: rgba(34,197,94,.10);
+}
+
+.theme-light{
+  --bg:#f6f8fb; --panel:#ffffff; --text:#0b0d10; --muted:#5f6e7b;
+  --primary:#3b82f6; --primary-2:#2563eb; --border:#e5eaf0;
+  --on-primary:#ffffff; --on-ok:#ffffff; --on-danger:#ffffff;
+  --tint-8:  rgba(59,130,246, .12);
+  --tint-15: rgba(59,130,246, .22);
+  --tint-25: rgba(59,130,246, .35);
+  --page-glow-a: rgba(59,130,246,.14);
+  --page-glow-b: rgba(16,185,129,.14);
+}
+.theme-dark{
+  --bg:#0b0d10; --panel:#12161b; --text:#e9eef5; --muted:#9db0c5;
+  --primary:#7ad3ff; --primary-2:#35a4df; --border:#22303f;
+  --on-primary:#001018; --on-ok:#001a10; --on-danger:#ffffff;
+  --tint-8:  rgba(122,211,255, .12);
+  --tint-15: rgba(122,211,255, .22);
+  --tint-25: rgba(122,211,255, .35);
+  --page-glow-a: rgba(122,211,255,.12);
+  --page-glow-b: rgba(52,211,153,.12);
+}
+
+/* Extra palettes */
+.theme-ocean{ --bg:#f5fbff; --panel:#ffffff; --text:#0b1220; --muted:#4b5563; --border:#e2e8f0;
+  --primary:#0284c7; --primary-2:#0ea5e9; --on-primary:#ffffff; --ok:#16a34a; --on-ok:#ffffff; --warn:#f59e0b; --danger:#ef4444; --on-danger:#ffffff;
+  --tint-8:rgba(2,132,199,.12); --tint-15:rgba(2,132,199,.22); --tint-25:rgba(2,132,199,.35);
+  --page-glow-a: rgba(2,132,199,.14); --page-glow-b: rgba(16,185,129,.14);
+}
+.theme-forest{ --bg:#f7fbf8; --panel:#ffffff; --text:#0a1f16; --muted:#3f4d45; --border:#dbece3;
+  --primary:#15803d; --primary-2:#16a34a; --on-primary:#ffffff; --ok:#16a34a; --on-ok:#ffffff; --warn:#ca8a04; --danger:#dc2626; --on-danger:#ffffff;
+  --tint-8:rgba(21,128,61,.12); --tint-15:rgba(21,128,61,.22); --tint-25:rgba(21,128,61,.35);
+  --page-glow-a:rgba(21,128,61,.14); --page-glow-b:rgba(2,132,199,.12);
+}
+.theme-grape{ --bg:#fbf7ff; --panel:#ffffff; --text:#221035; --muted:#5b5568; --border:#e9ddff;
+  --primary:#7c3aed; --primary-2:#a78bfa; --on-primary:#ffffff; --ok:#22c55e; --on-ok:#0a1f16; --warn:#f59e0b; --danger:#ef4444; --on-danger:#ffffff;
+  --tint-8:rgba(124,58,237,.12); --tint-15:rgba(124,58,237,.22); --tint-25:rgba(124,58,237,.35);
+  --page-glow-a:rgba(124,58,237,.16); --page-glow-b:rgba(59,130,246,.14);
+}
+.theme-lavender{ --bg:#fafaff; --panel:#ffffff; --text:#1f1437; --muted:#6b647b; --border:#e6e4ff;
+  --primary:#6d28d9; --primary-2:#8b5cf6; --on-primary:#ffffff; --ok:#16a34a; --on-ok:#ffffff; --warn:#f59e0b; --danger:#ef4444; --on-danger:#ffffff;
+  --tint-8:rgba(109,40,217,.12); --tint-15:rgba(109,40,217,.22); --tint-25:rgba(109,40,217,.35);
+  --page-glow-a:rgba(109,40,217,.16); --page-glow-b:rgba(16,185,129,.14);
+}
+.theme-sunset{ --bg:#fff7f3; --panel:#ffffff; --text:#2a110b; --muted:#6b4f47; --border:#f4e2db;
+  --primary:#ea580c; --primary-2:#fb923c; --on-primary:#ffffff; --ok:#10b981; --on-ok:#0a1f16; --warn:#d97706; --danger:#dc2626; --on-danger:#ffffff;
+  --tint-8:rgba(234,88,12,.12); --tint-15:rgba(234,88,12,.22); --tint-25:rgba(234,88,12,.35);
+  --page-glow-a:rgba(234,88,12,.16); --page-glow-b:rgba(59,130,246,.14);
+}
+.theme-sand{ --bg:#fffaf0; --panel:#ffffff; --text:#1a1408; --muted:#6b6152; --border:#efe2c2;
+  --primary:#b45309; --primary-2:#d97706; --on-primary:#ffffff; --ok:#16a34a; --on-ok:#ffffff; --warn:#ca8a04; --danger:#dc2626; --on-danger:#ffffff;
+  --tint-8:rgba(180,83,9,.12); --tint-15:rgba(180,83,9,.22); --tint-25:rgba(180,83,9,.35);
+  --page-glow-a:rgba(180,83,9,.16); --page-glow-b:rgba(2,132,199,.12);
+}
+.theme-mono{ --bg:#0a0a0a; --panel:#121212; --text:#f5f5f5; --muted:#d4d4d4; --border:#27272a;
+  --primary:#ffffff; --primary-2:#f5f5f5; --on-primary:#0b0d10; --ok:#22c55e; --on-ok:#0a1f16; --warn:#fbbf24; --danger:#f87171; --on-danger:#0a0a0a;
+  --tint-8:rgba(255,255,255,.12); --tint-15:rgba(255,255,255,.22); --tint-25:rgba(255,255,255,.35);
+  --page-glow-a:rgba(255,255,255,.10); --page-glow-b:rgba(255,255,255,.08);
+}
+.theme-midnight{ --bg:#0b1220; --panel:#0f172a; --text:#e5e7eb; --muted:#9aa5b1; --border:#334155;
+  --primary:#60a5fa; --primary-2:#93c5fd; --on-primary:#0b1220; --ok:#34d399; --on-ok:#0b1220; --warn:#fbbf24; --danger:#f87171; --on-danger:#0b1220;
+  --tint-8:rgba(96,165,250,.12); --tint-15:rgba(96,165,250,.22); --tint-25:rgba(96,165,250,.35);
+  --page-glow-a:rgba(96,165,250,.16); --page-glow-b:rgba(34,197,94,.16);
+}
+
+/* ===== Global / reset ===== */
+a{ color:var(--primary); text-decoration:none }
+.font-small{ font-size:13px }
+.font-medium{ font-size:15px }
+.font-large{ font-size:17px }
+*{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+html,body{ margin:0; height:100%; background:var(--bg); color:var(--text);
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; -webkit-text-size-adjust:100%; }
+img{ max-width:100% }
+.hidden{ display:none !important; }
+
+/* ===== App shell ===== */
+.app{ display:grid; grid-template-columns:260px 1fr; min-height:100vh }
+
+/* Sidebar */
+.sidebar{
+  background:
+    radial-gradient(900px 240px at 10% -10%, rgba(255,255,255,.12), transparent 60%),
+    radial-gradient(900px 300px at 110% 0%, rgba(122,211,255,.18), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,.06), transparent 40%),
+    var(--panel);
+  border-right:1px solid var(--border);
+  position:sticky; top:0; height:100vh; display:flex; flex-direction:column;
+  z-index:20;
+}
+.brand{ display:flex; align-items:center; gap:10px; padding:14px 14px; border-bottom:1px solid var(--border) }
+.brand .logo img{ width:28px; height:28px }
+.brand .title{ font-weight:800 }
+
+.nav{ padding:8px }
+.nav .item{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; cursor:pointer; user-select:none }
+.nav .item:hover{ background:var(--tint-8) }
+.nav .item.active{ background:var(--tint-15); outline:1px dashed var(--tint-25) }
+.nav .item.hidden{ display:none }
+.nav .item i{ font-size:18px }
+
+.footer{ margin-top:auto; padding:10px 12px; border-top:1px solid var(--border) }
+
+/* Topbar */
+.topbar{
+  position:sticky; top:0; z-index:10;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.06), transparent 40%),
+    var(--panel);
+  border-bottom:1px solid var(--border);
+  padding: calc(10px + env(safe-area-inset-top)) 12px 10px 12px;
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+}
+.search-inline{ flex:1; display:flex; gap:8px; align-items:center; max-width:680px }
+.search-inline .input{ width:100% }
+
+/* Backdrop for mobile sidebar */
+#backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:19; display:none }
+#backdrop.active{ display:block }
+
+/* Page hero */
+.page-hero{ display:flex; align-items:center; gap:12px; padding:14px 16px;
+  background:
+    radial-gradient(800px 120px at 10% 0%, var(--page-glow-a), transparent 55%),
+    radial-gradient(900px 160px at 100% -10%, var(--page-glow-b), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,.04), transparent 60%); }
+.page-hero i{ font-size:22px; opacity:.9 }
+.page-hero .t{ font-weight:800 }
+.page-hero .s{ color:var(--muted); font-size:12px }
+
+/* Main content gutters */
+.main{
+  width: 100%;
+  padding: 0 20px 20px; /* 20px left/right on all pages */
+}
+
+/* Cards, buttons, inputs */
+.card{ background:var(--panel); border:1px solid var(--border); border-radius:16px; box-shadow:0 1px 0 rgba(0,0,0,.25) }
+.card.highlight{ outline:1px dashed var(--tint-25) }
+.card-body{ padding:12px 12px }
+.clickable{ cursor:pointer }
+
+.btn{ background:var(--primary); color:var(--on-primary); border:none; border-radius:12px; padding:8px 12px; font-weight:700; cursor:pointer }
+.btn:hover{ filter:brightness(1.05) }
+.btn.ghost{ background:transparent; color:var(--text); border:1px solid var(--border) }
+.btn.secondary{ background:var(--tint-15); color:var(--text) }
+.btn.ok{ background:var(--ok); color:var(--on-ok) }
+.btn.danger{ background:var(--danger); color:var(--on-danger) }
+
+.input, textarea.input, select.input{
+  background:transparent; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:8px 10px; outline:none;
+}
+.input:focus{ border-color:var(--primary) }
+
+.badge{ display:inline-flex; gap:6px; align-items:center; background:var(--tint-8); padding:4px 8px; border-radius:999px; font-size:12px }
+
+/* Tables */
+.table-wrap{ width:100%; overflow:auto }
+.table{ width:100%; border-collapse:collapse; font-size:14px }
+.table th,.table td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--border) }
+.table .num{ text-align:right }
+
+/* Grids */
+.grid{ display:grid; gap:10px }
+.grid.cols-2{ grid-template-columns:1fr 1fr }
+.grid.cols-3{ grid-template-columns:repeat(3,1fr) }
+.grid.cols-4{ grid-template-columns:repeat(4,1fr) }
+
+/* Lists */
+.list-tight{ margin:6px 0; padding-left:18px }
+.list-tight li{ margin:3px 0 }
+
+/* Notification */
+.notification{ position:fixed; bottom:16px; left:50%; transform:translateX(-50%) translateY(80px); background:var(--panel); color:var(--text);
+  border:1px solid var(--border); border-radius:12px; padding:8px 12px; box-shadow:0 10px 30px rgba(0,0,0,.35); opacity:0; transition:.25s; z-index:9999 }
+.notification.show{ opacity:1; transform:translateX(-50%) translateY(0) }
+.notification.ok{ border-color:var(--ok) }
+.notification.warn{ border-color:var(--warn) }
+.notification.danger{ border-color:var(--danger) }
+
+/* Modal */
+.modal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:100 }
+.modal.active{ display:flex }
+.modal .dialog{
+  width: min(1400px, 98vw);
+  max-height: 96vh;
+  background: var(--panel);            /* solid, readable */
+  box-shadow: 0 24px 60px rgba(0,0,0,.25);
+}
+.modal .head,.modal .foot{
+  position:sticky; z-index:2;          /* keep buttons visible */
+  background:linear-gradient(180deg, rgba(255,255,255,.06), transparent 60%), var(--panel);
+  padding:10px 12px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  top:0;
+}
+.modal .foot{ top:auto; bottom:0; border-top:1px solid var(--border); border-bottom:none }
+.modal .body{ padding:12px 12px; overflow:auto; max-height: calc(96vh - 92px); }
+
+.modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; z-index:99; pointer-events:none; }
+.modal.active + .modal-backdrop{ display:block; pointer-events:auto; }
+
+/* Search results popover */
+.search-results{ position:absolute; margin-top:36px; background:var(--panel); border:1px solid var(--border); border-radius:12px; width:100%; max-width:680px; display:none; max-height:300px; overflow:auto; }
+.search-results.active{ display:block }
+.search-results .row{ padding:8px 10px; cursor:pointer; display:flex; gap:8px; align-items:center }
+.search-results .row:hover{ background:var(--tint-8) }
+
+/* Login */
+.login-wrap{ display:grid; place-items:center; min-height:80vh; padding:16px }
+.login-card{ width:min(420px, 95vw) }
+
+/* Course modals */
+.course-full{
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.course-cover-thumb{
+  width: 100%;
+  height: clamp(220px, 30vh, 320px);
+  object-fit: contain;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+/* Progress header */
+.course-progress{ position:sticky; top:0; z-index:2; background:linear-gradient(180deg, rgba(255,255,255,.06), transparent 60%), var(--panel); border:1px solid var(--border); padding:10px; border-radius:12px; margin-bottom:10px }
+.progress-bar{ height:10px; background:rgba(255,255,255,.06); border:1px solid var(--border); border-radius:999px; overflow:hidden }
+.progress-bar span{ display:block; height:100%; background:linear-gradient(90deg, var(--primary), var(--primary-2)); }
+.progress-stats{ display:flex; gap:12px; justify-content:space-between; margin-top:8px; font-size:13px; color:var(--muted) }
+
+/* PayPal area */
+.paypal-zone{ margin-top:10px }
+.paypal-zone.hidden{ display:none }
+#paypal-buttons{ min-height: 46px }   /* prevents “nothing appears” while SDK mounts */
+
+/* ---------- Courses grid ---------- */
+.courses-grid,
+.my-learning-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+  width: 100%;
+  padding: 12px;
+}
+
+/* ---------- Embossed course cards ---------- */
+/* ---------- Embossed course cards (polished) ---------- */
+.course-card{
+  position: relative;
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.35), 0 2px 0 rgba(255,255,255,.05) inset;
+  overflow: hidden;
+  backdrop-filter: blur(1.5px);
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease, outline-color .18s ease;
+}
+.course-card::before{
+  content:"";
+  position:absolute; inset:0;
+  background:
+    radial-gradient(600px 120px at -10% -10%, var(--tint-15), transparent 60%),
+    radial-gradient(600px 120px at 110% -10%, var(--tint-8), transparent 60%);
+  opacity:.55; pointer-events:none;
+}
+.course-card:hover{
+  outline:1px dashed var(--tint-25);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 40px rgba(0,0,0,.45);
+}
+.course-card > *{ position: relative; z-index: 1; }
+
+/* ---------- FIXED image area: support .img (alias) & .top-media ---------- */
+.course-card .img,
+.course-card .top-media{
+  display: grid;
+  place-items: center;
+  height: 160px;               /* fixed across all cards */
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.04), transparent);
+}
+.course-card .img img,
+.course-card .top-media img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;          /* full image (no crop) */
+  object-position: center;
+  filter: var(--card-img-filter, none);
+  background: rgba(0,0,0,.2);
+}
+
+/* ---------- Card body ---------- */
+.course-card .card-body{ display:flex; flex-direction:column; gap:6px; height:100% }
+
+/* ---------- Clamp / toggle ---------- */
+.short{ display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.short-wrap .short.clamp{ -webkit-line-clamp: 3; }
+.short-toggle{ border:none; background:transparent; color:var(--primary); cursor:pointer; padding:0; font-weight:700; font-size:12px }
+
+/* Tasks lanes */
+.lane-row.highlight{ outline:1px dashed var(--tint-25) }
+.lane-grid{ grid-template-columns:1fr 1fr }
+
+/* Details sections */
+.section-box h4{ margin:0 0 6px 0 }
+.lesson-check{ display:flex; gap:8px; align-items:center; padding:4px 0 }
+
+/* Responsive */
+@media (max-width: 960px){
+  .grid.cols-4{ grid-template-columns:1fr 1fr }
+  .grid.cols-3{ grid-template-columns:1fr 1fr }
+  .course-full{ grid-template-columns:1fr }
+}
+@media (max-width: 640px){
+  .app{ grid-template-columns:1fr }
+  .sidebar{ position:fixed; left:0; top:0; transform:translateX(-100%); transition:.2s; width:260px }
+  .sidebar-open .sidebar{ transform:translateX(0) }
+  #backdrop{ display:block; opacity:0; pointer-events:none }
+  .sidebar-open #backdrop{ opacity:1; pointer-events:auto }
+  .grid.cols-4{ grid-template-columns:1fr !important }
+  .grid.cols-3{ grid-template-columns:1fr !important }
+  .grid.cols-2{ grid-template-columns:1fr !important }
+  .lane-grid{ grid-template-columns:1fr }
+}
+
+/* ---------- Page background ---------- */
+body.theme-sunrise{
+  --bg:#0b0d10;
+  --card:rgba(255,255,255,.06);
+  --border:rgba(255,255,255,.12);
+  --muted:rgba(255,255,255,.6);
+  background:
+    radial-gradient(900px 480px at -10% -10%, rgba(255,186,90,.12), transparent 60%),
+    radial-gradient(900px 520px at 110% 20%, rgba(102,153,255,.12), transparent 60%),
+    linear-gradient(180deg, #0b0d10, #0a0d11 40%, #0b0d10);
+  color: #eef1f4;
+}
+body.theme-sunrise::after{
+  content:"";
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    radial-gradient(circle at 25% 8%, rgba(255,255,255,.06), transparent 35%),
+    radial-gradient(circle at 78% 92%, rgba(255,255,255,.05), transparent 40%),
+    linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 24px 24px, 24px 24px;
+  mix-blend-mode: overlay;
+}
+.main{ position: relative; z-index: 1; }
+
+/* ---------- Contact page ---------- */
+.contact-grid{ display:grid; grid-template-columns:1.3fr .7fr; gap:14px }
+@media (max-width: 840px){ .contact-grid{ grid-template-columns:1fr } }
+.contact-aside .tip{ background:var(--tint-8); border:1px dashed var(--border); padding:10px; border-radius:12px }
+
+#m-modal.sheet-mode .dialog{ transform: translateX(24px); }
+#m-modal.active.sheet-mode .dialog{ transform: translateX(0); }
+
+/* ===== Overlay Sidebar + Full-Width Content (no content shift) ===== */
+:root{
+  --sb-collapsed: 80px;   /* collapsed width (icons only) */
+  --sb-expanded: 260px;   /* expanded width on hover */
+}
+
+/* Desktop & tablet overlay behavior */
+@media (min-width: 768px){
+  /* Stop reserving a grid column; let content be full width */
+  .app{ display: block; min-height: 100vh; }
+
+  /* Collapsed, fixed sidebar that overlays content on hover */
+  .sidebar{
+    position: fixed; left: 0; top: 0;
+    height: 100vh;
+    width: var(--sb-collapsed);
+    overflow: hidden;
+    transition: width .22s ease;
+    z-index: 20;
+  }
+  .sidebar:hover{ width: var(--sb-expanded); }
+
+  /* Hide text labels when collapsed */
+  .sidebar:not(:hover) .brand .title,
+  .sidebar:not(:hover) .nav .item span,
+  .sidebar:not(:hover) .footer{
+    opacity: 0; pointer-events: none;
+  }
+  .sidebar .brand .title,
+  .sidebar .nav .item span,
+  .sidebar .footer{ transition: opacity .18s ease; }
+
+  /* Center icons when collapsed */
+  .sidebar:not(:hover) .nav .item{ justify-content: center; }
+
+  /* NEW wrapper that holds topbar + hero + main (see JS edit below) */
+  .shell{
+    box-sizing: border-box;
+    margin-left: var(--sb-collapsed);
+    width: calc(100% - var(--sb-collapsed));
+    min-width: 0;               /* prevents weird shrink in some browsers */
+    transition: margin-left .22s ease, width .22s ease;
+  }
+
+  .topbar, .page-hero, .main{
+    width: 100%;
+    max-width: none;
+  }
+}
+
+/* Mobile stays off-canvas (as you already had) */
+@media (max-width: 767.98px){
+  .shell{ margin-left: 0; width: 100%; }
+}
+
+/* Ensure main pane really uses full width area */
+.main{ width: 100%; max-width: none; }
+
+/* ===== Buttons: consistent sizing, focus ring, better hover ===== */
+.btn{
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 40px; padding: 0 14px;
+  border-radius: 12px;
+  font-weight: 700; line-height: 1;
+  transition: filter .15s ease, transform .02s ease;
+}
+.btn i{ font-size: 18px; line-height: 0; }
+.btn:hover{ filter: brightness(1.06); }
+.btn:active{ transform: translateY(1px); }
+.btn:disabled, .btn[disabled]{ opacity: .6; cursor: not-allowed; }
+.btn:focus-visible{
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Ghost/secondary polish on any background */
+.btn.ghost{ background: transparent; color: var(--text); border:1px solid var(--border); }
+.btn.ghost:hover{ background: rgba(255,255,255,.05); }
+.btn.secondary{ background: var(--tint-15); color: var(--text); }
+
+/* Ensure all inline button groups wrap nicely on small screens */
+.card .actions, .meta, .search-inline{ flex-wrap: wrap; }
+
+/* ===== Courses + My Learning: force 3 / 2 / 1 columns ===== */
+/* Courses + My Learning — 4 / 3 / 2 / 1 columns */
+/* Responsive: Courses / My Learning grids */
+[data-sec="courses"].grid,
+#main .grid:has(.card.course-card) {
+  display:grid;
+  gap:18px;
+  grid-template-columns: repeat(4, minmax(0,1fr));          /* ≥1440px */
+}
+@media (max-width: 1439px){
+  [data-sec="courses"].grid,
+  #main .grid:has(.card.course-card) {
+    grid-template-columns: repeat(3, minmax(0,1fr));        /* ≥1024px */
+  }
+}
+@media (max-width: 1023px){
+  [data-sec="courses"].grid,
+  #main .grid:has(.card.course-card) {
+    grid-template-columns: repeat(2, minmax(0,1fr));        /* ≥768px */
+  }
+}
+@media (max-width: 767px){
+  [data-sec="courses"].grid,
+  #main .grid:has(.card.course-card) {
+    grid-template-columns: 1fr;                             /* <768px */
+  }
+}
+
+/* ===== Card images: never crop; keep the letterbox bg ===== */
+.card.course-card .img{ height: 200px; background: #f0f2f5; display:flex; align-items:center; justify-content:center; }
+.card.course-card .img img{ width: 100%; height: 100%; object-fit: contain; }
+
+/* ===== Make modals solid/opaque for readability (no transparency) ===== */
+.modal .dialog{
+  background: var(--panel) !important;
+  box-shadow: 0 24px 60px rgba(0,0,0,.28);
+  backdrop-filter: none !important;
+}
+.modal .head, .modal .body, .modal .foot{ background: transparent !important; }
+
+/* ===== Sidebar icon centering — collapsed vs expanded ===== */
+@media (min-width: 768px){
+  /* Make sure the sidebar box model is predictable */
+  .sidebar{ box-sizing: border-box; }
+
+  /* Size/align the icon itself */
+  .sidebar .nav .item i{
+    font-size: 20px;               /* clearly visible */
+    width: 28px; min-width: 28px;  /* fixed icon box */
+    text-align: center; line-height: 1;
+  }
+
+  /* Collapsed (default) — center icons, hide labels, remove extra spacing */
+  .sidebar:not(:hover) .brand{
+    justify-content: center;
+    padding: 14px 0;               /* no side padding so logo centers */
+  }
+  .sidebar:not(:hover) .nav{ padding: 8px 0; }
+  .sidebar:not(:hover) .nav .item{
+    justify-content: center;       /* center icon row */
+    gap: 0;                        /* no gap if label is hidden */
+    padding: 12px 0;               /* symmetrical padding */
+  }
+  .sidebar:not(:hover) .nav .item span{ display: none; } /* fully remove labels from layout */
+  .sidebar:not(:hover) .footer{ display: none; }         /* optional: hide footer in collapsed */
+
+  /* Expanded (hover) — restore normal spacing & left alignment */
+  .sidebar:hover .nav .item{
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .sidebar:hover .brand{
+    justify-content: flex-start;
+    padding: 14px 14px;
+  }
+}
+
+/* === Modal centering + readable width (fix “sinks to the left”) === */
+.modal{
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center !important;     /* hard center vertically */
+  justify-content: center !important; /* hard center horizontally */
+}
+.modal.active{ display: flex; }
+
+/* Keep 20px gutters on both sides and auto-center the dialog */
+.modal .dialog{
+  box-sizing: border-box;
+  margin: 10px auto !important;
+  width: min(1200px, calc(100vw - 40px)) !important; /* 20px L/R gutters */
+  max-height: 96vh;
+  border-radius: 14px;
+}
+
+/* If “sheet-mode” is ever used, still keep it readable & aligned */
+#m-modal.sheet-mode{
+  justify-content: flex-end !important; /* sheet slides from right */
+}
+#m-modal.sheet-mode .dialog{
+  width: min(860px, calc(100vw - 20px)) !important;
+  height: 100vh;
+  border-radius: 0;
+}
+
+/* Ensure course detail content never feels stuck to one side */
+#mm-body{
+  padding: 12px;
+}
+
+/* Anchor the right column so the modal can sit inside it */
+.content-col { position: relative; min-width: 0; }
+
+/* Main content gutters (20px left/right on every page) */
+.main { width: 100%; padding: 0 20px 20px; }
+
+/* In-pane modal (fills only the content column) */
+#content-col .modal {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;                /* above content, below topmost UI */
+}
+#content-col .modal.active { display: flex; }
+
+/* Backdrop sits only over the content column, not the whole app */
+#content-col .modal-backdrop { display: none; }
+#content-col .modal.active + .modal-backdrop {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: rgba(0,0,0,.35);
+  z-index: 39;
+}
+
+/* Dialog: solid, readable, buttons always visible */
+#content-col .modal .dialog {
+  box-sizing: border-box;
+  width: min(1200px, calc(100% - 40px));      /* 20px side gutters */
+  max-height: min(96vh, calc(100% - 40px));
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header / footer stick and remain clickable above content */
+#content-col .modal .head,
+#content-col .modal .foot {
+  position: sticky;
+  z-index: 2;                 /* keeps buttons above scroll area */
+  background: var(--panel);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+#content-col .modal .foot {
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+  bottom: 0;
+}
+
+/* Scroll only the body; don’t let long content hide buttons */
+#content-col .modal .body {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 12px;
+}
+
+/* Ensure all modal buttons are visible/contrasty */
+#content-col .modal .btn { filter: none; opacity: 1; }
+#content-col .modal .btn.ghost { color: var(--text); border: 1px solid var(--border); }
+
+/* Make course cover in detail readable & uncropped */
+.course-cover-thumb {
+  object-fit: contain;                 /* never crop */
+  background: rgba(255,255,255,.05);   /* letterbox for odd ratios */
+  border: 1px solid var(--border);
+}
+
+/* (Optional) If you previously set a full-screen modal elsewhere, this overrides it */
+.modal { pointer-events: auto; }        /* ensure inner clicks work */
+
+/* ---- Course detail theming (applied to #main) ---- */
+#main.bg-grad-1 { background-image: linear-gradient(to top right, #d4fc79, #96e6a1); }
+#main.bg-grad-2 { background-image: linear-gradient(to top right, #a1c4fd, #c2e9fb); }
+#main.bg-grad-3 { background-image: linear-gradient(to top right, #fbc2eb, #a6c1ee); }
+#main.bg-grad-4 { background-image: linear-gradient(to top right, #ffecd2, #fcb69f); }
+#main.bg-grad-5 { background-image: linear-gradient(to top right, #e0c3fc, #8ec5fc); }
+#main.bg-grad-6 { background-image: linear-gradient(to top right, #fdfbfb, #ebedee); }
+#main[class^="bg-grad-"], #main[class*=" bg-grad-"] {
+  background-attachment: fixed;
+}
+
+/* Keep your global main padding (requested 20px gutters already present) */
+.main { padding: 0 20px 20px; }
+
+/* ---- Detail page sticky action bar ---- */
+.detail-actions {
+  position: sticky;
+  bottom: 14px;               /* floats near bottom while scrolling */
+  z-index: 5;
+}
+.detail-actions .detail-actions-inner {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.25);
+}
+
+/* Make outline/quizzes sections pleasant */
+.section-box h4 { margin: 0 0 6px 0; }
+
+/* ---- Light content pane (keeps dark shell for body/sidebar) ---- */
+.main.light-pane {
+  background: #ffffff;
+  /* Re-scope design tokens only inside the content area */
+  --panel: #ffffff;
+  --text: #0b1220;        /* deep navy for strong readability */
+  --muted: #475569;       /* slate-600 */
+  --border: #e5eaf0;      /* soft light border */
+  --tint-8:  rgba(59,130,246,.12);
+  --tint-15: rgba(59,130,246,.22);
+  --tint-25: rgba(59,130,246,.35);
+}
+
+/* Ensure common components adopt light look inside the pane */
+.main.light-pane .card {
+  background: var(--panel);
+  color: var(--text);
+  border-color: var(--border);
+}
+.main.light-pane .muted { color: var(--muted); }
+.main.light-pane .badge { border-color: var(--border); }
+
+.main.light-pane .input,
+.main.light-pane textarea.input,
+.main.light-pane select.input {
+  background: #ffffff;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.main.light-pane .btn.ghost {
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/* Optional: slightly soften the page hero when inside the light pane */
+.main.light-pane .page-hero {
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.02), transparent 60%),
+    var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Keep the gutters you asked for earlier */
+.main { padding: 0 20px 20px; }
+
+/* Modal footer always visible & padded */
+.modal .foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* Pretty profile card modal */
+.profile-card-modal{
+  background: linear-gradient(135deg,#f8fafc,#eef2ff);
+  color:#0b1220;
+  border:1px solid #e5eaf0;
+  border-radius: 14px;
+  padding: 14px;
+}
+.profile-card-modal .pcm-header{ display:flex; gap:14px; align-items:center; }
+.profile-card-modal .pcm-avatar{
+  width: 84px; height: 84px; border-radius: 50%;
+  object-fit: cover; border: 1px solid #e5eaf0;
+  background: #fff;
+}
+.profile-card-modal .pcm-name{ font-weight: 800; font-size: 18px; line-height: 1.2; }
+.profile-card-modal .pcm-section{ margin-top: 10px; }
+.profile-card-modal .pcm-label{ font-size: 12px; color:#475569; margin-bottom: 4px; text-transform: uppercase; letter-spacing:.02em; }
+.profile-card-modal .pcm-bio{ white-space: pre-wrap; line-height: 1.5; }
+.profile-card-modal .pcm-signature{ max-height: 64px; filter: contrast(1.15); }
+
+/* Light content page card feel (dark shell stays) */
+.main.light-content {
+  background:#ffffff;
+  color:#0b1220;
+  padding: 0 20px 20px;  /* even spacing left/right globally as requested */
+}
+.main.light-content .card {
+  background:#ffffff;
+  color:#0b1220;
+  border-color:#e5eaf0;
+}
+.main.light-content .muted { color:#475569; }
+
+.btn.back{
+  display:inline-flex; align-items:center; gap:6px;
+  border:1px solid var(--border,#d1d8e5); background:#fff; color:#0b1220;
+  padding:6px 10px; border-radius:10px; font-weight:600;
+}
+#cd-back{ border:1px solid var(--border,#d1d8e5)!important; background:#fff!important; color:#0b1220!important; }
