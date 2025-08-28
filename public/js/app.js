@@ -3073,4 +3073,4 @@ auth.onAuthStateChanged(async (user) => {
     }
     alert('Demo courses added');
   };
-}})();
+})();
