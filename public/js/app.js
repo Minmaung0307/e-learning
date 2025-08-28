@@ -2729,27 +2729,29 @@
 
       $("#mm-title").textContent = "Edit Final";
       $("#mm-body").innerHTML = `
-    <div class="grid">
-      <input id="q-title" class="input" value="${(q.title || "").replace(
-        /"/g,
-        "&quot;"
-      )}"/>
-      <input id="q-pass" class="input" type="number" value="${
-        q.passScore || 70
-      }"/>
-      <textarea id="q-json" class="input">${JSON.stringify(
-        q.items || [],
-        null,
-        2
-      )}</textarea>
-    </div>`;
+  <div class="grid">
+    <input id="q-title" class="input" value="${(q.title || "").replace(
+      /"/g,
+      "&quot;"
+    )}"/>
+    <input id="q-pass" class="input" type="number" value="${
+      q.passScore || 70
+    }"/>
+    <textarea id="q-json" class="input">${JSON.stringify(
+      q.items || [],
+      null,
+      2
+    )}</textarea>
+  </div>`;
       $(
         "#mm-foot"
       ).innerHTML = `<button class="btn" id="q-save"><i class="ri-save-3-line"></i> Save</button><button class="btn ghost" id="q-cancel">Back</button>`;
       openModal("m-modal");
 
       on($("#q-cancel"), "click", () => closeModal("m-modal"));
-      on($("#q-save"), "click", async () => {
+
+      const btnSave = $("#q-save");
+      on(btnSave, "click", async () => {
         const t = $("#q-title")?.value.trim();
         const pass = +($("#q-pass")?.value || 70);
         if (!t) return notify("Title required", "warn");
@@ -2760,18 +2762,21 @@
           return notify("Invalid JSON", "danger");
         }
 
-        await doc("quizzes", id).set(
-          clean({
-            title: t,
-            passScore: pass,
-            items,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          }),
-          { merge: true }
+        await safeWrite(
+          btnSave,
+          async () => {
+            await doc("quizzes", id).set(
+              clean({
+                title: t,
+                passScore: pass,
+                items,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+              }),
+              { merge: true }
+            );
+          },
+          { ok: "Final updated", closeFirst: true }
         );
-
-        closeModal("m-modal");
-        notify("Final updated");
       });
     });
   }
@@ -3059,21 +3064,15 @@
 
       const saveBtn = $("#t-save");
       on(saveBtn, "click", async () => {
-        try {
-          saveBtn.disabled = true;
-          saveBtn.textContent = "Saving…";
-          await doc("tasks", taskId).set(
-            { title: $("#t-title")?.value.trim() },
-            { merge: true }
-          );
-          closeModal("m-modal");
-          notify("Saved");
-        } catch (e) {
-          notify(e?.message || "Failed to save", "danger");
-        } finally {
-          saveBtn.disabled = false;
-          saveBtn.textContent = "Save";
-        }
+        const title = $("#t-title")?.value.trim();
+        if (!title) return notify("Enter a title", "warn");
+        await safeWrite(
+          saveBtn,
+          async () => {
+            await doc("tasks", taskId).set({ title }, { merge: true });
+          },
+          { ok: "Saved", closeFirst: true }
+        );
       });
     });
   }
@@ -3261,40 +3260,46 @@
       }
     });
 
-    // VIEW card (modal) — all wired via safe on()
-    on($("#pf-view"), "click", () => {
-      const me =
-        state.profiles.find((p) => p.uid === auth.currentUser?.uid) || {};
+    // VIEW card (modal) — fetch fresh profile so avatar/signature show right away
+    on($("#pf-view"), "click", async () => {
+      const uid = auth.currentUser?.uid;
+      let me = state.profiles.find((p) => p.uid === uid) || {};
+      try {
+        const snap = await doc("profiles", uid).get();
+        if (snap.exists) me = { id: snap.id, ...snap.data() };
+      } catch (_) {}
+
       $("#mm-title").textContent = "Profile Card";
       $("#mm-body").innerHTML = `
-      <div style="background:linear-gradient(135deg,#f8fafc,#eef2ff);color:#0b1220;border:1px solid var(--border);
-                  border-radius:14px;padding:16px;display:grid;gap:12px">
-        <div style="display:flex;gap:12px;align-items:center">
-          <img src="${me.avatar || "/icons/learnhub-cap.svg"}" alt="avatar"
-               style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:1px solid var(--border);background:#fff"/>
-          <div>
-            <div style="font-weight:800;font-size:18px">${
-              me.name || me.email || "—"
-            }</div>
-            <div class="muted" style="color:#334155">${me.email || ""}</div>
-          </div>
+    <div style="background:linear-gradient(135deg,#f8fafc,#eef2ff);color:#0b1220;border:1px solid var(--border);
+                border-radius:14px;padding:16px;display:grid;gap:12px">
+      <div style="display:flex;gap:12px;align-items:center">
+        <img src="${me.avatar || "/icons/learnhub-cap.svg"}" alt="avatar"
+             style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:1px solid var(--border);background:#fff"/>
+        <div>
+          <div style="font-weight:800;font-size:18px">${
+            me.name || me.email || "—"
+          }</div>
+          <div class="muted" style="color:#334155">${me.email || ""}</div>
         </div>
-        <div style="white-space:pre-wrap; line-height:1.5">${(
-          me.bio || ""
-        ).replace(/</g, "&lt;")}</div>
-        ${
-          me.signature
-            ? `
-          <div>
-            <div class="muted" style="color:#475569;margin-bottom:4px">Signature</div>
-            <img src="${me.signature}" alt="signature" style="max-height:60px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px">
-          </div>`
-            : ""
-        }
-      </div>`;
-      $("#mm-foot").innerHTML = `<button class="btn" id="mm-ok">Close</button>`;
+      </div>
+      <div style="white-space:pre-wrap; line-height:1.5">${(
+        me.bio || ""
+      ).replace(/</g, "&lt;")}</div>
+      ${
+        me.signature
+          ? `<div>
+               <div class="muted" style="color:#475569;margin-bottom:4px">Signature</div>
+               <img src="${me.signature}" alt="signature" style="max-height:60px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px">
+             </div>`
+          : ""
+      }
+    </div>`;
+      $(
+        "#mm-foot"
+      ).innerHTML = `<button class="btn" id="mm-close-card">Close</button>`;
       openModal("m-modal");
-      on($("#mm-ok"), "click", () => closeModal("m-modal"));
+      on($("#mm-close-card"), "click", () => closeModal("m-modal"));
     });
 
     // Certificate button (unchanged)
@@ -3349,27 +3354,33 @@
         const p = { id: snap.id, ...snap.data() };
         $("#mm-title").textContent = "Edit Profile (admin)";
         $("#mm-body").innerHTML = `<div class="grid">
-          <input id="ap-name" class="input" value="${p.name || ""}"/>
-          <input id="ap-portfolio" class="input" value="${p.portfolio || ""}"/>
-          <textarea id="ap-bio" class="input">${p.bio || ""}</textarea>
-        </div>`;
+    <input id="ap-name" class="input" value="${p.name || ""}"/>
+    <input id="ap-portfolio" class="input" value="${p.portfolio || ""}"/>
+    <textarea id="ap-bio" class="input">${p.bio || ""}</textarea>
+  </div>`;
         $(
           "#mm-foot"
         ).innerHTML = `<button class="btn" id="ap-save">Save</button>`;
         openModal("m-modal");
-        $("#ap-save").onclick = async () => {
-          await doc("profiles", uid).set(
-            {
-              name: $("#ap-name")?.value.trim(),
-              portfolio: $("#ap-portfolio")?.value.trim(),
-              bio: $("#ap-bio")?.value.trim(),
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+
+        const adminSave = $("#ap-save");
+        on(adminSave, "click", async () => {
+          await safeWrite(
+            adminSave,
+            async () => {
+              await doc("profiles", uid).set(
+                {
+                  name: $("#ap-name")?.value.trim(),
+                  portfolio: $("#ap-portfolio")?.value.trim(),
+                  bio: $("#ap-bio")?.value.trim(),
+                  updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
             },
-            { merge: true }
+            { ok: "Saved", closeFirst: true }
           );
-          closeModal("m-modal");
-          notify("Saved");
-        };
+        });
       }
       if (del) {
         const uid = del.getAttribute("data-admin-del");
@@ -3509,12 +3520,12 @@
 
         $("#mm-title").textContent = "Edit Announcement";
         $("#mm-body").innerHTML = `<div class="grid">
-        <input id="an-title" class="input" value="${(a.title || "").replace(
-          /"/g,
-          "&quot;"
-        )}"/>
-        <textarea id="an-body" class="input">${a.body || ""}</textarea>
-      </div>`;
+      <input id="an-title" class="input" value="${(a.title || "").replace(
+        /"/g,
+        "&quot;"
+      )}"/>
+      <textarea id="an-body" class="input">${a.body || ""}</textarea>
+    </div>`;
         $(
           "#mm-foot"
         ).innerHTML = `<button class="btn" id="an-save">Save</button>`;
@@ -3522,25 +3533,20 @@
 
         const saveBtn = $("#an-save");
         on(saveBtn, "click", async () => {
-          try {
-            saveBtn.disabled = true;
-            saveBtn.textContent = "Saving…";
-            await doc("announcements", annId).set(
-              {
-                title: $("#an-title")?.value.trim(),
-                body: $("#an-body")?.value.trim(),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-            closeModal("m-modal");
-            notify("Saved");
-          } catch (e) {
-            notify(e?.message || "Save failed", "danger");
-          } finally {
-            saveBtn.disabled = false;
-            saveBtn.textContent = "Save";
-          }
+          await safeWrite(
+            saveBtn,
+            async () => {
+              await doc("announcements", annId).set(
+                {
+                  title: $("#an-title")?.value.trim(),
+                  body: $("#an-body")?.value.trim(),
+                  updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+            },
+            { ok: "Saved", closeFirst: true }
+          );
         });
       }
 
