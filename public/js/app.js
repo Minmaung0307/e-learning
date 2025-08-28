@@ -1905,54 +1905,53 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
 
   // ---- Tasks
   function wireTasks() {
-    const root = $('[data-sec="tasks"]'); if (!root) return;
+  const sec = $('[data-sec="tasks"]'); if (!sec || sec.__wired) return; sec.__wired = true;
 
-    $('#addTask')?.addEventListener('click', () => {
-      $('#mm-title').textContent = 'Task';
-      $('#mm-body').innerHTML = `<div class="grid"><input id="t-title" class="input" placeholder="Title"/></div>`;
-      $('#mm-foot').innerHTML = `<button class="btn" id="t-save">Save</button>`; openModal('m-modal');
-      $('#t-save').onclick = async () => {
-        const t = $('#t-title')?.value.trim(); if (!t) return notify('Title required', 'warn');
-        await col('tasks').add({ uid: auth.currentUser.uid, title: t, status: 'todo', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-        closeModal('m-modal'); notify('Saved');
-      };
-    });
+  // Add Task
+  delegate(sec, '#addTask', 'click', async () => {
+    $('#mm-title').textContent = 'New Task';
+    $('#mm-body').innerHTML = `
+      <div class="grid">
+        <input id="t-title" class="input" placeholder="Task title"/>
+      </div>`;
+    $('#mm-foot').innerHTML = `<button class="btn" id="t-save">Save</button>`;
+    openModal('m-modal');
 
-    root.addEventListener('click', async (e) => {
-      const btn = e.target.closest?.('button'); if (!btn) return;
-      const id = btn.getAttribute('data-edit') || btn.getAttribute('data-del'); if (!id) return;
-      if (btn.hasAttribute('data-edit')) {
-        const snap = await doc('tasks', id).get(); if (!snap.exists) return;
-        const t = { id: snap.id, ...snap.data() };
-        $('#mm-title').textContent = 'Edit Task';
-        $('#mm-body').innerHTML = `<div class="grid">
-          <input id="t-title" class="input" value="${t.title || ''}"/>
-          <select id="t-status" class="input">${['todo', 'inprogress', 'done'].map(x => `<option ${t.status === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
-        </div>`;
-        $('#mm-foot').innerHTML = `<button class="btn" id="t-save">Save</button>`; openModal('m-modal');
-        $('#t-save').onclick = async () => {
-          await doc('tasks', id).set({ title: $('#t-title')?.value.trim(), status: $('#t-status')?.value || 'todo', updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-          closeModal('m-modal'); notify('Saved');
-        };
-      } else {
-        await doc('tasks', id).delete(); notify('Deleted');
-      }
-    });
-
-    root.querySelectorAll('.task-card').forEach(card => {
-      card.setAttribute('draggable', 'true'); card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', card.getAttribute('data-task')); card.classList.add('dragging'); });
-      card.addEventListener('dragend', () => card.classList.remove('dragging'));
-    });
-    root.querySelectorAll('.lane-grid').forEach(grid => {
-      const row = grid.closest('.lane-row'); const lane = row?.getAttribute('data-lane');
-      const show = e => { e.preventDefault(); row?.classList.add('highlight'); };
-      const hide = () => row?.classList.remove('highlight');
-      grid.addEventListener('dragenter', show); grid.addEventListener('dragover', show); grid.addEventListener('dragleave', hide);
-      grid.addEventListener('drop', async (e) => { e.preventDefault(); hide(); const id = e.dataTransfer.getData('text/plain'); if (!id) return;
-        await doc('tasks', id).set({ status: lane, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    on($('#t-save'), 'click', async () => {
+      const title = $('#t-title')?.value.trim();
+      if (!title) return notify('Enter a title', 'warn');
+      await col('tasks').add({
+        uid: auth.currentUser.uid,
+        title,
+        status: 'todo',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
+      closeModal('m-modal'); notify('Task added');
     });
-  }
+  });
+
+  // Delete
+  delegate(sec, '[data-del]', 'click', async (_e, btn) => {
+    const id = btn.getAttribute('data-del');
+    await doc('tasks', id).delete();
+    notify('Deleted');
+  });
+
+  // Edit
+  delegate(sec, '[data-edit]', 'click', async (_e, btn) => {
+    const id = btn.getAttribute('data-edit');
+    const snap = await doc('tasks', id).get(); if (!snap.exists) return;
+    const t = { id: snap.id, ...snap.data() };
+    $('#mm-title').textContent = 'Edit Task';
+    $('#mm-body').innerHTML = `<input id="t-title" class="input" value="${t.title || ''}"/>`;
+    $('#mm-foot').innerHTML = `<button class="btn" id="t-save">Save</button>`;
+    openModal('m-modal');
+    on($('#t-save'), 'click', async () => {
+      await doc('tasks', id).set({ title: $('#t-title').value }, { merge: true });
+      closeModal('m-modal'); notify('Saved');
+    });
+  });
+}
 
   function renderCertificatePNG({ name, courseTitle, dateText, certId, logoUrl }) {
   // US Letter 8.5x11 at 300dpi = 2550x3300
