@@ -61,19 +61,19 @@
     unsub: [],
     _unsubChat: null,
     currentCourseId: null,
-detailPrevRoute: 'courses',
-// mainThemeClass: '',
+detailPrevRoute: 'null',
+mainThemeClass: '',
   };
 
    // ---- Utils & Stability Wrappers ----
-//   const $ = (s, r = document) => {
-//   if ((s === '#mm-title' || s === '#mm-body' || s === '#mm-foot' || s === '#m-modal') && !document.getElementById('m-modal')) {
-//     // don’t use $ inside ensureModalDOM to avoid loops
-//     ensureModalDOM();
-//   }
-//   return r.querySelector(s);
-// }; 
- const $ = (s, r = document) => r.querySelector(s);
+  const $ = (s, r = document) => {
+  if ((s === '#mm-title' || s === '#mm-body' || s === '#mm-foot' || s === '#m-modal') && !document.getElementById('m-modal')) {
+    // don’t use $ inside ensureModalDOM to avoid loops
+    ensureModalDOM();
+  }
+  return r.querySelector(s);
+}; 
+//  const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const notify = (msg, type = 'ok') => {
     const n = $('#notification');
