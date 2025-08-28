@@ -66,7 +66,13 @@ mainThemeClass: '',
   };
 
   // ---- Utils ----
-  const $ = (s, r = document) => r.querySelector(s);
+  const $ = (s, r = document) => {
+  if ((s === '#mm-title' || s === '#mm-body' || s === '#mm-foot' || s === '#m-modal') && !document.getElementById('m-modal')) {
+    // don’t use $ inside ensureModalDOM to avoid loops
+    ensureModalDOM();
+  }
+  return r.querySelector(s);
+};
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const notify = (msg, type = 'ok') => {
     const n = $('#notification');
@@ -438,6 +444,29 @@ function closeModal(id) {
 }
 const closeSidebar = () => { document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
 
+// Ensure modal DOM exists (defensive)
+function ensureModalDOM() {
+  if (document.getElementById('m-modal')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <div class="modal" id="m-modal"><div class="dialog">
+      <div class="head"><strong id="mm-title">Modal</strong><button class="btn ghost" id="mm-close">Close</button></div>
+      <div class="body" id="mm-body"></div>
+      <div class="foot" id="mm-foot"></div>
+    </div></div><div class="modal-backdrop"></div>`;
+  // append both siblings in correct order
+  const frag = document.createDocumentFragment();
+  frag.appendChild(wrap.firstElementChild);
+  frag.appendChild(wrap.lastChild);
+  document.body.appendChild(frag);
+  // wire the close button safely
+  document.getElementById('mm-close')?.addEventListener('click', safe(() => closeModal('m-modal')));
+}
+
+// Call the guard inside openModal so every open is safe
+const _openModal = openModal;
+openModal = function(id) { ensureModalDOM(); _openModal(id); };
+
   // ---- Router / Layout ----
   const routes = ['dashboard','courses','course-detail','learning','assessments','chat','tasks','profile','admin','guide','settings','search','contact'];
   function go(route) {
@@ -452,17 +481,70 @@ const closeSidebar = () => { document.body.classList.remove('sidebar-open'); $('
   const hero = heroForRoute(state.route);
   const lightRoutes = new Set(['courses','learning','course-detail']);
   const mainClass = lightRoutes.has(state.route) ? 'main light-content' : 'main';
+
   return `
     <div class="app">
-      <aside class="sidebar" id="sidebar"> … </aside>
+      <aside class="sidebar" id="sidebar">
+        <div class="brand" id="brand">
+          <div class="logo"><img src="/icons/learnhub-cap.svg" alt="LearnHub"/></div>
+          <div class="title">LearnHub</div>
+        </div>
+        <div class="nav" id="side-nav">
+          ${[
+            ['dashboard', 'Dashboard', 'ri-dashboard-line'],
+            ['courses', 'Courses', 'ri-book-2-line'],
+            ['learning', 'My Learning', 'ri-graduation-cap-line'],
+            ['assessments', 'Finals', 'ri-file-list-3-line'],
+            ['chat', 'Course Chat', 'ri-chat-3-line'],
+            ['tasks', 'Tasks', 'ri-list-check-2'],
+            ['profile', 'Profile', 'ri-user-3-line'],
+            ['admin', 'Admin', 'ri-shield-star-line'],
+            ['guide', 'Guide', 'ri-compass-3-line'],
+            ['contact', 'Contact', 'ri-mail-send-line'],
+            ['settings', 'Settings', 'ri-settings-3-line']
+          ].map(([r, label, ic]) => `
+            <div class="item ${state.route === r ? 'active' : ''} ${r === 'admin' && !canManageUsers() ? 'hidden' : ''}"
+                 role="button" tabindex="0" data-route="${r}">
+              <i class="${ic}"></i><span>${label}</span>
+            </div>`).join('')}
+        </div>
+        <div class="footer"><div class="muted" id="copyright" style="font-size:12px">© ${nowYear()}</div></div>
+      </aside>
+
       <div>
-        <div class="topbar"> … </div>
+        <div class="topbar">
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="btn ghost" id="burger" title="Menu"><i class="ri-menu-line"></i></button>
+            <div class="badge"><i class="ri-shield-user-line"></i> ${state.role.toUpperCase()}</div>
+          </div>
+          <div class="search-inline">
+            <input id="globalSearch" class="input" placeholder="Search courses, quizzes, profiles…" autocomplete="off"/>
+            <div id="searchResults" class="search-results"></div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn ghost" id="btnLogout"><i class="ri-logout-box-r-line"></i> Logout</button>
+          </div>
+        </div>
         <div id="backdrop"></div>
-        <div class="page-hero ${hero.klass}"> … </div>
+
+        <div class="page-hero ${hero.klass}">
+          <i class="${hero.icon}"></i>
+          <div>
+            <div class="t">${hero.title}</div>
+            <div class="s">${hero.sub}</div>
+          </div>
+        </div>
+
         <div class="${mainClass}" id="main">${content}</div>
       </div>
     </div>
-    <div class="modal" id="m-modal"><div class="dialog"> … </div></div><div class="modal-backdrop"></div>`;
+
+    <!-- KEEP this modal skeleton present at all times -->
+    <div class="modal" id="m-modal"><div class="dialog">
+      <div class="head"><strong id="mm-title">Modal</strong><button class="btn ghost" id="mm-close">Close</button></div>
+      <div class="body" id="mm-body"></div>
+      <div class="foot" id="mm-foot"></div>
+    </div></div><div class="modal-backdrop"></div>`;
 }
 
   // ---- Views ----
