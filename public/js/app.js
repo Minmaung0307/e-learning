@@ -1466,7 +1466,7 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
   }
 
   // ---- Courses
-  function wireCourses() {function wireCourses() {
+  function wireCourses() {
   on($('#seed-demo'), 'click', async () => {
     await window.seedDemoCourses().then(() => notify('Demo courses added')).catch(e => {
       console.error(e);
