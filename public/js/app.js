@@ -1,11 +1,11 @@
 /* LearnHub — E-Learning (compact build, admin/instructor/student) */
 (() => {
-  'use strict';
+  "use strict";
 
   // ---- DOM ready helper ----
   function onReady(fn) {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', fn, { once: true });
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", fn, { once: true });
     } else {
       fn();
     }
@@ -13,7 +13,7 @@
 
   // ---- Firebase ----
   if (!window.firebase || !window.__FIREBASE_CONFIG) {
-    console.error('Firebase SDK or config missing');
+    console.error("Firebase SDK or config missing");
     return;
   }
   firebase.initializeApp(window.__FIREBASE_CONFIG);
@@ -22,44 +22,67 @@
   const stg = firebase.storage();
 
   // Surface Firestore errors while you test
-  try { firebase.firestore.setLogLevel('debug'); } catch {}
+  try {
+    firebase.firestore.setLogLevel("debug");
+  } catch {}
 
   // ---- EmailJS (Contact page) ----
   // Provide keys via window.__EMAILJS_CONFIG = { publicKey, serviceId, templateId, toEmail? }
   // ---- EmailJS (Contact page) ----
-function getEmailJsConfig() {
-  const o = window.__EMAILJS_CONFIG || window.__EMAILJS || {};
-  return {
-    publicKey:  o.publicKey  || window.__EMAILJS_PUBLIC_KEY  || o.PUBLIC_KEY  || o.public_key,
-    serviceId:  o.serviceId  || window.__EMAILJS_SERVICE_ID  || o.SERVICE_ID  || o.service_id,
-    templateId: o.templateId || window.__EMAILJS_TEMPLATE_ID || o.TEMPLATE_ID || o.template_id,
-    toEmail:    o.toEmail     || o.TO_EMAIL || null
-  };
-}
+  function getEmailJsConfig() {
+    const o = window.__EMAILJS_CONFIG || window.__EMAILJS || {};
+    return {
+      publicKey:
+        o.publicKey ||
+        window.__EMAILJS_PUBLIC_KEY ||
+        o.PUBLIC_KEY ||
+        o.public_key,
+      serviceId:
+        o.serviceId ||
+        window.__EMAILJS_SERVICE_ID ||
+        o.SERVICE_ID ||
+        o.service_id,
+      templateId:
+        o.templateId ||
+        window.__EMAILJS_TEMPLATE_ID ||
+        o.TEMPLATE_ID ||
+        o.template_id,
+      toEmail: o.toEmail || o.TO_EMAIL || null,
+    };
+  }
 
-function ensureEmailJsInit() {
-  try {
-    if (!window.emailjs) return false;
-    const cfg = getEmailJsConfig();
-    if (!cfg.publicKey) return false;
-    if (!ensureEmailJsInit._did) {
-      emailjs.init(cfg.publicKey);
-      ensureEmailJsInit._did = true;
+  function ensureEmailJsInit() {
+    try {
+      if (!window.emailjs) return false;
+      const cfg = getEmailJsConfig();
+      if (!cfg.publicKey) return false;
+      if (!ensureEmailJsInit._did) {
+        emailjs.init(cfg.publicKey);
+        ensureEmailJsInit._did = true;
+      }
+      return true;
+    } catch {
+      return false;
     }
-    return true;
-  } catch { return false; }
-}
+  }
 
-// Try once on page load, but we'll also init lazily right before sending
-window.addEventListener('load', () => { try { ensureEmailJsInit(); } catch {} });
+  // Try once on page load, but we'll also init lazily right before sending
+  window.addEventListener("load", () => {
+    try {
+      ensureEmailJsInit();
+    } catch {}
+  });
 
   // ---- State ----
   const state = {
     user: null,
-    role: 'student',
-    route: 'dashboard',
-    theme: { palette: localStorage.getItem('lh.palette') || 'sunrise', font: localStorage.getItem('lh.font') || 'medium' },
-    searchQ: '',
+    role: "student",
+    route: "dashboard",
+    theme: {
+      palette: localStorage.getItem("lh.palette") || "sunrise",
+      font: localStorage.getItem("lh.font") || "medium",
+    },
+    searchQ: "",
     highlightId: null,
     courses: [],
     enrollments: [],
@@ -74,161 +97,235 @@ window.addEventListener('load', () => { try { ensureEmailJsInit(); } catch {} })
     unsub: [],
     _unsubChat: null,
     currentCourseId: null,
-detailPrevRoute: 'null',
-mainThemeClass: '',
+    detailPrevRoute: "null",
+    mainThemeClass: "",
   };
 
-   // ---- Utils & Stability Wrappers ----
+  // ---- Utils & Stability Wrappers ----
   const $ = (s, r = document) => {
-  if ((s === '#mm-title' || s === '#mm-body' || s === '#mm-foot' || s === '#m-modal') && !document.getElementById('m-modal')) {
-    // don’t use $ inside ensureModalDOM to avoid loops
-    ensureModalDOM();
-  }
-  return r.querySelector(s);
-}; 
-//  const $ = (s, r = document) => r.querySelector(s);
+    if (
+      (s === "#mm-title" ||
+        s === "#mm-body" ||
+        s === "#mm-foot" ||
+        s === "#m-modal") &&
+      !document.getElementById("m-modal")
+    ) {
+      // don’t use $ inside ensureModalDOM to avoid loops
+      ensureModalDOM();
+    }
+    return r.querySelector(s);
+  };
+  //  const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-  const notify = (msg, type = 'ok') => {
-    const n = $('#notification');
+  const notify = (msg, type = "ok") => {
+    const n = $("#notification");
     if (!n) return;
     n.textContent = msg;
     n.className = `notification show ${type}`;
-    setTimeout(() => n.className = 'notification', 2200);
+    setTimeout(() => (n.className = "notification"), 2200);
   };
 
   // Global error hooks (surface runtime errors instead of silent "freeze")
-window.addEventListener('error', (e) => {
-  try { notify(`Error: ${e.message}`, 'danger'); } catch {}
-  console.error('Global error:', e.error || e);
-});
-window.addEventListener('unhandledrejection', (e) => {
-  const msg = e?.reason?.message || e?.reason || 'Unhandled promise rejection';
-  try { notify(msg, 'danger'); } catch {}
-  console.error('Unhandled rejection:', e.reason);
-});
+  window.addEventListener("error", (e) => {
+    try {
+      notify(`Error: ${e.message}`, "danger");
+    } catch {}
+    console.error("Global error:", e.error || e);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const msg =
+      e?.reason?.message || e?.reason || "Unhandled promise rejection";
+    try {
+      notify(msg, "danger");
+    } catch {}
+    console.error("Unhandled rejection:", e.reason);
+  });
 
-// Safety wrapper for event handlers (prevents "freeze" on thrown/rejected handlers)
-const safe = (fn) => function(...args){
-  try{
-    const r = fn.apply(this, args);
-    if (r && typeof r.then === 'function') r.catch(err => {
-      console.error('Async handler error:', err);
-      try { notify(err?.message || 'Action failed', 'danger'); } catch {}
-    });
-    return r;
-  }catch(err){
-    console.error('Handler error:', err);
-    try { notify(err?.message || 'Action failed', 'danger'); } catch {}
+  // Safety wrapper for event handlers (prevents "freeze" on thrown/rejected handlers)
+  const safe = (fn) =>
+    function (...args) {
+      try {
+        const r = fn.apply(this, args);
+        if (r && typeof r.then === "function")
+          r.catch((err) => {
+            console.error("Async handler error:", err);
+            try {
+              notify(err?.message || "Action failed", "danger");
+            } catch {}
+          });
+        return r;
+      } catch (err) {
+        console.error("Handler error:", err);
+        try {
+          notify(err?.message || "Action failed", "danger");
+        } catch {}
+      }
+    };
+
+  // --- Safe listener helpers (add once) ---
+  const on = (el, type, handler, opts) => {
+    if (el) el.addEventListener(type, safe(handler), opts);
+  };
+
+  const delegate = (root, selector, type, handler, opts) => {
+    if (!root) return;
+    root.addEventListener(
+      type,
+      safe((e) => {
+        const t = e.target?.closest?.(selector);
+        if (t && root.contains(t)) handler(e, t);
+      }),
+      opts
+    );
+  };
+
+  // ---- Busy UI + robust safe write wrapper ----
+  function withBusy(btn, label = "Saving…") {
+    if (!btn) return () => {};
+    const prev = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<i class="ri-loader-4-line" style="animation:spin 1s linear infinite"></i> ${label}`;
+    return () => {
+      btn.disabled = false;
+      btn.innerHTML = prev;
+    };
   }
-};
 
-// --- Safe listener helpers (add once) ---
-const on = (el, type, handler, opts) => { if (el) el.addEventListener(type, safe(handler), opts); };
-
-const delegate = (root, selector, type, handler, opts) => {
-  if (!root) return;
-  root.addEventListener(type, safe((e) => {
-    const t = e.target?.closest?.(selector);
-    if (t && root.contains(t)) handler(e, t);
-  }), opts);
-};
-
-
-// ---- Busy UI + robust safe write wrapper ----
-function withBusy(btn, label='Saving…') {
-  if (!btn) return () => {};
-  const prev = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = `<i class="ri-loader-4-line" style="animation:spin 1s linear infinite"></i> ${label}`;
-  return () => { btn.disabled = false; btn.innerHTML = prev; };
-}
-
-async function safeWrite(btn, op, { ok='Saved', close=true } = {}) {
-  const done = withBusy(btn);
-  try {
-    await Promise.resolve().then(op);   // normalize sync/async
-    notify(ok);
-    if (close) closeModal('m-modal');
-  } catch (e) {
-    console.error('Write failed:', e);
-    notify(e?.message || 'Action failed', 'danger');
-  } finally {
-    done();
+  async function safeWrite(btn, op, { ok = "Saved", close = true } = {}) {
+    const done = withBusy(btn);
+    try {
+      await Promise.resolve().then(op); // normalize sync/async
+      notify(ok);
+      if (close) closeModal("m-modal");
+    } catch (e) {
+      console.error("Write failed:", e);
+      notify(e?.message || "Action failed", "danger");
+    } finally {
+      done();
+    }
   }
-}
 
   const nowYear = () => new Date().getFullYear();
   const col = (name) => db.collection(name);
   const doc = (name, id) => db.collection(name).doc(id);
-  const canTeach = () => ['instructor', 'admin'].includes(state.role);
-  const canManageUsers = () => state.role === 'admin';
+  const canTeach = () => ["instructor", "admin"].includes(state.role);
+  const canManageUsers = () => state.role === "admin";
   const isEnrolled = (courseId) => state.myEnrolledIds.has(courseId);
-  const money = x => (x === 0 ? 'Free' : `$${Number(x).toFixed(2)}`);
+  const money = (x) => (x === 0 ? "Free" : `$${Number(x).toFixed(2)}`);
 
   // Deterministic gradient class per course id
-const GRADIENT_CLASSES = ['bg-grad-1','bg-grad-2','bg-grad-3','bg-grad-4','bg-grad-5','bg-grad-6'];
-function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){ h=((h<<5)-h)+s.charCodeAt(i); h|=0; } return Math.abs(h); }
-function pickGradientClass(courseId){
-  const idx = courseId ? hashStr(courseId) % GRADIENT_CLASSES.length : 0;
-  return GRADIENT_CLASSES[idx];
-}
+  const GRADIENT_CLASSES = [
+    "bg-grad-1",
+    "bg-grad-2",
+    "bg-grad-3",
+    "bg-grad-4",
+    "bg-grad-5",
+    "bg-grad-6",
+  ];
+  function hashStr(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) {
+      h = (h << 5) - h + s.charCodeAt(i);
+      h |= 0;
+    }
+    return Math.abs(h);
+  }
+  function pickGradientClass(courseId) {
+    const idx = courseId ? hashStr(courseId) % GRADIENT_CLASSES.length : 0;
+    return GRADIENT_CLASSES[idx];
+  }
 
   // ---- Constants ----
-const VALID_ROLES = ['student', 'instructor', 'admin'];
-const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
+  const VALID_ROLES = ["student", "instructor", "admin"];
+  const normalizeRole = (x) => (x || "student").toString().trim().toLowerCase();
 
   // Remove undefined/NaN before writes (Firestore rejects undefined)
-  const clean = (obj) => Object.fromEntries(
-    Object.entries(obj).filter(([_, v]) => v !== undefined && !(typeof v === 'number' && Number.isNaN(v)))
-  );
+  const clean = (obj) =>
+    Object.fromEntries(
+      Object.entries(obj).filter(
+        ([_, v]) =>
+          v !== undefined && !(typeof v === "number" && Number.isNaN(v))
+      )
+    );
 
   // ---- JSON fetcher (for outline & lesson quizzes) ----
   async function fetchJSON(url) {
-    const r = await fetch(url, { cache: 'no-store' });
+    const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return await r.json();
   }
 
   // ---- Render outline JSON into HTML ----
   function renderOutlineBox(data) {
-    if (!data || !Array.isArray(data.chapters)) return `<div class="muted">No chapters found.</div>`;
-    return data.chapters.map(ch => {
-      const lessons = Array.isArray(ch.lessons) ? `<ul class="list-tight">${
-        ch.lessons.map(l => `<li>${(l.title || '').replace(/</g, '&lt;')}${l.duration ? ` <span class="muted">(${l.duration} min)</span>` : ''}</li>`).join('')
-      }</ul>` : '';
-      return `<details open>
-        <summary><strong>${(ch.title || 'Chapter').replace(/</g, '&lt;')}</strong></summary>
+    if (!data || !Array.isArray(data.chapters))
+      return `<div class="muted">No chapters found.</div>`;
+    return data.chapters
+      .map((ch) => {
+        const lessons = Array.isArray(ch.lessons)
+          ? `<ul class="list-tight">${ch.lessons
+              .map(
+                (l) =>
+                  `<li>${(l.title || "").replace(/</g, "&lt;")}${
+                    l.duration
+                      ? ` <span class="muted">(${l.duration} min)</span>`
+                      : ""
+                  }</li>`
+              )
+              .join("")}</ul>`
+          : "";
+        return `<details open>
+        <summary><strong>${(ch.title || "Chapter").replace(
+          /</g,
+          "&lt;"
+        )}</strong></summary>
         ${lessons}
       </details>`;
-    }).join('');
+      })
+      .join("");
   }
 
   // ---- Render lesson quizzes JSON into HTML ----
   function renderLessonQuizzesBox(data) {
-    if (!data || typeof data !== 'object') return `<div class="muted">No lesson quizzes JSON.</div>`;
+    if (!data || typeof data !== "object")
+      return `<div class="muted">No lesson quizzes JSON.</div>`;
     const keys = Object.keys(data);
     if (!keys.length) return `<div class="muted">No quizzes found.</div>`;
-    return keys.map(k => {
-      const items = Array.isArray(data[k]) ? data[k] : [];
-      return `<details>
-        <summary><strong>${k.replace(/[-_]/g, ' ')}</strong> <span class="muted">• ${items.length} Q</span></summary>
-        ${items.map((it, i) => `
+    return keys
+      .map((k) => {
+        const items = Array.isArray(data[k]) ? data[k] : [];
+        return `<details>
+        <summary><strong>${k.replace(
+          /[-_]/g,
+          " "
+        )}</strong> <span class="muted">• ${items.length} Q</span></summary>
+        ${items
+          .map(
+            (it, i) => `
           <div style="margin:6px 0">
-            <div><b>Q${i + 1}.</b> ${(it.q || '').replace(/</g, '&lt;')}</div>
-            ${Array.isArray(it.choices) ? `<ul class="list-tight">${it.choices.map(c => `<li>${(c || '').replace(/</g, '&lt;')}</li>`).join('')}</ul>` : ''}
+            <div><b>Q${i + 1}.</b> ${(it.q || "").replace(/</g, "&lt;")}</div>
+            ${
+              Array.isArray(it.choices)
+                ? `<ul class="list-tight">${it.choices
+                    .map((c) => `<li>${(c || "").replace(/</g, "&lt;")}</li>`)
+                    .join("")}</ul>`
+                : ""
+            }
           </div>
-        `).join('')}
+        `
+          )
+          .join("")}
       </details>`;
-    }).join('');
+      })
+      .join("");
   }
 
   // ---- PayPal setup (client-side capture) ----
   async function setupPayPalForCourse(c) {
-    const zone = document.getElementById('paypal-zone');
-    const btns = document.getElementById('paypal-buttons');
+    const zone = document.getElementById("paypal-zone");
+    const btns = document.getElementById("paypal-buttons");
     if (!zone || !btns) return;
-    zone.classList.remove('hidden');
-    btns.innerHTML = '';
+    zone.classList.remove("hidden");
+    btns.innerHTML = "";
 
     if (!window.paypal || !paypal.Buttons) {
       zone.innerHTML = `<div class="card"><div class="card-body">PayPal SDK missing — set your Client ID in <code>index.html</code>.</div></div>`;
@@ -236,106 +333,150 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
     }
 
     const price = Number(c.price || 0).toFixed(2);
-    paypal.Buttons({
-      style: { shape: 'pill', layout: 'vertical', label: 'paypal' },
-      createOrder: (data, actions) => actions.order.create({
-        purchase_units: [{
-          description: c.title || 'Course',
-          amount: { value: price }
-        }]
-      }),
-      onApprove: async (data, actions) => {
-        try {
-          const details = await actions.order.capture();
-
-          // Optional: record a payment doc
+    paypal
+      .Buttons({
+        style: { shape: "pill", layout: "vertical", label: "paypal" },
+        createOrder: (data, actions) =>
+          actions.order.create({
+            purchase_units: [
+              {
+                description: c.title || "Course",
+                amount: { value: price },
+              },
+            ],
+          }),
+        onApprove: async (data, actions) => {
           try {
-            await col('payments').add({
+            const details = await actions.order.capture();
+
+            // Optional: record a payment doc
+            try {
+              await col("payments").add({
+                uid: auth.currentUser.uid,
+                courseId: c.id,
+                amount: +price,
+                provider: "paypal",
+                orderId: data.orderID,
+                captureId:
+                  details?.purchase_units?.[0]?.payments?.captures?.[0]?.id ||
+                  "",
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              });
+            } catch (_e) {
+              /* ok if rules block or you skip saving */
+            }
+
+            // Enroll after successful capture
+            await col("enrollments").add({
               uid: auth.currentUser.uid,
               courseId: c.id,
-              amount: +price,
-              provider: 'paypal',
-              orderId: data.orderID,
-              captureId: details?.purchase_units?.[0]?.payments?.captures?.[0]?.id || '',
-              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              course: {
+                id: c.id,
+                title: c.title,
+                category: c.category,
+                credits: c.credits,
+                coverImage: c.coverImage,
+              },
             });
-          } catch (_e) { /* ok if rules block or you skip saving */ }
+            try {
+              await doc("courses", c.id).set(
+                {
+                  participants: firebase.firestore.FieldValue.arrayUnion(
+                    auth.currentUser.uid
+                  ),
+                },
+                { merge: true }
+              );
+            } catch (_e) {}
 
-          // Enroll after successful capture
-          await col('enrollments').add({
-            uid: auth.currentUser.uid,
-            courseId: c.id,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            course: { id: c.id, title: c.title, category: c.category, credits: c.credits, coverImage: c.coverImage }
-          });
-          try {
-            await doc('courses', c.id).set(
-              { participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) },
-              { merge: true }
-            );
-          } catch (_e) {}
-
-          closeModal('m-modal');
-          notify('Payment complete — enrolled');
-        } catch (e) {
-          console.error(e);
-          notify('Payment capture failed', 'danger');
-        }
-      },
-      onError: (err) => {
-        console.error(err);
-        notify('PayPal error', 'danger');
-      }
-    }).render('#paypal-buttons');
+            closeModal("m-modal");
+            notify("Payment complete — enrolled");
+          } catch (e) {
+            console.error(e);
+            notify("Payment capture failed", "danger");
+          }
+        },
+        onError: (err) => {
+          console.error(err);
+          notify("PayPal error", "danger");
+        },
+      })
+      .render("#paypal-buttons");
   }
 
   // ---- Theme palettes (built-ins + new) ----
   const THEME_PALETTES = [
-    'sunrise', 'light', 'dark', 'ocean', 'forest', 'grape', 'lavender', 'sunset', 'sand', 'mono', 'midnight'
+    "sunrise",
+    "light",
+    "dark",
+    "ocean",
+    "forest",
+    "grape",
+    "lavender",
+    "sunset",
+    "sand",
+    "mono",
+    "midnight",
   ];
 
   // ---- Chat helpers (DM roster)
-  function profileKey(p) { return p.uid || p.id; }
+  function profileKey(p) {
+    return p.uid || p.id;
+  }
 
   function getCourseRecipients(cid) {
     const me = auth.currentUser?.uid;
-    const course = state.courses?.find(c => c.id === cid);
-    const byId = new Map((state.profiles || []).map(p => [profileKey(p), p]));
+    const course = state.courses?.find((c) => c.id === cid);
+    const byId = new Map((state.profiles || []).map((p) => [profileKey(p), p]));
 
-    let ids = Array.isArray(course?.participants) && course.participants.length
-      ? course.participants
-      : (state.profiles || []).map(profileKey);
+    let ids =
+      Array.isArray(course?.participants) && course.participants.length
+        ? course.participants
+        : (state.profiles || []).map(profileKey);
 
     const list = ids
-      .filter(id => id && id !== me)
-      .map(id => byId.get(id))
+      .filter((id) => id && id !== me)
+      .map((id) => byId.get(id))
       .filter(Boolean)
-      .sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || ''));
+      .sort((a, b) =>
+        (a.name || a.email || "").localeCompare(b.name || b.email || "")
+      );
 
     return list;
   }
 
   function populateDmUserSelect() {
-    const sel = document.getElementById('chat-dm');
+    const sel = document.getElementById("chat-dm");
     if (!sel) return;
-    const cid = document.getElementById('chat-course')?.value || '';
+    const cid = document.getElementById("chat-course")?.value || "";
     const users = getCourseRecipients(cid);
 
-    sel.innerHTML = '<option value="">Select user…</option>' +
-      users.map(p => `<option value="${profileKey(p)}">${p.name || p.email}</option>`).join('');
+    sel.innerHTML =
+      '<option value="">Select user…</option>' +
+      users
+        .map(
+          (p) =>
+            `<option value="${profileKey(p)}">${p.name || p.email}</option>`
+        )
+        .join("");
   }
 
-  function isLightPaneRoute(route){
-  return route === 'courses' || route === 'learning' || route === 'course-detail';
-  // If you later want the detail page to be light too, add: || route === 'course-detail'
-}
+  function isLightPaneRoute(route) {
+    return (
+      route === "courses" || route === "learning" || route === "course-detail"
+    );
+    // If you later want the detail page to be light too, add: || route === 'course-detail'
+  }
 
   // ---- Theme (instant) ----
   function applyTheme() {
     if (!document.body) return;
-    Array.from(document.body.classList).filter(c => c.startsWith('theme-')).forEach(c => document.body.classList.remove(c));
+    Array.from(document.body.classList)
+      .filter((c) => c.startsWith("theme-"))
+      .forEach((c) => document.body.classList.remove(c));
     document.body.classList.add(`theme-${state.theme.palette}`);
-    document.body.classList.remove('font-small', 'font-medium', 'font-large');
+    document.body.classList.remove("font-small", "font-medium", "font-large");
     document.body.classList.add(`font-${state.theme.font}`);
   }
   onReady(applyTheme);
@@ -343,169 +484,303 @@ const normalizeRole = (x) => (x || 'student').toString().trim().toLowerCase();
   // ---- Page hero (route-aware header) ----
   function heroForRoute(route) {
     switch (route) {
-      case 'dashboard': return { icon: 'ri-dashboard-line', klass: 'dashboard', title: 'Dashboard', sub: 'Your hub of activity' };
-      case 'courses': return { icon: 'ri-book-2-line', klass: 'courses', title: 'Courses', sub: 'Create, browse, enroll' };
-      case 'learning': return { icon: 'ri-graduation-cap-line', klass: 'learning', title: 'My Learning', sub: 'Enrolled courses' };
-      case 'assessments': return { icon: 'ri-file-list-3-line', klass: 'assess', title: 'Final Exams', sub: 'Take and track results' };
-      case 'chat': return { icon: 'ri-chat-3-line', klass: 'chat', title: 'Chat', sub: 'Course, DM, and group' };
-      case 'tasks': return { icon: 'ri-list-check-2', klass: 'tasks', title: 'Tasks', sub: 'Personal kanban' };
-      case 'profile': return { icon: 'ri-user-3-line', klass: 'profile', title: 'Profile', sub: 'Bio, avatar & certificates' };
-      case 'admin': return { icon: 'ri-shield-star-line', klass: 'admin', title: 'Admin', sub: 'Users, roles & rosters' };
-      case 'guide': return { icon: 'ri-compass-3-line', klass: 'guide', title: 'Guide', sub: 'All features explained' };
-      case 'settings': return { icon: 'ri-settings-3-line', klass: 'settings', title: 'Settings', sub: 'Theme & preferences' };
-      case 'search': return { icon: 'ri-search-line', klass: 'search', title: 'Search', sub: 'Global search' };
-      case 'contact': return { icon: 'ri-mail-send-line', klass: 'contact', title: 'Contact', sub: 'Get in touch' };
-      case 'course-detail': return { icon: 'ri-book-open-line', klass: 'course-detail', title: 'Course Detail', sub: 'Overview & materials' };
-      default: return { icon: 'ri-compass-3-line', klass: 'guide', title: 'LearnHub', sub: 'Smart learning platform' };
-
+      case "dashboard":
+        return {
+          icon: "ri-dashboard-line",
+          klass: "dashboard",
+          title: "Dashboard",
+          sub: "Your hub of activity",
+        };
+      case "courses":
+        return {
+          icon: "ri-book-2-line",
+          klass: "courses",
+          title: "Courses",
+          sub: "Create, browse, enroll",
+        };
+      case "learning":
+        return {
+          icon: "ri-graduation-cap-line",
+          klass: "learning",
+          title: "My Learning",
+          sub: "Enrolled courses",
+        };
+      case "assessments":
+        return {
+          icon: "ri-file-list-3-line",
+          klass: "assess",
+          title: "Final Exams",
+          sub: "Take and track results",
+        };
+      case "chat":
+        return {
+          icon: "ri-chat-3-line",
+          klass: "chat",
+          title: "Chat",
+          sub: "Course, DM, and group",
+        };
+      case "tasks":
+        return {
+          icon: "ri-list-check-2",
+          klass: "tasks",
+          title: "Tasks",
+          sub: "Personal kanban",
+        };
+      case "profile":
+        return {
+          icon: "ri-user-3-line",
+          klass: "profile",
+          title: "Profile",
+          sub: "Bio, avatar & certificates",
+        };
+      case "admin":
+        return {
+          icon: "ri-shield-star-line",
+          klass: "admin",
+          title: "Admin",
+          sub: "Users, roles & rosters",
+        };
+      case "guide":
+        return {
+          icon: "ri-compass-3-line",
+          klass: "guide",
+          title: "Guide",
+          sub: "All features explained",
+        };
+      case "settings":
+        return {
+          icon: "ri-settings-3-line",
+          klass: "settings",
+          title: "Settings",
+          sub: "Theme & preferences",
+        };
+      case "search":
+        return {
+          icon: "ri-search-line",
+          klass: "search",
+          title: "Search",
+          sub: "Global search",
+        };
+      case "contact":
+        return {
+          icon: "ri-mail-send-line",
+          klass: "contact",
+          title: "Contact",
+          sub: "Get in touch",
+        };
+      case "course-detail":
+        return {
+          icon: "ri-book-open-line",
+          klass: "course-detail",
+          title: "Course Detail",
+          sub: "Overview & materials",
+        };
+      default:
+        return {
+          icon: "ri-compass-3-line",
+          klass: "guide",
+          title: "LearnHub",
+          sub: "Smart learning platform",
+        };
     }
   }
 
   function listenToMyRole(uid) {
-  const unsub = doc('roles', uid).onSnapshot(
-    snap => {
-      const role = normalizeRole(snap.data()?.role);
-      const resolved = VALID_ROLES.includes(role) ? role : 'student';
-      if (resolved !== state.role) {
-        state.role = resolved;
-        // keep profile.role in sync (best effort)
-        try { doc('profiles', uid).set({ role: resolved }, { merge: true }); } catch {}
-        render(); // sidebar/menu updates instantly
+    const unsub = doc("roles", uid).onSnapshot(
+      (snap) => {
+        const role = normalizeRole(snap.data()?.role);
+        const resolved = VALID_ROLES.includes(role) ? role : "student";
+        if (resolved !== state.role) {
+          state.role = resolved;
+          // keep profile.role in sync (best effort)
+          try {
+            doc("profiles", uid).set({ role: resolved }, { merge: true });
+          } catch {}
+          render(); // sidebar/menu updates instantly
+        }
+      },
+      (err) => console.warn("roles listener error:", err)
+    );
+    state.unsub.push(unsub); // will be cleaned on sign-out by clearUnsubs()
+  }
+
+  function drawCertificate(ctx, { name, courseTitle, dateText, certId }) {
+    const W = 2550,
+      H = 3300;
+    // Background
+    ctx.fillStyle = "#fafafa";
+    ctx.fillRect(0, 0, W, H);
+
+    // Ornate border
+    ctx.strokeStyle = "#0b1220";
+    ctx.lineWidth = 12;
+    ctx.strokeRect(80, 80, W - 160, H - 160);
+    ctx.strokeStyle = "#7ad3ff";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(120, 120, W - 240, H - 240);
+
+    // LearnHub logo mark
+    ctx.save();
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = "#0b1220";
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, 500, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Title
+    ctx.fillStyle = "#0b1220";
+    ctx.font = 'bold 120px Georgia, "Times New Roman", serif';
+    ctx.textAlign = "center";
+    ctx.fillText("Certificate of Completion", W / 2, 520);
+
+    // Subtitle
+    ctx.font = '28px "Segoe UI", Inter, system-ui, sans-serif';
+    ctx.fillStyle = "#334155";
+    ctx.fillText("This certifies that", W / 2, 680);
+
+    // Name
+    ctx.font = 'bold 96px Georgia, "Times New Roman", serif';
+    ctx.fillStyle = "#0b1220";
+    ctx.fillText(name, W / 2, 820);
+
+    // Course line
+    ctx.font = '28px "Segoe UI", Inter, system-ui, sans-serif';
+    ctx.fillStyle = "#334155";
+    ctx.fillText("has successfully completed the course", W / 2, 930);
+
+    // Course title
+    wrapCenter(
+      ctx,
+      courseTitle,
+      W / 2,
+      1020,
+      42,
+      1600,
+      'bold 64px "Times New Roman", Georgia, serif',
+      "#0b1220"
+    );
+
+    // Meta row
+    ctx.font = '28px "Segoe UI", Inter, system-ui, sans-serif';
+    ctx.fillStyle = "#0b1220";
+    ctx.textAlign = "left";
+    ctx.fillText(`Date: ${dateText}`, 420, 1380);
+    ctx.fillText(`Certificate ID: ${certId}`, 420, 1440);
+    ctx.fillText("Organization: LearnHub", 420, 1500);
+
+    // Signature line + label
+    ctx.beginPath();
+    ctx.moveTo(W - 1000, 1420);
+    ctx.lineTo(W - 400, 1420);
+    ctx.strokeStyle = "#0b1220";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.font = '24px "Segoe UI", Inter, system-ui, sans-serif';
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#334155";
+    ctx.fillText("Authorized Signature", W - 700, 1460);
+
+    // Seal
+    drawSeal(ctx, W - 600, 1000, 120);
+  }
+
+  function drawSeal(ctx, x, y, r) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#0b1220";
+    ctx.fill();
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "#7ad3ff";
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 38px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("LEARN", x, y - 8);
+    ctx.fillText("HUB", x, y + 38);
+    ctx.restore();
+  }
+
+  function wrapCenter(
+    ctx,
+    text,
+    cx,
+    startY,
+    lineHeight,
+    maxWidth,
+    font,
+    fillStyle
+  ) {
+    ctx.save();
+    ctx.font = font;
+    ctx.fillStyle = fillStyle;
+    ctx.textAlign = "center";
+    const words = (text || "").split(/\s+/);
+    let line = "",
+      y = startY,
+      lines = [];
+    for (const w of words) {
+      const test = line ? line + " " + w : w;
+      if (ctx.measureText(test).width > maxWidth) {
+        if (line) lines.push(line);
+        line = w;
+      } else {
+        line = test;
       }
-    },
-    err => console.warn('roles listener error:', err)
-  );
-  state.unsub.push(unsub); // will be cleaned on sign-out by clearUnsubs()
-}
+    }
+    if (line) lines.push(line);
+    lines.forEach((ln, i) => ctx.fillText(ln, cx, y + i * lineHeight));
+    ctx.restore();
+  }
 
-function drawCertificate(ctx, {name, courseTitle, dateText, certId}) {
-  const W = 2550, H = 3300;
-  // Background
-  ctx.fillStyle = '#fafafa'; ctx.fillRect(0,0,W,H);
+  // ---- Modal + Sidebar helpers ----
+  // ---- Modal + Sidebar helpers (singleton, safe) ----
+  function openModal(id) {
+    ensureModalDOM();
+    const m = document.getElementById(id);
+    if (!m) return;
+    m.classList.add("active");
 
-  // Ornate border
-  ctx.strokeStyle = '#0b1220'; ctx.lineWidth = 12; ctx.strokeRect(80, 80, W-160, H-160);
-  ctx.strokeStyle = '#7ad3ff'; ctx.lineWidth = 4; ctx.strokeRect(120, 120, W-240, H-240);
-
-  // LearnHub logo mark
-  ctx.save();
-  ctx.globalAlpha = 0.06;
-  ctx.fillStyle = '#0b1220';
-  ctx.beginPath();
-  ctx.arc(W/2, H/2, 500, 0, Math.PI*2);
-  ctx.fill();
-  ctx.restore();
-
-  // Title
-  ctx.fillStyle = '#0b1220';
-  ctx.font = 'bold 120px Georgia, "Times New Roman", serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Certificate of Completion', W/2, 520);
-
-  // Subtitle
-  ctx.font = '28px "Segoe UI", Inter, system-ui, sans-serif';
-  ctx.fillStyle = '#334155';
-  ctx.fillText('This certifies that', W/2, 680);
-
-  // Name
-  ctx.font = 'bold 96px Georgia, "Times New Roman", serif';
-  ctx.fillStyle = '#0b1220';
-  ctx.fillText(name, W/2, 820);
-
-  // Course line
-  ctx.font = '28px "Segoe UI", Inter, system-ui, sans-serif';
-  ctx.fillStyle = '#334155';
-  ctx.fillText('has successfully completed the course', W/2, 930);
-
-  // Course title
-  wrapCenter(ctx, courseTitle, W/2, 1020, 42, 1600, 'bold 64px "Times New Roman", Georgia, serif', '#0b1220');
-
-  // Meta row
-  ctx.font = '28px "Segoe UI", Inter, system-ui, sans-serif';
-  ctx.fillStyle = '#0b1220';
-  ctx.textAlign = 'left';
-  ctx.fillText(`Date: ${dateText}`, 420, 1380);
-  ctx.fillText(`Certificate ID: ${certId}`, 420, 1440);
-  ctx.fillText('Organization: LearnHub', 420, 1500);
-
-  // Signature line + label
-  ctx.beginPath();
-  ctx.moveTo(W-1000, 1420); ctx.lineTo(W-400, 1420); ctx.strokeStyle = '#0b1220'; ctx.lineWidth = 3; ctx.stroke();
-  ctx.font = '24px "Segoe UI", Inter, system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#334155';
-  ctx.fillText('Authorized Signature', W-700, 1460);
-
-  // Seal
-  drawSeal(ctx, W-600, 1000, 120);
-}
-
-function drawSeal(ctx, x, y, r) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI*2);
-  ctx.fillStyle = '#0b1220'; ctx.fill();
-  ctx.lineWidth = 8; ctx.strokeStyle = '#7ad3ff'; ctx.stroke();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 38px Inter, system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('LEARN', x, y-8);
-  ctx.fillText('HUB', x, y+38);
-  ctx.restore();
-}
-
-function wrapCenter(ctx, text, cx, startY, lineHeight, maxWidth, font, fillStyle){
-  ctx.save();
-  ctx.font = font;
-  ctx.fillStyle = fillStyle;
-  ctx.textAlign = 'center';
-  const words = (text||'').split(/\s+/);
-  let line = '', y = startY, lines = [];
-  for (const w of words){
-    const test = line ? line + ' ' + w : w;
-    if (ctx.measureText(test).width > maxWidth){
-      if (line) lines.push(line);
-      line = w;
-    } else {
-      line = test;
+    const bd = m.nextElementSibling;
+    // hide any stray backdrops, then show ours
+    document.querySelectorAll(".modal-backdrop").forEach((b) => {
+      b.style.display = "none";
+      b.classList.remove("active");
+    });
+    if (bd && bd.classList.contains("modal-backdrop")) {
+      bd.style.display = "block";
+      bd.classList.add("active");
     }
   }
-  if (line) lines.push(line);
-  lines.forEach((ln,i) => ctx.fillText(ln, cx, y + i*lineHeight));
-  ctx.restore();
-}
+  function closeModal(id) {
+    const m = document.getElementById(id);
+    if (m) m.classList.remove("active");
+    document.querySelectorAll(".modal-backdrop").forEach((b) => {
+      b.style.display = "none";
+      b.classList.remove("active");
+    });
+  }
+  const closeSidebar = () => {
+    document.body.classList.remove("sidebar-open");
+    $("#backdrop")?.classList.remove("active");
+  };
 
-// ---- Modal + Sidebar helpers ----
-// ---- Modal + Sidebar helpers (singleton, safe) ----
-function openModal(id) {
-  ensureModalDOM();
-  const m = document.getElementById(id);
-  if (!m) return;
-  m.classList.add('active');
+  // Ensure ONLY ONE modal/backdrop exists, wired once, and attached to <body>
+  function ensureModalDOM() {
+    // dedupe if an older layout injected extras
+    Array.from(document.querySelectorAll("#m-modal"))
+      .slice(1)
+      .forEach((n) => n.remove());
+    Array.from(document.querySelectorAll(".modal-backdrop"))
+      .slice(1)
+      .forEach((n) => n.remove());
 
-  const bd = m.nextElementSibling;
-  // hide any stray backdrops, then show ours
-  document.querySelectorAll('.modal-backdrop').forEach(b => { b.style.display = 'none'; b.classList.remove('active'); });
-  if (bd && bd.classList.contains('modal-backdrop')) { bd.style.display = 'block'; bd.classList.add('active'); }
-}
-function closeModal(id) {
-  const m = document.getElementById(id);
-  if (m) m.classList.remove('active');
-  document.querySelectorAll('.modal-backdrop').forEach(b => { b.style.display = 'none'; b.classList.remove('active'); });
-}
-const closeSidebar = () => { document.body.classList.remove('sidebar-open'); $('#backdrop')?.classList.remove('active'); };
-
-// Ensure ONLY ONE modal/backdrop exists, wired once, and attached to <body>
-function ensureModalDOM() {
-  // dedupe if an older layout injected extras
-  Array.from(document.querySelectorAll('#m-modal')).slice(1).forEach(n => n.remove());
-  Array.from(document.querySelectorAll('.modal-backdrop')).slice(1).forEach(n => n.remove());
-
-  let m = document.getElementById('m-modal');
-  if (!m) {
-    const wrap = document.createElement('div');
-    wrap.innerHTML = `
+    let m = document.getElementById("m-modal");
+    if (!m) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
       <div class="modal" id="m-modal"><div class="dialog">
         <div class="head">
           <button class="btn back" id="mm-close" title="Back"><i class="ri-arrow-left-line"></i> Back</button>
@@ -515,31 +790,36 @@ function ensureModalDOM() {
         <div class="foot" id="mm-foot"></div>
       </div></div>
       <div class="modal-backdrop"></div>`;
-    const frag = document.createDocumentFragment();
-    frag.appendChild(wrap.firstElementChild);
-    frag.appendChild(wrap.lastChild);
-    document.body.appendChild(frag);
-    m = document.getElementById('m-modal');
+      const frag = document.createDocumentFragment();
+      frag.appendChild(wrap.firstElementChild);
+      frag.appendChild(wrap.lastChild);
+      document.body.appendChild(frag);
+      m = document.getElementById("m-modal");
+    }
+    const bd = m.nextElementSibling;
+    if (m.parentElement !== document.body) document.body.appendChild(m);
+    if (bd && bd.parentElement !== document.body) document.body.appendChild(bd);
+
+    // (re)wire close/back
+    document.getElementById("mm-close")?.addEventListener(
+      "click",
+      safe(() => closeModal("m-modal"))
+    );
+
+    // ESC closes modal
+    if (!document.__escModal) {
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeModal("m-modal");
+      });
+      document.__escModal = true;
+    }
   }
-  const bd = m.nextElementSibling;
-  if (m.parentElement !== document.body) document.body.appendChild(m);
-  if (bd && bd.parentElement !== document.body) document.body.appendChild(bd);
 
-  // (re)wire close/back
-  document.getElementById('mm-close')?.addEventListener('click', safe(() => closeModal('m-modal')));
-
-  // ESC closes modal
-  if (!document.__escModal) {
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal('m-modal'); });
-    document.__escModal = true;
-  }
-}
-
-// High-contrast Back button + sticky header
-(function modalCSS(){
-  const ID = 'lh-modal-ux';
-  if (document.getElementById(ID)) return;
-  const css = `
+  // High-contrast Back button + sticky header
+  (function modalCSS() {
+    const ID = "lh-modal-ux";
+    if (document.getElementById(ID)) return;
+    const css = `
   .modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:100; }
   .modal.active { display:flex; }
   .modal .dialog{
@@ -562,29 +842,56 @@ function ensureModalDOM() {
   }
   #cd-back{ border:1px solid var(--border,#d1d8e5)!important; background:#fff!important; color:#0b1220!important; }
   `;
-  const s = document.createElement('style'); s.id = ID; s.textContent = css; document.head.appendChild(s);
-})();
+    const s = document.createElement("style");
+    s.id = ID;
+    s.textContent = css;
+    document.head.appendChild(s);
+  })();
 
-// Call the guard inside openModal so every open is safe
-const _openModal = openModal;
-openModal = function(id) { ensureModalDOM(); _openModal(id); };
+  // Call the guard inside openModal so every open is safe
+  const _openModal = openModal;
+  openModal = function (id) {
+    ensureModalDOM();
+    _openModal(id);
+  };
 
   // ---- Router / Layout ----
-  const routes = ['dashboard','courses','course-detail','learning','assessments','chat','tasks','profile','admin','guide','settings','search','contact'];
+  const routes = [
+    "dashboard",
+    "courses",
+    "course-detail",
+    "learning",
+    "assessments",
+    "chat",
+    "tasks",
+    "profile",
+    "admin",
+    "guide",
+    "settings",
+    "search",
+    "contact",
+  ];
   function go(route) {
     const prev = state.route;
-    state.route = routes.includes(route) ? route : 'dashboard';
-    if (prev === 'chat' && state._unsubChat) { try { state._unsubChat(); } catch { } state._unsubChat = null; }
+    state.route = routes.includes(route) ? route : "dashboard";
+    if (prev === "chat" && state._unsubChat) {
+      try {
+        state._unsubChat();
+      } catch {}
+      state._unsubChat = null;
+    }
     closeSidebar();
     render();
   }
 
   function layout(content) {
-  const hero = heroForRoute(state.route);
-  const lightRoutes = new Set(['courses','learning','course-detail']);
-  const mainClass = lightRoutes.has(state.route) ? 'main light-content' : 'main';
+    const hero = heroForRoute(state.route);
+    const lightRoutes = new Set(["courses", "learning", "course-detail"]);
+    const mainClass = lightRoutes.has(state.route)
+      ? "main light-content"
+      : "main";
 
-  return `
+    return `
     <div class="app">
       <aside class="sidebar" id="sidebar">
         <div class="brand" id="brand">
@@ -593,22 +900,28 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
         </div>
         <div class="nav" id="side-nav">
           ${[
-            ['dashboard', 'Dashboard', 'ri-dashboard-line'],
-            ['courses', 'Courses', 'ri-book-2-line'],
-            ['learning', 'My Learning', 'ri-graduation-cap-line'],
-            ['assessments', 'Finals', 'ri-file-list-3-line'],
-            ['chat', 'Course Chat', 'ri-chat-3-line'],
-            ['tasks', 'Tasks', 'ri-list-check-2'],
-            ['profile', 'Profile', 'ri-user-3-line'],
-            ['admin', 'Admin', 'ri-shield-star-line'],
-            ['guide', 'Guide', 'ri-compass-3-line'],
-            ['contact', 'Contact', 'ri-mail-send-line'],
-            ['settings', 'Settings', 'ri-settings-3-line']
-          ].map(([r, label, ic]) => `
-            <div class="item ${state.route === r ? 'active' : ''} ${r === 'admin' && !canManageUsers() ? 'hidden' : ''}"
+            ["dashboard", "Dashboard", "ri-dashboard-line"],
+            ["courses", "Courses", "ri-book-2-line"],
+            ["learning", "My Learning", "ri-graduation-cap-line"],
+            ["assessments", "Finals", "ri-file-list-3-line"],
+            ["chat", "Course Chat", "ri-chat-3-line"],
+            ["tasks", "Tasks", "ri-list-check-2"],
+            ["profile", "Profile", "ri-user-3-line"],
+            ["admin", "Admin", "ri-shield-star-line"],
+            ["guide", "Guide", "ri-compass-3-line"],
+            ["contact", "Contact", "ri-mail-send-line"],
+            ["settings", "Settings", "ri-settings-3-line"],
+          ]
+            .map(
+              ([r, label, ic]) => `
+            <div class="item ${state.route === r ? "active" : ""} ${
+                r === "admin" && !canManageUsers() ? "hidden" : ""
+              }"
                  role="button" tabindex="0" data-route="${r}">
               <i class="${ic}"></i><span>${label}</span>
-            </div>`).join('')}
+            </div>`
+            )
+            .join("")}
         </div>
         <div class="footer"><div class="muted" id="copyright" style="font-size:12px">© ${nowYear()}</div></div>
       </aside>
@@ -644,7 +957,7 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
     <!-- Toasts -->
     <div id="notification" class="notification"></div>
   `;
-}
+  }
 
   // ---- Views ----
   const vLogin = () => `
@@ -683,132 +996,227 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
 
   function vDashboard() {
     const my = auth.currentUser?.uid;
-    const myEnroll = state.enrollments.filter(e => e.uid === my).length;
-    const myAttempts = state.attempts.filter(a => a.uid === my).length;
+    const myEnroll = state.enrollments.filter((e) => e.uid === my).length;
+    const myAttempts = state.attempts.filter((a) => a.uid === my).length;
     return `
       <div class="grid cols-4">
-        ${dashCard('Courses', state.courses.length, 'courses', 'ri-book-2-line')}
-        ${dashCard('My Learning', myEnroll, 'learning', 'ri-graduation-cap-line')}
-        ${dashCard('Finals', state.quizzes.filter(q => q.isFinal).length, 'assessments', 'ri-file-list-3-line')}
-        ${dashCard('My Attempts', myAttempts, 'assessments', 'ri-checkbox-circle-line')}
+        ${dashCard(
+          "Courses",
+          state.courses.length,
+          "courses",
+          "ri-book-2-line"
+        )}
+        ${dashCard(
+          "My Learning",
+          myEnroll,
+          "learning",
+          "ri-graduation-cap-line"
+        )}
+        ${dashCard(
+          "Finals",
+          state.quizzes.filter((q) => q.isFinal).length,
+          "assessments",
+          "ri-file-list-3-line"
+        )}
+        ${dashCard(
+          "My Attempts",
+          myAttempts,
+          "assessments",
+          "ri-checkbox-circle-line"
+        )}
       </div>
 
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">Announcements</h3>
         <div id="ann-list">
-          ${state.announcements.map(a => `
+          ${state.announcements
+            .map(
+              (a) => `
             <div class="card"><div class="card-body" style="display:flex;justify-content:space-between;gap:10px">
               <div>
-                <div style="font-weight:700">${a.title || '—'}</div>
-                <div class="muted" style="font-size:12px">${new Date(a.createdAt?.toDate?.() || a.createdAt || Date.now()).toLocaleString()}</div>
-                <div style="margin-top:6px">${(a.body || '').replace(/</g, '&lt;')}</div>
+                <div style="font-weight:700">${a.title || "—"}</div>
+                <div class="muted" style="font-size:12px">${new Date(
+                  a.createdAt?.toDate?.() || a.createdAt || Date.now()
+                ).toLocaleString()}</div>
+                <div style="margin-top:6px">${(a.body || "").replace(
+                  /</g,
+                  "&lt;"
+                )}</div>
               </div>
-              ${canManageUsers() ? `<div style="display:flex;gap:6px">
+              ${
+                canManageUsers()
+                  ? `<div style="display:flex;gap:6px">
                 <button class="btn ghost" data-edit-ann="${a.id}"><i class="ri-edit-line"></i></button>
                 <button class="btn danger" data-del-ann="${a.id}"><i class="ri-delete-bin-6-line"></i></button>
-              </div>` : ''}
+              </div>`
+                  : ""
+              }
             </div></div>
-          `).join('')}
-          ${!state.announcements.length ? `<div class="muted">No announcements.</div>` : ''}
+          `
+            )
+            .join("")}
+          ${
+            !state.announcements.length
+              ? `<div class="muted">No announcements.</div>`
+              : ""
+          }
         </div>
-        ${canManageUsers() ? `<div style="margin-top:10px"><button class="btn" id="add-ann"><i class="ri-megaphone-line"></i> New Announcement</button></div>` : ''}
+        ${
+          canManageUsers()
+            ? `<div style="margin-top:10px"><button class="btn" id="add-ann"><i class="ri-megaphone-line"></i> New Announcement</button></div>`
+            : ""
+        }
       </div></div>
     `;
   }
 
   function courseCard(c) {
-  const img = c.coverImage || '/icons/learnhub-cap.svg';
-  const benefitsArr = (c.goals || c.benefits || []).slice(0, 3);
-  const isLong = (c.short || '').length > 160;
+    const img = c.coverImage || "/icons/learnhub-cap.svg";
+    const benefitsArr = (c.goals || c.benefits || []).slice(0, 3);
+    const isLong = (c.short || "").length > 160;
 
-  // optional per-course style
-  const st = c.style || {};
-  const styleStr = [
-    st.bg ? `--card-bg:${st.bg}` : '',
-    st.text ? `--card-text:${st.text}` : '',
-    st.font ? `--card-font:${st.font}` : '',
-    st.imgFilter ? `--card-img-filter:${st.imgFilter}` : '',
-    st.badgeBg ? `--cc-badge-bg:${st.badgeBg}` : '',
-    st.badgeText ? `--cc-badge-text:${st.badgeText}` : '',
-  ].filter(Boolean).join(';');
+    // optional per-course style
+    const st = c.style || {};
+    const styleStr = [
+      st.bg ? `--card-bg:${st.bg}` : "",
+      st.text ? `--card-text:${st.text}` : "",
+      st.font ? `--card-font:${st.font}` : "",
+      st.imgFilter ? `--card-img-filter:${st.imgFilter}` : "",
+      st.badgeBg ? `--cc-badge-bg:${st.badgeBg}` : "",
+      st.badgeText ? `--cc-badge-text:${st.badgeText}` : "",
+    ]
+      .filter(Boolean)
+      .join(";");
 
-  return `
-    <div class="card course-card ${st.cardClass || ''} ${pickGradientClass(c.id)} ${state.highlightId === c.id ? 'highlight' : ''}" id="${c.id}" style="${styleStr}">
+    return `
+    <div class="card course-card ${st.cardClass || ""} ${pickGradientClass(
+      c.id
+    )} ${state.highlightId === c.id ? "highlight" : ""}" id="${
+      c.id
+    }" style="${styleStr}">
       <div class="img">
         <img src="${img}" alt="${c.title}"/>
       </div>
       <div class="card-body">
         <div class="header">
           <div class="title">${c.title}</div>
-          <span class="badge">${c.category || 'General'}</span>
+          <span class="badge">${c.category || "General"}</span>
         </div>
 
         <div class="summary">
-          <div class="short ${isLong ? 'clamp' : ''}">${(c.short || '').replace(/</g, '&lt;')}</div>
-          ${isLong ? `<button class="short-toggle" data-short-toggle>Read more</button>` : ''}
+          <div class="short ${isLong ? "clamp" : ""}">${(c.short || "").replace(
+      /</g,
+      "&lt;"
+    )}</div>
+          ${
+            isLong
+              ? `<button class="short-toggle" data-short-toggle>Read more</button>`
+              : ""
+          }
         </div>
 
-        ${benefitsArr.length ? `
+        ${
+          benefitsArr.length
+            ? `
           <ul class="benefits">
-            ${benefitsArr.map(b => `<li><i class="ri-checkbox-circle-line"></i><span>${(b || '').replace(/</g, '&lt;')}</span></li>`).join('')}
-          </ul>` : ''}
+            ${benefitsArr
+              .map(
+                (b) =>
+                  `<li><i class="ri-checkbox-circle-line"></i><span>${(
+                    b || ""
+                  ).replace(/</g, "&lt;")}</span></li>`
+              )
+              .join("")}
+          </ul>`
+            : ""
+        }
 
         <div class="meta">
           <div class="price">${money(c.price || 0)}</div>
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn cta" data-open="${c.id}">
-              <i class="ri-external-link-line"></i> ${c.price > 0 ? 'Buy Now' : 'View Course'}
+              <i class="ri-external-link-line"></i> ${
+                c.price > 0 ? "Buy Now" : "View Course"
+              }
             </button>
-            ${canTeach() ? `
+            ${
+              canTeach()
+                ? `
               <button class="btn ghost" data-edit="${c.id}" title="Edit"><i class="ri-edit-line"></i></button>
               <button class="btn danger" data-del="${c.id}" title="Delete"><i class="ri-delete-bin-6-line"></i></button>
-            ` : ''}
+            `
+                : ""
+            }
           </div>
         </div>
       </div>
     </div>`;
-}
+  }
 
   function vCourses() {
     return `
       <div class="card"><div class="card-body">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <h3 style="margin:0">Courses</h3>
-          ${canTeach() ? `
+          ${
+            canTeach()
+              ? `
             <div style="display:flex;gap:8px">
               <button class="btn" id="add-course"><i class="ri-add-line"></i> New Course</button>
-              ${state.courses.length ? '' : `<button class="btn ghost" id="seed-demo"><i class="ri-sparkling-2-line"></i> Add Demo Courses</button>`}
-            </div>` : ''
+              ${
+                state.courses.length
+                  ? ""
+                  : `<button class="btn ghost" id="seed-demo"><i class="ri-sparkling-2-line"></i> Add Demo Courses</button>`
+              }
+            </div>`
+              : ""
           }
         </div>
         <div class="grid cols-2" data-sec="courses">
-          ${state.courses.map(courseCard).join('')}
-          ${!state.courses.length ? `<div class="muted" style="padding:10px">No courses yet.</div>` : ''}
+          ${state.courses.map(courseCard).join("")}
+          ${
+            !state.courses.length
+              ? `<div class="muted" style="padding:10px">No courses yet.</div>`
+              : ""
+          }
         </div>
       </div></div>
     `;
   }
 
-  function vCourseDetail(id){
-  const c = state.courses.find(x => x.id === id) || {};
-  const enrolled = isEnrolled(id);
+  function vCourseDetail(id) {
+    const c = state.courses.find((x) => x.id === id) || {};
+    const enrolled = isEnrolled(id);
 
-  return `
+    return `
     <div class="card" style="margin:12px 0">
       <div class="card-body">
         <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn ghost" id="cd-back"><i class="ri-arrow-left-line"></i> Back</button>
-            <div class="badge"><i class="ri-book-2-line"></i> ${c.category || 'General'} • Credits ${c.credits || 0}</div>
+            <div class="badge"><i class="ri-book-2-line"></i> ${
+              c.category || "General"
+            } • Credits ${c.credits || 0}</div>
           </div>
-          <div style="font-weight:800">${c.price > 0 ? money(c.price) : 'Free'}</div>
+          <div style="font-weight:800">${
+            c.price > 0 ? money(c.price) : "Free"
+          }</div>
         </div>
 
-        <h2 style="margin:8px 0 6px 0">${c.title || ''}</h2>
+        <h2 style="margin:8px 0 6px 0">${c.title || ""}</h2>
 
         <!-- No big thumbnail on detail page (as requested) -->
-        <p class="muted" style="margin-top:6px">${(c.short || '').replace(/</g, '&lt;')}</p>
-        ${c.goals?.length ? `<ul class="list-tight" style="margin-top:6px">${c.goals.map(g => `<li>${g}</li>`).join('')}</ul>` : ''}
+        <p class="muted" style="margin-top:6px">${(c.short || "").replace(
+          /</g,
+          "&lt;"
+        )}</p>
+        ${
+          c.goals?.length
+            ? `<ul class="list-tight" style="margin-top:6px">${c.goals
+                .map((g) => `<li>${g}</li>`)
+                .join("")}</ul>`
+            : ""
+        }
 
         <div class="section-box" style="margin-top:12px">
           <h4><i class="ri-layout-2-line"></i> Outline</h4>
@@ -834,45 +1242,68 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
           ${
             enrolled
               ? `<button class="btn ok" disabled><i class="ri-check-line"></i> Enrolled</button>`
-              : (c.price > 0
-                  ? `<button class="btn" id="cd-show-pay"><i class="ri-bank-card-line"></i> Pay &amp; Enroll (${money(c.price)})</button>`
-                  : `<button class="btn" id="cd-enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>`
-                )
+              : c.price > 0
+              ? `<button class="btn" id="cd-show-pay"><i class="ri-bank-card-line"></i> Pay &amp; Enroll (${money(
+                  c.price
+                )})</button>`
+              : `<button class="btn" id="cd-enroll"><i class="ri-checkbox-circle-line"></i> Enroll</button>`
           }
           <button class="btn ghost" id="cd-finals"><i class="ri-question-line"></i> Finals</button>
         </div>
       </div>
     </div>
   `;
-}
+  }
 
   function vLearning() {
     const my = auth.currentUser?.uid;
-    const list = state.enrollments.filter(e => e.uid === my).map(e => state.courses.find(c => c.id === e.courseId) || {});
+    const list = state.enrollments
+      .filter((e) => e.uid === my)
+      .map((e) => state.courses.find((c) => c.id === e.courseId) || {});
     return `
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">My Learning</h3>
         <div class="grid cols-2" data-sec="learning">
-          ${list.map(c => `
+          ${list
+            .map(
+              (c) => `
             <div class="card course-card ${pickGradientClass(c.id)}">
-              <div class="img"><img src="${c.coverImage || '/icons/learnhub-cap.svg'}" alt="${c.title || ''}"/></div>
+              <div class="img"><img src="${
+                c.coverImage || "/icons/learnhub-cap.svg"
+              }" alt="${c.title || ""}"/></div>
               <div class="card-body">
-                <div style="font-weight:800">${c.title || '(deleted course)'}</div>
+                <div style="font-weight:800">${
+                  c.title || "(deleted course)"
+                }</div>
                 ${(() => {
-                  const isLong = (c.short || '').length > 160;
-                  const txt = (c.short || '').replace(/</g, '&lt;');
+                  const isLong = (c.short || "").length > 160;
+                  const txt = (c.short || "").replace(/</g, "&lt;");
                   return `<div class="short-wrap">
-                    <div class="muted short ${isLong ? 'clamp' : ''}">${txt}</div>
-                    ${isLong ? `<button class="short-toggle" data-short-toggle>Read more</button>` : ''}
+                    <div class="muted short ${
+                      isLong ? "clamp" : ""
+                    }">${txt}</div>
+                    ${
+                      isLong
+                        ? `<button class="short-toggle" data-short-toggle>Read more</button>`
+                        : ""
+                    }
                   </div>`;
                 })()}
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-                  <div class="muted">Credits: <strong>${c.credits || 0}</strong></div>
+                  <div class="muted">Credits: <strong>${
+                    c.credits || 0
+                  }</strong></div>
                   <button class="btn" data-open-course="${c.id}">Open</button>
                 </div>
               </div>
-            </div>`).join('')}
-          ${!list.length ? `<div class="muted" style="padding:10px">You’re not enrolled yet.</div>` : ''}
+            </div>`
+            )
+            .join("")}
+          ${
+            !list.length
+              ? `<div class="muted" style="padding:10px">You’re not enrolled yet.</div>`
+              : ""
+          }
         </div>
       </div></div>`;
   }
@@ -882,23 +1313,46 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
       <div class="card"><div class="card-body">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <h3 style="margin:0">Final Exams</h3>
-          ${canTeach() ? `<button class="btn" id="new-quiz"><i class="ri-add-line"></i> New Final</button>` : ''}
+          ${
+            canTeach()
+              ? `<button class="btn" id="new-quiz"><i class="ri-add-line"></i> New Final</button>`
+              : ""
+          }
         </div>
         <div class="grid" data-sec="quizzes">
-          ${state.quizzes.filter(q => q.isFinal).map(q => `
-            <div class="card ${state.highlightId === q.id ? 'highlight' : ''}" id="${q.id}">
+          ${state.quizzes
+            .filter((q) => q.isFinal)
+            .map(
+              (q) => `
+            <div class="card ${
+              state.highlightId === q.id ? "highlight" : ""
+            }" id="${q.id}">
               <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
                 <div>
                   <div style="font-weight:800">${q.title}</div>
-                  <div class="muted" style="font-size:12px">${q.courseTitle || '—'} • pass ≥ ${q.passScore || 70}%</div>
+                  <div class="muted" style="font-size:12px">${
+                    q.courseTitle || "—"
+                  } • pass ≥ ${q.passScore || 70}%</div>
                 </div>
                 <div class="actions" style="display:flex;gap:6px">
-                  <button class="btn" data-take="${q.id}"><i class="ri-play-line"></i> Take</button>
-                  ${canTeach() || q.ownerUid === auth.currentUser?.uid ? `<button class="btn ghost" data-edit="${q.id}"><i class="ri-edit-line"></i></button>` : ''}
+                  <button class="btn" data-take="${
+                    q.id
+                  }"><i class="ri-play-line"></i> Take</button>
+                  ${
+                    canTeach() || q.ownerUid === auth.currentUser?.uid
+                      ? `<button class="btn ghost" data-edit="${q.id}"><i class="ri-edit-line"></i></button>`
+                      : ""
+                  }
                 </div>
               </div>
-            </div>`).join('')}
-          ${!state.quizzes.filter(q => q.isFinal).length ? `<div class="muted" style="padding:10px">No finals yet.</div>` : ''}
+            </div>`
+            )
+            .join("")}
+          ${
+            !state.quizzes.filter((q) => q.isFinal).length
+              ? `<div class="muted" style="padding:10px">No finals yet.</div>`
+              : ""
+          }
         </div>
       </div></div>
 
@@ -908,12 +1362,19 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
           <table class="table">
             <thead><tr><th>Quiz</th><th>Score</th><th>Date</th></tr></thead>
             <tbody>
-              ${(state.attempts || []).filter(a => a.uid === auth.currentUser?.uid).map(a => `
+              ${(state.attempts || [])
+                .filter((a) => a.uid === auth.currentUser?.uid)
+                .map(
+                  (a) => `
                 <tr>
                   <td>${a.quizTitle}</td>
                   <td class="num">${a.score}%</td>
-                  <td>${new Date(a.createdAt?.toDate?.() || a.createdAt || Date.now()).toLocaleString()}</td>
-                </tr>`).join('')}
+                  <td>${new Date(
+                    a.createdAt?.toDate?.() || a.createdAt || Date.now()
+                  ).toLocaleString()}</td>
+                </tr>`
+                )
+                .join("")}
             </tbody>
           </table>
         </div>
@@ -933,11 +1394,18 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
         </select>
         <select id="chat-course" class="input">
           <option value="">Select course…</option>
-          ${state.courses.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}
+          ${state.courses
+            .map((c) => `<option value="${c.id}">${c.title}</option>`)
+            .join("")}
         </select>
         <select id="chat-dm" class="input hidden">
           <option value="">Select user…</option>
-          ${state.profiles.filter(p => p.uid !== auth.currentUser?.uid).map(p => `<option value="${p.uid}">${p.name || p.email}</option>`).join('')}
+          ${state.profiles
+            .filter((p) => p.uid !== auth.currentUser?.uid)
+            .map(
+              (p) => `<option value="${p.uid}">${p.name || p.email}</option>`
+            )
+            .join("")}
         </select>
         <input id="chat-group" class="input hidden" placeholder="Batch/Group id e.g. Diploma-2025"/>
       </div>
@@ -955,9 +1423,10 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
 
   // ---- Contact (EmailJS) ----
   function vContact() {
-    const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || {};
-    const myName = me.name || '';
-    const myEmail = auth.currentUser?.email || '';
+    const me =
+      state.profiles.find((p) => p.uid === auth.currentUser?.uid) || {};
+    const myName = me.name || "";
+    const myEmail = auth.currentUser?.email || "";
     const sdkOk = !!window.emailjs;
     return `
       <div class="card"><div class="card-body">
@@ -969,7 +1438,11 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
           <textarea id="ct-message" class="input" placeholder="Your message"></textarea>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <button class="btn" id="ct-send"><i class="ri-mail-send-line"></i> Send</button>
-            <span id="ct-hint" class="muted" style="font-size:12px">${sdkOk ? '' : 'EmailJS SDK not found — add it in index.html (see app.js)'}</span>
+            <span id="ct-hint" class="muted" style="font-size:12px">${
+              sdkOk
+                ? ""
+                : "EmailJS SDK not found — add it in index.html (see app.js)"
+            }</span>
           </div>
         </div>
         <div class="muted" style="font-size:12px;margin-top:8px">
@@ -982,15 +1455,23 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
   function vTasks() {
     const my = auth.currentUser?.uid;
     const lane = (key, label, color) => {
-      const cards = (state.tasks || []).filter(t => t.uid === my && t.status === key);
+      const cards = (state.tasks || []).filter(
+        (t) => t.uid === my && t.status === key
+      );
       return `
         <div class="card lane-row" data-lane="${key}"><div class="card-body">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <h3 style="margin:0;color:${color}">${label}</h3>
-            ${key === 'todo' ? `<button class="btn" id="addTask"><i class="ri-add-line"></i> Add Task</button>` : ''}
+            ${
+              key === "todo"
+                ? `<button class="btn" id="addTask"><i class="ri-add-line"></i> Add Task</button>`
+                : ""
+            }
           </div>
           <div class="grid lane-grid" id="lane-${key}">
-            ${cards.map(t => `
+            ${cards
+              .map(
+                (t) => `
               <div class="card task-card" id="${t.id}" draggable="true" data-task="${t.id}" style="cursor:grab">
                 <div class="card-body" style="display:flex;justify-content:space-between;align-items:center">
                   <div>${t.title}</div>
@@ -999,25 +1480,47 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
                     <button class="btn danger" data-del="${t.id}"><i class="ri-delete-bin-6-line"></i></button>
                   </div>
                 </div>
-              </div>`).join('')}
-            ${cards.length ? '' : `<div class="muted" style="padding:10px">Drop tasks here…</div>`}
+              </div>`
+              )
+              .join("")}
+            ${
+              cards.length
+                ? ""
+                : `<div class="muted" style="padding:10px">Drop tasks here…</div>`
+            }
           </div>
         </div></div>`;
     };
-    return `<div data-sec="tasks">${lane('todo', 'To do', '#f59e0b')}${lane('inprogress', 'In progress', '#3b82f6')}${lane('done', 'Done', '#10b981')}</div>`;
+    return `<div data-sec="tasks">${lane("todo", "To do", "#f59e0b")}${lane(
+      "inprogress",
+      "In progress",
+      "#3b82f6"
+    )}${lane("done", "Done", "#10b981")}</div>`;
   }
 
   function vProfile() {
-  const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || { name: '', bio: '', portfolio: '', avatar: '', signature: '' };
-  return `
+    const me = state.profiles.find((p) => p.uid === auth.currentUser?.uid) || {
+      name: "",
+      bio: "",
+      portfolio: "",
+      avatar: "",
+      signature: "",
+    };
+    return `
     <div class="grid" style="grid-template-columns:1fr; gap:10px">
       <!-- My Profile -->
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">My Profile</h3>
         <div class="grid">
-          <input id="pf-name" class="input" placeholder="Name" value="${me.name || ''}"/>
-          <input id="pf-portfolio" class="input" placeholder="Portfolio URL" value="${me.portfolio || ''}"/>
-          <textarea id="pf-bio" class="input" placeholder="Short bio">${me.bio || ''}</textarea>
+          <input id="pf-name" class="input" placeholder="Name" value="${
+            me.name || ""
+          }"/>
+          <input id="pf-portfolio" class="input" placeholder="Portfolio URL" value="${
+            me.portfolio || ""
+          }"/>
+          <textarea id="pf-bio" class="input" placeholder="Short bio">${
+            me.bio || ""
+          }</textarea>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <input id="pf-avatar" type="file" accept="image/*" style="display:none"/>
             <input id="pf-sign" type="file" accept="image/*" style="display:none"/>
@@ -1037,23 +1540,31 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
           <table class="table">
             <thead><tr><th>Course</th><th>Best Score</th><th>Certificate</th></tr></thead>
             <tbody>
-              ${buildTranscript(auth.currentUser?.uid).map(r => `
+              ${buildTranscript(auth.currentUser?.uid)
+                .map(
+                  (r) => `
                 <tr>
                   <td>${r.courseTitle}</td>
                   <td class="num">${r.best}%</td>
-                  <td>${r.completed ? `<button class="btn" data-cert="${r.courseId}"><i class="ri-award-line"></i> Download</button>` : '—'}</td>
-                </tr>`).join('')}
+                  <td>${
+                    r.completed
+                      ? `<button class="btn" data-cert="${r.courseId}"><i class="ri-award-line"></i> Download</button>`
+                      : "—"
+                  }</td>
+                </tr>`
+                )
+                .join("")}
             </tbody>
           </table>
         </div>
       </div></div>
     </div>
   `;
-}
+  }
 
   // --- Guide view (compact) ---
-  function vGuide(){
-  return `
+  function vGuide() {
+    return `
   <section class="guide">
     <style>
       /* compact, readable styles for the Guide page only */
@@ -1293,17 +1804,20 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
       </div>
     </div>
   </section>`;
-}
+  }
 
   function vAdmin() {
-    if (!canManageUsers()) return `<div class="card"><div class="card-body">Admins only.</div></div>`;
+    if (!canManageUsers())
+      return `<div class="card"><div class="card-body">Admins only.</div></div>`;
     return `
       <div class="grid cols-2">
         <div class="card"><div class="card-body">
           <h3 style="margin:0 0 8px 0">Role Manager</h3>
           <div class="grid">
             <input id="rm-uid" class="input" placeholder="User UID"/>
-            <select id="rm-role" class="input">${VALID_ROLES.map(r => `<option value="${r}">${r}</option>`).join('')}</select>
+            <select id="rm-role" class="input">${VALID_ROLES.map(
+              (r) => `<option value="${r}">${r}</option>`
+            ).join("")}</select>
             <button class="btn" id="rm-save"><i class="ri-save-3-line"></i> Save Role</button>
             <div class="muted" style="font-size:12px">Tip: Create your own admin doc once in roles/{yourUid} via console.</div>
           </div>
@@ -1313,12 +1827,22 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
           <h3 style="margin:0 0 8px 0">Users (profiles)</h3>
           <div class="table-wrap">
             <table class="table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead><tbody>
-            ${state.profiles.map(p => `<tr>
-              <td>${p.name || '—'}</td><td>${p.email || '—'}</td><td>${p.role || 'student'}</td>
+            ${state.profiles
+              .map(
+                (p) => `<tr>
+              <td>${p.name || "—"}</td><td>${p.email || "—"}</td><td>${
+                  p.role || "student"
+                }</td>
               <td>
-                <button class="btn ghost" data-admin-edit="${p.uid}"><i class="ri-edit-line"></i></button>
-                <button class="btn danger" data-admin-del="${p.uid}"><i class="ri-delete-bin-6-line"></i></button>
-              </td></tr>`).join('')}
+                <button class="btn ghost" data-admin-edit="${
+                  p.uid
+                }"><i class="ri-edit-line"></i></button>
+                <button class="btn danger" data-admin-del="${
+                  p.uid
+                }"><i class="ri-delete-bin-6-line"></i></button>
+              </td></tr>`
+              )
+              .join("")}
             </tbody></table>
           </div>
         </div></div>
@@ -1330,7 +1854,9 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
               <label class="muted">Course</label>
               <select id="roster-course" class="input">
                 <option value="">Select course…</option>
-                ${state.courses.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}
+                ${state.courses
+                  .map((c) => `<option value="${c.id}">${c.title}</option>`)
+                  .join("")}
               </select>
             </div>
             <div>
@@ -1355,9 +1881,12 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
   }
 
   function vSettings() {
-    const opts = THEME_PALETTES
-      .map(p => `<option value="${p}" ${state.theme.palette === p ? 'selected' : ''}>${p}</option>`)
-      .join('');
+    const opts = THEME_PALETTES.map(
+      (p) =>
+        `<option value="${p}" ${
+          state.theme.palette === p ? "selected" : ""
+        }>${p}</option>`
+    ).join("");
     return `
       <div class="card"><div class="card-body">
         <h3 style="margin:0 0 8px 0">Theme</h3>
@@ -1367,9 +1896,15 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
           </div>
           <div><label>Font size</label>
             <select id="theme-font" class="input">
-              <option value="small" ${state.theme.font === 'small' ? 'selected' : ''}>small</option>
-              <option value="medium" ${state.theme.font === 'medium' ? 'selected' : ''}>medium</option>
-              <option value="large" ${state.theme.font === 'large' ? 'selected' : ''}>large</option>
+              <option value="small" ${
+                state.theme.font === "small" ? "selected" : ""
+              }>small</option>
+              <option value="medium" ${
+                state.theme.font === "medium" ? "selected" : ""
+              }>medium</option>
+              <option value="large" ${
+                state.theme.font === "large" ? "selected" : ""
+              }>large</option>
             </select>
           </div>
         </div>
@@ -1378,33 +1913,55 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
     `;
   }
 
-  const vSearch = () => `<div class="card"><div class="card-body"><h3>Search</h3><div class="muted">Type in the top bar.</div></div></div>`;
+  const vSearch = () =>
+    `<div class="card"><div class="card-body"><h3>Search</h3><div class="muted">Type in the top bar.</div></div></div>`;
 
   function safeView(r) {
     switch (r) {
-      case 'dashboard': return vDashboard();
-      case 'courses': return vCourses();
-      case 'learning': return vLearning();
-      case 'assessments': return vAssessments();
-      case 'chat': return vChat();
-      case 'tasks': return vTasks();
-      case 'profile': return vProfile();
-      case 'admin': return vAdmin();
-      case 'guide': return vGuide();
-      case 'settings': return vSettings();
-      case 'search': return vSearch();
-      case 'contact': return vContact();
-      case 'course-detail': return vCourseDetail(state.currentCourseId);
-      default: return vDashboard();
+      case "dashboard":
+        return vDashboard();
+      case "courses":
+        return vCourses();
+      case "learning":
+        return vLearning();
+      case "assessments":
+        return vAssessments();
+      case "chat":
+        return vChat();
+      case "tasks":
+        return vTasks();
+      case "profile":
+        return vProfile();
+      case "admin":
+        return vAdmin();
+      case "guide":
+        return vGuide();
+      case "settings":
+        return vSettings();
+      case "search":
+        return vSearch();
+      case "contact":
+        return vContact();
+      case "course-detail":
+        return vCourseDetail(state.currentCourseId);
+      default:
+        return vDashboard();
     }
   }
 
   // ---- Render / Shell ----
   function render() {
-    if (!document.body) { onReady(render); return; }
+    if (!document.body) {
+      onReady(render);
+      return;
+    }
 
-    let root = document.getElementById('root');
-    if (!root) { root = document.createElement('div'); root.id = 'root'; document.body.appendChild(root); }
+    let root = document.getElementById("root");
+    if (!root) {
+      root = document.createElement("div");
+      root.id = "root";
+      document.body.appendChild(root);
+    }
 
     if (!auth.currentUser) {
       root.innerHTML = vLogin();
@@ -1413,956 +1970,1501 @@ openModal = function(id) { ensureModalDOM(); _openModal(id); };
     }
 
     root.innerHTML = layout(safeView(state.route));
-    wireShell(); wireRoute();
-    if (state.route === 'chat') populateDmUserSelect();
+    wireShell();
+    wireRoute();
+    if (state.route === "chat") populateDmUserSelect();
     if (state.highlightId) {
       const el = document.getElementById(state.highlightId);
-      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
       state.highlightId = null;
     }
   }
 
   function wireShell() {
-  on($('#burger'), 'click', () => {
-    const open = document.body.classList.contains('sidebar-open');
-    if (open) {
+    on($("#burger"), "click", () => {
+      const open = document.body.classList.contains("sidebar-open");
+      if (open) {
+        closeSidebar();
+      } else {
+        document.body.classList.add("sidebar-open");
+        $("#backdrop")?.classList.add("active");
+      }
+    });
+    on($("#backdrop"), "click", closeSidebar);
+    on($("#brand"), "click", closeSidebar);
+
+    on($("#side-nav"), "click", (e) => {
+      const it = e.target.closest?.(".item[data-route]");
+      if (it) go(it.getAttribute("data-route"));
+    });
+    on($("#side-nav"), "keydown", (e) => {
+      const it = e.target.closest?.(".item[data-route]");
+      if (!it) return;
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        go(it.getAttribute("data-route"));
+      }
+    });
+
+    on($("#main"), "click", (e) => {
+      const goEl = e.target.closest?.("[data-go]");
+      if (goEl) {
+        go(goEl.getAttribute("data-go"));
+        return;
+      }
       closeSidebar();
-    } else {
-      document.body.classList.add('sidebar-open');
-      $('#backdrop')?.classList.add('active');
+    });
+
+    on($("#btnLogout"), "click", () => auth.signOut());
+    on($("#mm-close"), "click", () => closeModal("m-modal"));
+
+    // Search live
+    const input = $("#globalSearch"),
+      results = $("#searchResults");
+    if (input && results) {
+      let t;
+      input.addEventListener(
+        "keydown",
+        safe((e) => {
+          if (e.key === "Enter") {
+            state.searchQ = input.value.trim();
+            go("search");
+            results.classList.remove("active");
+          }
+        })
+      );
+      input.addEventListener(
+        "input",
+        safe(() => {
+          clearTimeout(t);
+          const q = input.value.trim();
+          if (!q) {
+            results.classList.remove("active");
+            results.innerHTML = "";
+            return;
+          }
+          t = setTimeout(() => {
+            const ix = [];
+            state.courses.forEach((c) =>
+              ix.push({
+                label: c.title,
+                section: "Courses",
+                route: "courses",
+                id: c.id,
+                text: `${c.title} ${c.category || ""}`,
+              })
+            );
+            state.quizzes.forEach((qz) =>
+              ix.push({
+                label: qz.title,
+                section: "Finals",
+                route: "assessments",
+                id: qz.id,
+                text: qz.courseTitle || "",
+              })
+            );
+            state.profiles.forEach((p) =>
+              ix.push({
+                label: p.name || p.email,
+                section: "Profiles",
+                route: "profile",
+                id: p.uid,
+                text: p.bio || "",
+              })
+            );
+            const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+            const out = ix
+              .map((item) => {
+                const l = item.label.toLowerCase(),
+                  t = (item.text || "").toLowerCase();
+                const ok = tokens.every(
+                  (tok) => l.includes(tok) || t.includes(tok)
+                );
+                return ok
+                  ? {
+                      item,
+                      score: tokens.length + (l.includes(tokens[0]) ? 1 : 0),
+                    }
+                  : null;
+              })
+              .filter(Boolean)
+              .sort((a, b) => b.score - a.score)
+              .map((x) => x.item)
+              .slice(0, 12);
+
+            results.innerHTML = out
+              .map(
+                (r) =>
+                  `<div class="row" data-route="${r.route}" data-id="${
+                    r.id || ""
+                  }"><strong>${r.label}</strong> <span class="muted">— ${
+                    r.section
+                  }</span></div>`
+              )
+              .join("");
+            results.classList.add("active");
+            $$("#searchResults .row").forEach((row) => {
+              row.onclick = safe(() => {
+                const r = row.getAttribute("data-route");
+                const id = row.getAttribute("data-id");
+                state.searchQ = q;
+                state.highlightId = id;
+                go(r);
+                results.classList.remove("active");
+              });
+            });
+          }, 120);
+        })
+      );
+
+      document.addEventListener(
+        "click",
+        safe((e) => {
+          if (
+            results &&
+            typeof results.contains === "function" &&
+            e.target !== input &&
+            !results.contains(e.target)
+          ) {
+            results.classList.remove("active");
+          }
+        }),
+        { capture: true }
+      );
     }
-  });
-  on($('#backdrop'), 'click', closeSidebar);
-  on($('#brand'), 'click', closeSidebar);
 
-  on($('#side-nav'), 'click', (e) => {
-    const it = e.target.closest?.('.item[data-route]');
-    if (it) go(it.getAttribute('data-route'));
-  });
-  on($('#side-nav'), 'keydown', (e) => {
-    const it = e.target.closest?.('.item[data-route]'); if (!it) return;
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(it.getAttribute('data-route')); }
-  });
+    // Theme instant
+    on($("#theme-palette"), "change", (e) => {
+      state.theme.palette = e.target.value;
+      localStorage.setItem("lh.palette", state.theme.palette);
+      applyTheme();
+    });
+    on($("#theme-font"), "change", (e) => {
+      state.theme.font = e.target.value;
+      localStorage.setItem("lh.font", state.theme.font);
+      applyTheme();
+    });
 
-  on($('#main'), 'click', (e) => {
-    const goEl = e.target.closest?.('[data-go]');
-    if (goEl) { go(goEl.getAttribute('data-go')); return; }
-    closeSidebar();
-  });
-
-  on($('#btnLogout'), 'click', () => auth.signOut());
-  on($('#mm-close'), 'click', () => closeModal('m-modal'));
-
-  // Search live
-  const input = $('#globalSearch'), results = $('#searchResults');
-  if (input && results) {
-    let t;
-    input.addEventListener('keydown', safe((e) => {
-      if (e.key === 'Enter') {
-        state.searchQ = input.value.trim();
-        go('search');
-        results.classList.remove('active');
-      }
-    }));
-    input.addEventListener('input', safe(() => {
-      clearTimeout(t);
-      const q = input.value.trim();
-      if (!q) { results.classList.remove('active'); results.innerHTML = ''; return; }
-      t = setTimeout(() => {
-        const ix = [];
-        state.courses.forEach(c => ix.push({ label: c.title, section: 'Courses', route: 'courses', id: c.id, text: `${c.title} ${c.category || ''}` }));
-        state.quizzes.forEach(qz => ix.push({ label: qz.title, section: 'Finals', route: 'assessments', id: qz.id, text: qz.courseTitle || '' }));
-        state.profiles.forEach(p => ix.push({ label: p.name || p.email, section: 'Profiles', route: 'profile', id: p.uid, text: (p.bio || '') }));
-        const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
-        const out = ix.map(item => {
-          const l = item.label.toLowerCase(), t = (item.text || '').toLowerCase();
-          const ok = tokens.every(tok => l.includes(tok) || t.includes(tok));
-          return ok ? { item, score: tokens.length + (l.includes(tokens[0]) ? 1 : 0) } : null;
-        }).filter(Boolean).sort((a, b) => b.score - a.score).map(x => x.item).slice(0, 12);
-
-        results.innerHTML = out.map(r => `<div class="row" data-route="${r.route}" data-id="${r.id || ''}"><strong>${r.label}</strong> <span class="muted">— ${r.section}</span></div>`).join('');
-        results.classList.add('active');
-        $$('#searchResults .row').forEach(row => {
-          row.onclick = safe(() => { const r = row.getAttribute('data-route'); const id = row.getAttribute('data-id'); state.searchQ = q; state.highlightId = id; go(r); results.classList.remove('active'); });
-        });
-      }, 120);
-    }));
-
-    document.addEventListener('click', safe((e) => {
-      if (results && typeof results.contains === 'function' && e.target !== input && !results.contains(e.target)) {
-        results.classList.remove('active');
-      }
-    }), { capture: true });
+    // Escape closes modal
+    on(document, "keydown", (e) => {
+      if (e.key === "Escape") closeModal("m-modal");
+    });
   }
-
-  // Theme instant
-  on($('#theme-palette'), 'change', (e) => { state.theme.palette = e.target.value; localStorage.setItem('lh.palette', state.theme.palette); applyTheme(); });
-  on($('#theme-font'), 'change', (e) => { state.theme.font = e.target.value; localStorage.setItem('lh.font', state.theme.font); applyTheme(); });
-
-  // Escape closes modal
-  on(document, 'keydown', (e) => { if (e.key === 'Escape') closeModal('m-modal'); });
-}
 
   function wireRoute() {
     switch (state.route) {
-      case 'courses': wireCourses(); break;
-      case 'course-detail': wireCourseDetail(); break;
-      case 'learning': wireLearning(); break;
-      case 'assessments': wireAssessments(); break;
-      case 'chat': wireChat(); break;
-      case 'tasks': wireTasks(); break;
-      case 'profile': wireProfile(); break;
-      case 'admin': wireAdmin(); break;
-      case 'guide': wireGuide(); break;
-      case 'contact': wireContact(); break;
-      case 'settings': break;
-      case 'dashboard': wireAnnouncements(); break;
+      case "courses":
+        wireCourses();
+        break;
+      case "course-detail":
+        wireCourseDetail();
+        break;
+      case "learning":
+        wireLearning();
+        break;
+      case "assessments":
+        wireAssessments();
+        break;
+      case "chat":
+        wireChat();
+        break;
+      case "tasks":
+        wireTasks();
+        break;
+      case "profile":
+        wireProfile();
+        break;
+      case "admin":
+        wireAdmin();
+        break;
+      case "guide":
+        wireGuide();
+        break;
+      case "contact":
+        wireContact();
+        break;
+      case "settings":
+        break;
+      case "dashboard":
+        wireAnnouncements();
+        break;
     }
   }
 
   // ---- Login
   function wireLogin() {
     const doLogin = async () => {
-      const email = $('#li-email')?.value.trim(), pass = $('#li-pass')?.value.trim();
-      if (!email || !pass) return notify('Enter email & password', 'warn');
-      try { await auth.signInWithEmailAndPassword(email, pass); } catch (e) { notify(e?.message || 'Login failed', 'danger'); }
+      const email = $("#li-email")?.value.trim(),
+        pass = $("#li-pass")?.value.trim();
+      if (!email || !pass) return notify("Enter email & password", "warn");
+      try {
+        await auth.signInWithEmailAndPassword(email, pass);
+      } catch (e) {
+        notify(e?.message || "Login failed", "danger");
+      }
     };
-    $('#btnLogin')?.addEventListener('click', doLogin);
-    $('#li-pass')?.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-
-    $('#link-forgot')?.addEventListener('click', async () => {
-      const email = $('#li-email')?.value.trim(); if (!email) return notify('Enter your email first', 'warn');
-      try { await auth.sendPasswordResetEmail(email); notify('Reset email sent', 'ok'); } catch (e) { notify(e?.message || 'Failed', 'danger'); }
+    $("#btnLogin")?.addEventListener("click", doLogin);
+    $("#li-pass")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doLogin();
     });
 
-    $('#link-register')?.addEventListener('click', async () => {
-      const email = $('#li-email')?.value.trim(); const pass = $('#li-pass')?.value.trim() || 'admin123';
-      if (!email) return notify('Enter email, then click Sign up again', 'warn');
+    $("#link-forgot")?.addEventListener("click", async () => {
+      const email = $("#li-email")?.value.trim();
+      if (!email) return notify("Enter your email first", "warn");
+      try {
+        await auth.sendPasswordResetEmail(email);
+        notify("Reset email sent", "ok");
+      } catch (e) {
+        notify(e?.message || "Failed", "danger");
+      }
+    });
+
+    $("#link-register")?.addEventListener("click", async () => {
+      const email = $("#li-email")?.value.trim();
+      const pass = $("#li-pass")?.value.trim() || "admin123";
+      if (!email)
+        return notify("Enter email, then click Sign up again", "warn");
       try {
         const cred = await auth.createUserWithEmailAndPassword(email, pass);
         const uid = cred.user.uid;
         await Promise.all([
-          doc('roles', uid).set({ uid, email, role: 'student', createdAt: firebase.firestore.FieldValue.serverTimestamp() }),
-          doc('profiles', uid).set({ uid, email, name: '', bio: '', portfolio: '', role: 'student', createdAt: firebase.firestore.FieldValue.serverTimestamp() })
+          doc("roles", uid).set({
+            uid,
+            email,
+            role: "student",
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          }),
+          doc("profiles", uid).set({
+            uid,
+            email,
+            name: "",
+            bio: "",
+            portfolio: "",
+            role: "student",
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          }),
         ]);
-        notify('Account created — you can sign in.');
-      } catch (e) { notify(e?.message || 'Signup failed', 'danger'); }
+        notify("Account created — you can sign in.");
+      } catch (e) {
+        notify(e?.message || "Signup failed", "danger");
+      }
     });
   }
 
   // ---- Courses
   function wireCourses() {
-  on($('#seed-demo'), 'click', async () => {
-    await window.seedDemoCourses().then(() => notify('Demo courses added')).catch(e => {
-      console.error(e);
-      notify((e && (e.code + ': ' + e.message)) || 'Failed to seed', 'danger');
+    on($("#seed-demo"), "click", async () => {
+      await window
+        .seedDemoCourses()
+        .then(() => notify("Demo courses added"))
+        .catch((e) => {
+          console.error(e);
+          notify(
+            (e && e.code + ": " + e.message) || "Failed to seed",
+            "danger"
+          );
+        });
     });
-  });
 
-  on($('#add-course'), 'click', () => {
-    if (!canTeach()) return notify('Instructors/Admins only', 'warn');
-    $('#mm-title').textContent = 'New Course';
-    $('#mm-body').innerHTML = `
-      <div class="grid">
-        <input id="c-title" class="input" placeholder="Title"/>
-        <input id="c-category" class="input" placeholder="Category"/>
-        <input id="c-credits" class="input" type="number" placeholder="Credits" value="0"/>
-        <input id="c-price" class="input" type="number" placeholder="Price" value="0"/>
-        <textarea id="c-short" class="input" placeholder="Short description"></textarea>
-        <textarea id="c-goals" class="input" placeholder="Goals (one per line)"></textarea>
-        <input id="c-cover" class="input" placeholder="Cover image URL (https://…)"/>
-        <input id="c-outlineUrl" class="input" placeholder="/data/outlines/your-course.json"/>
-        <input id="c-quizzesUrl" class="input" placeholder="/data/lesson-quizzes/your-course.json"/>
-      </div>`;
-    // New Course foot
-$('#mm-foot').innerHTML = `
-  <button class="btn" id="c-save"><i class="ri-save-3-line"></i> Save</button>
-  <button class="btn ghost" id="c-cancel">Cancel</button>`;
-openModal('m-modal');
+    // NEW COURSE
+    on($("#add-course"), "click", () => {
+      if (!canTeach()) return notify("Instructors/Admins only", "warn");
+      $("#mm-title").textContent = "New Course";
+      $("#mm-body").innerHTML = `
+    <div class="grid">
+      <input id="c-title" class="input" placeholder="Title"/>
+      <input id="c-category" class="input" placeholder="Category"/>
+      <input id="c-credits" class="input" type="number" placeholder="Credits" value="0"/>
+      <input id="c-price" class="input" type="number" placeholder="Price" value="0"/>
+      <textarea id="c-short" class="input" placeholder="Short description"></textarea>
+      <textarea id="c-goals" class="input" placeholder="Goals (one per line)"></textarea>
+      <input id="c-cover" class="input" placeholder="Cover image URL (https://…)"/>
+      <input id="c-outlineUrl" class="input" placeholder="/data/outlines/your-course.json"/>
+      <input id="c-quizzesUrl" class="input" placeholder="/data/lesson-quizzes/your-course.json"/>
+    </div>`;
+      $("#mm-foot").innerHTML = `<button class="btn" id="c-save">Save</button>`;
+      openModal("m-modal");
 
-on($('#c-cancel'), 'click', () => closeModal('m-modal'));
-on($('#c-save'), 'click', (e) => safeWrite(e.currentTarget, async () => {
-  const t = $('#c-title')?.value.trim(); if (!t) throw new Error('Title required');
-  const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
-  const obj = {
-    title: t,
-    category: $('#c-category')?.value.trim(),
-    credits: +($('#c-credits')?.value || 0),
-    price: +($('#c-price')?.value || 0),
-    short: $('#c-short')?.value.trim(),
-    goals,
-    coverImage: $('#c-cover')?.value.trim(),
-    outlineUrl: $('#c-outlineUrl')?.value.trim(),
-    quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
-    ownerUid: auth.currentUser.uid,
-    ownerEmail: auth.currentUser.email,
-    participants: [auth.currentUser.uid],
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  };
-  await col('courses').add(obj);
-}));
+      const saveBtn = $("#c-save");
+      on(saveBtn, "click", async () => {
+        const title = $("#c-title")?.value.trim();
+        if (!title) return notify("Title required", "warn");
 
-// Edit Course foot
-$('#mm-foot').innerHTML = `
-  <button class="btn" id="c-save"><i class="ri-save-3-line"></i> Save</button>
-  <button class="btn ghost" id="c-cancel">Cancel</button>`;
-on($('#c-cancel'), 'click', () => closeModal('m-modal'));
-on($('#c-save'), 'click', (e) => safeWrite(e.currentTarget, async () => {
-  const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
-  await doc('courses', id).set(clean({
-    title: $('#c-title')?.value.trim(), category: $('#c-category')?.value.trim(),
-    credits: +($('#c-credits')?.value || 0), price: +($('#c-price')?.value || 0),
-    short: $('#c-short')?.value.trim(), goals,
-    coverImage: $('#c-cover')?.value.trim(),
-    outlineUrl: $('#c-outlineUrl')?.value.trim(),
-    quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }), { merge: true });
-}));
-  });
+        const goals = ($("#c-goals")?.value || "")
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const payload = clean({
+          title,
+          category: $("#c-category")?.value.trim(),
+          credits: +($("#c-credits")?.value || 0),
+          price: +($("#c-price")?.value || 0),
+          short: $("#c-short")?.value.trim(),
+          goals,
+          coverImage: $("#c-cover")?.value.trim(),
+          outlineUrl: $("#c-outlineUrl")?.value.trim(),
+          quizzesUrl: $("#c-quizzesUrl")?.value.trim(),
+          ownerUid: auth.currentUser.uid,
+          ownerEmail: auth.currentUser.email,
+          participants: [auth.currentUser.uid],
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
 
-  const sec = $('[data-sec="courses"]'); if (!sec || sec.__wired) return; sec.__wired = true;
-
-  // Toggle clamped summary
-  delegate(sec, '[data-short-toggle]', 'click', (_e, btn) => {
-    const wrap = btn.closest('.card-body') || btn.parentElement;
-    const block = wrap?.querySelector('.short');
-    if (!block) return;
-    const clamped = block.classList.toggle('clamp');
-    btn.textContent = clamped ? 'Read more' : 'Read less';
-  });
-
-  // Open detail (SPA)
-  delegate(sec, 'button[data-open]', 'click', (_e, btn) => {
-    const id = btn.getAttribute('data-open');
-    state.currentCourseId = id;
-    state.detailPrevRoute = 'courses';
-    state.mainThemeClass = pickGradientClass(id);
-    go('course-detail');
-  });
-
-  // Edit course
-  delegate(sec, 'button[data-edit]', 'click', async (_e, btn) => {
-    if (!canTeach()) return notify('No permission', 'warn');
-    const id = btn.getAttribute('data-edit');
-    const snap = await doc('courses', id).get(); if (!snap.exists) return;
-    const c = { id: snap.id, ...snap.data() };
-    $('#mm-title').textContent = 'Edit Course';
-    $('#mm-body').innerHTML = `
-      <div class="grid">
-        <input id="c-title" class="input" value="${c.title || ''}"/>
-        <input id="c-category" class="input" value="${c.category || ''}"/>
-        <input id="c-credits" class="input" type="number" value="${c.credits || 0}"/>
-        <input id="c-price" class="input" type="number" value="${c.price || 0}"/>
-        <textarea id="c-short" class="input">${c.short || ''}</textarea>
-        <textarea id="c-goals" class="input">${(c.goals || []).join('\n')}</textarea>
-        <input id="c-cover" class="input" value="${c.coverImage || ''}"/>
-        <input id="c-outlineUrl" class="input" value="${c.outlineUrl || ''}"/>
-        <input id="c-quizzesUrl" class="input" value="${c.quizzesUrl || ''}"/>
-      </div>`;
-    $('#mm-foot').innerHTML = `
-  <button class="btn" id="c-save"><i class="ri-save-3-line"></i> Save</button>
-  <button class="btn ghost" id="c-cancel">Cancel</button>`;
-openModal('m-modal');
-
-on($('#c-cancel'), 'click', () => closeModal('m-modal'));
-on($('#c-save'), 'click', async () => {
-  const t = $('#c-title')?.value.trim(); if (!t) return notify('Title required', 'warn');
-  const goals = ($('#c-goals')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
-  const obj = {
-    title: t,
-    category: $('#c-category')?.value.trim(),
-    credits: +($('#c-credits')?.value || 0),
-    price: +($('#c-price')?.value || 0),
-    short: $('#c-short')?.value.trim(),
-    goals,
-    coverImage: $('#c-cover')?.value.trim(),
-    outlineUrl: $('#c-outlineUrl')?.value.trim(),
-    quizzesUrl: $('#c-quizzesUrl')?.value.trim(),
-    ownerUid: auth.currentUser.uid,
-    ownerEmail: auth.currentUser.email,
-    participants: [auth.currentUser.uid],
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  };
-  await col('courses').add(obj)
-    .then(() => { closeModal('m-modal'); notify('Saved'); })
-    .catch(e => { console.error('Failed to create course:', e); notify(e?.message || 'Failed to create course', 'danger'); });
-});
-  });
-
-  // Delete course
-  delegate(sec, 'button[data-del]', 'click', async (_e, btn) => {
-    if (!canTeach()) return notify('No permission', 'warn');
-    const id = btn.getAttribute('data-del');
-    await doc('courses', id).delete();
-    notify('Course deleted');
-  });
-}
-
-  function wireCourseDetail(){
-  const id = state.currentCourseId;
-  const c = state.courses.find(x => x.id === id) || {};
-
-  // Back to where we came from
-  $('#cd-back')?.addEventListener('click', () => {
-    go(state.detailPrevRoute || 'courses');
-  });
-
-  // Finals
-  $('#cd-finals')?.addEventListener('click', () => {
-    state.searchQ = c.title || '';
-    go('assessments');
-  });
-
-  // Enroll (free)
-  $('#cd-enroll')?.addEventListener('click', async () => {
-    await col('enrollments').add({
-      uid: auth.currentUser.uid, courseId: c.id,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      course: { id: c.id, title: c.title, category: c.category, credits: c.credits, coverImage: c.coverImage }
+        try {
+          saveBtn.disabled = true;
+          saveBtn.textContent = "Saving…";
+          await col("courses").add(payload);
+          closeModal("m-modal");
+          notify("Saved");
+        } catch (e) {
+          console.error("Failed to create course:", e);
+          notify(e?.message || "Failed to create course", "danger");
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save";
+        }
+      });
     });
-    try {
-      await doc('courses', c.id).set({ participants: firebase.firestore.FieldValue.arrayUnion(auth.currentUser.uid) }, { merge: true });
-    } catch {}
-    notify('Enrolled');
-    // Refresh detail view to reflect status
-    render();
-  });
 
-  // Pay & Enroll (lazy-mount PayPal)
-  $('#cd-show-pay')?.addEventListener('click', () => {
-    setupPayPalForCourse(c);
-    document.getElementById('paypal-zone')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  });
+    // EDIT COURSE
+    delegate(sec, "button[data-edit]", "click", async (_e, btn) => {
+      if (!canTeach()) return notify("No permission", "warn");
+      const courseId = btn.getAttribute("data-edit");
+      const snap = await doc("courses", courseId).get();
+      if (!snap.exists) return;
+      const c = { id: snap.id, ...snap.data() };
 
-  // Load Outline JSON
-  const outlineBox = document.getElementById('cd-outline');
-  if (c.outlineUrl) {
-    fetchJSON(c.outlineUrl)
-      .then(d => outlineBox.innerHTML = renderOutlineBox(d))
-      .catch(err => outlineBox.innerHTML = `<div class="muted">Could not load outline (${err?.message || 'error'}).</div>`);
-  } else {
-    outlineBox.innerHTML = `<div class="muted">No outline URL for this course.</div>`;
+      $("#mm-title").textContent = "Edit Course";
+      $("#mm-body").innerHTML = `
+    <div class="grid">
+      <input id="c-title" class="input" value="${(c.title || "").replace(
+        /"/g,
+        "&quot;"
+      )}"/>
+      <input id="c-category" class="input" value="${(c.category || "").replace(
+        /"/g,
+        "&quot;"
+      )}"/>
+      <input id="c-credits" class="input" type="number" value="${
+        c.credits || 0
+      }"/>
+      <input id="c-price" class="input" type="number" value="${c.price || 0}"/>
+      <textarea id="c-short" class="input">${c.short || ""}</textarea>
+      <textarea id="c-goals" class="input">${(c.goals || []).join(
+        "\n"
+      )}</textarea>
+      <input id="c-cover" class="input" value="${(c.coverImage || "").replace(
+        /"/g,
+        "&quot;"
+      )}"/>
+      <input id="c-outlineUrl" class="input" value="${(
+        c.outlineUrl || ""
+      ).replace(/"/g, "&quot;")}"/>
+      <input id="c-quizzesUrl" class="input" value="${(
+        c.quizzesUrl || ""
+      ).replace(/"/g, "&quot;")}"/>
+    </div>`;
+      $("#mm-foot").innerHTML = `<button class="btn" id="c-save">Save</button>`;
+      openModal("m-modal");
+
+      const saveBtn = $("#c-save");
+      on(saveBtn, "click", async () => {
+        const goals = ($("#c-goals")?.value || "")
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const update = clean({
+          title: $("#c-title")?.value.trim(),
+          category: $("#c-category")?.value.trim(),
+          credits: +($("#c-credits")?.value || 0),
+          price: +($("#c-price")?.value || 0),
+          short: $("#c-short")?.value.trim(),
+          goals,
+          coverImage: $("#c-cover")?.value.trim(),
+          outlineUrl: $("#c-outlineUrl")?.value.trim(),
+          quizzesUrl: $("#c-quizzesUrl")?.value.trim(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        try {
+          saveBtn.disabled = true;
+          saveBtn.textContent = "Saving…";
+          await doc("courses", courseId).set(update, { merge: true });
+          closeModal("m-modal");
+          notify("Saved");
+        } catch (e) {
+          notify(e?.message || "Failed to save course", "danger");
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save";
+        }
+      });
+    });
+
+    const sec = $('[data-sec="courses"]');
+    if (!sec || sec.__wired) return;
+    sec.__wired = true;
+
+    // Toggle clamped summary
+    delegate(sec, "[data-short-toggle]", "click", (_e, btn) => {
+      const wrap = btn.closest(".card-body") || btn.parentElement;
+      const block = wrap?.querySelector(".short");
+      if (!block) return;
+      const clamped = block.classList.toggle("clamp");
+      btn.textContent = clamped ? "Read more" : "Read less";
+    });
+
+    // Open detail (SPA)
+    delegate(sec, "button[data-open]", "click", (_e, btn) => {
+      const id = btn.getAttribute("data-open");
+      state.currentCourseId = id;
+      state.detailPrevRoute = "courses";
+      state.mainThemeClass = pickGradientClass(id);
+      go("course-detail");
+    });
+
+    // Edit course
+    delegate(sec, "button[data-edit]", "click", async (_e, btn) => {
+      if (!canTeach()) return notify("No permission", "warn");
+      const id = btn.getAttribute("data-edit");
+      const snap = await doc("courses", id).get();
+      if (!snap.exists) return;
+      const c = { id: snap.id, ...snap.data() };
+      $("#mm-title").textContent = "Edit Course";
+      $("#mm-body").innerHTML = `
+      <div class="grid">
+        <input id="c-title" class="input" value="${c.title || ""}"/>
+        <input id="c-category" class="input" value="${c.category || ""}"/>
+        <input id="c-credits" class="input" type="number" value="${
+          c.credits || 0
+        }"/>
+        <input id="c-price" class="input" type="number" value="${
+          c.price || 0
+        }"/>
+        <textarea id="c-short" class="input">${c.short || ""}</textarea>
+        <textarea id="c-goals" class="input">${(c.goals || []).join(
+          "\n"
+        )}</textarea>
+        <input id="c-cover" class="input" value="${c.coverImage || ""}"/>
+        <input id="c-outlineUrl" class="input" value="${c.outlineUrl || ""}"/>
+        <input id="c-quizzesUrl" class="input" value="${c.quizzesUrl || ""}"/>
+      </div>`;
+      $("#mm-foot").innerHTML = `
+  <button class="btn" id="c-save"><i class="ri-save-3-line"></i> Save</button>
+  <button class="btn ghost" id="c-cancel">Cancel</button>`;
+      openModal("m-modal");
+
+      on($("#c-cancel"), "click", () => closeModal("m-modal"));
+      on($("#c-save"), "click", async () => {
+        const t = $("#c-title")?.value.trim();
+        if (!t) return notify("Title required", "warn");
+        const goals = ($("#c-goals")?.value || "")
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const obj = {
+          title: t,
+          category: $("#c-category")?.value.trim(),
+          credits: +($("#c-credits")?.value || 0),
+          price: +($("#c-price")?.value || 0),
+          short: $("#c-short")?.value.trim(),
+          goals,
+          coverImage: $("#c-cover")?.value.trim(),
+          outlineUrl: $("#c-outlineUrl")?.value.trim(),
+          quizzesUrl: $("#c-quizzesUrl")?.value.trim(),
+          ownerUid: auth.currentUser.uid,
+          ownerEmail: auth.currentUser.email,
+          participants: [auth.currentUser.uid],
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        };
+        await col("courses")
+          .add(obj)
+          .then(() => {
+            closeModal("m-modal");
+            notify("Saved");
+          })
+          .catch((e) => {
+            console.error("Failed to create course:", e);
+            notify(e?.message || "Failed to create course", "danger");
+          });
+      });
+    });
+
+    // Delete course
+    delegate(sec, "button[data-del]", "click", async (_e, btn) => {
+      if (!canTeach()) return notify("No permission", "warn");
+      const id = btn.getAttribute("data-del");
+      await doc("courses", id).delete();
+      notify("Course deleted");
+    });
   }
 
-  // Load Lesson Quizzes JSON
-  const quizBox = document.getElementById('cd-lesson-quizzes');
-  if (c.quizzesUrl) {
-    fetchJSON(c.quizzesUrl)
-      .then(d => quizBox.innerHTML = renderLessonQuizzesBox(d))
-      .catch(err => quizBox.innerHTML = `<div class="muted">Could not load lesson quizzes (${err?.message || 'error'}).</div>`);
-  } else {
-    quizBox.innerHTML = `<div class="muted">No lesson quizzes URL for this course.</div>`;
+  function wireCourseDetail() {
+    const courseId = state.currentCourseId;
+    const c = state.courses.find((x) => x.id === courseId) || {};
+
+    // Back to where we came from
+    on($("#cd-back"), "click", () => {
+      go(state.detailPrevRoute || "courses");
+    });
+
+    // Finals
+    on($("#cd-finals"), "click", () => {
+      state.searchQ = c.title || "";
+      go("assessments");
+    });
+
+    // Enroll (free)
+    on("#cd-enroll")?.addEventListener("click", async () => {
+      await col("enrollments").add({
+        uid: auth.currentUser.uid,
+        courseId: c.id,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        course: {
+          id: c.id,
+          title: c.title,
+          category: c.category,
+          credits: c.credits,
+          coverImage: c.coverImage,
+        },
+      });
+      try {
+        await doc("courses", c.id).set(
+          {
+            participants: firebase.firestore.FieldValue.arrayUnion(
+              auth.currentUser.uid
+            ),
+          },
+          { merge: true }
+        );
+      } catch {}
+      notify("Enrolled");
+      // Refresh detail view to reflect status
+      render();
+    });
+
+    // Pay & Enroll (lazy-mount PayPal)
+    on("#cd-show-pay")?.addEventListener("click", () => {
+      setupPayPalForCourse(c);
+      document
+        .getElementById("paypal-zone")
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+
+    // Load Outline JSON
+    const outlineBox = document.getElementById("cd-outline");
+    if (c.outlineUrl) {
+      fetchJSON(c.outlineUrl)
+        .then((d) => (outlineBox.innerHTML = renderOutlineBox(d)))
+        .catch(
+          (err) =>
+            (outlineBox.innerHTML = `<div class="muted">Could not load outline (${
+              err?.message || "error"
+            }).</div>`)
+        );
+    } else {
+      outlineBox.innerHTML = `<div class="muted">No outline URL for this course.</div>`;
+    }
+
+    // Load Lesson Quizzes JSON
+    const quizBox = document.getElementById("cd-lesson-quizzes");
+    if (c.quizzesUrl) {
+      fetchJSON(c.quizzesUrl)
+        .then((d) => (quizBox.innerHTML = renderLessonQuizzesBox(d)))
+        .catch(
+          (err) =>
+            (quizBox.innerHTML = `<div class="muted">Could not load lesson quizzes (${
+              err?.message || "error"
+            }).</div>`)
+        );
+    } else {
+      quizBox.innerHTML = `<div class="muted">No lesson quizzes URL for this course.</div>`;
+    }
   }
-}
 
   // ---- Learning
   function wireLearning() {
-  const sec = $('[data-sec="learning"]'); if (!sec || sec.__wired) return; sec.__wired = true;
+    const sec = $('[data-sec="learning"]');
+    if (!sec || sec.__wired) return;
+    sec.__wired = true;
 
-  // Toggle clamp
-  delegate(sec, '[data-short-toggle]', 'click', (_e, btn) => {
-    const wrap = btn.closest('.card-body') || btn.parentElement;
-    const block = wrap?.querySelector('.short');
-    if (!block) return;
-    const clamped = block.classList.toggle('clamp');
-    btn.textContent = clamped ? 'Read more' : 'Read less';
-  });
+    // Toggle clamp
+    delegate(sec, "[data-short-toggle]", "click", (_e, btn) => {
+      const wrap = btn.closest(".card-body") || btn.parentElement;
+      const block = wrap?.querySelector(".short");
+      if (!block) return;
+      const clamped = block.classList.toggle("clamp");
+      btn.textContent = clamped ? "Read more" : "Read less";
+    });
 
-  // Open detail (SPA)
-  delegate(sec, 'button[data-open-course]', 'click', (_e, btn) => {
-    const id = btn.getAttribute('data-open-course');
-    state.currentCourseId = id;
-    state.detailPrevRoute = 'learning';
-    state.mainThemeClass = pickGradientClass(id);
-    go('course-detail');
-  });
-}
+    // Open detail (SPA)
+    delegate(sec, "button[data-open-course]", "click", (_e, btn) => {
+      const id = btn.getAttribute("data-open-course");
+      state.currentCourseId = id;
+      state.detailPrevRoute = "learning";
+      state.mainThemeClass = pickGradientClass(id);
+      go("course-detail");
+    });
+  }
 
   // ---- Finals
   function wireAssessments() {
-  on($('#new-quiz'), 'click', () => {
-    if (!canTeach()) return notify('Instructors/Admins only', 'warn');
-    $('#mm-title').textContent = 'New Final';
-    $('#mm-body').innerHTML = `
+    on($("#new-quiz"), "click", () => {
+      if (!canTeach()) return notify("Instructors/Admins only", "warn");
+      $("#mm-title").textContent = "New Final";
+      $("#mm-body").innerHTML = `
       <div class="grid">
         <input id="q-title" class="input" placeholder="Final title"/>
-        <select id="q-course" class="input">${state.courses.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}</select>
+        <select id="q-course" class="input">${state.courses
+          .map((c) => `<option value="${c.id}">${c.title}</option>`)
+          .join("")}</select>
         <input id="q-pass" class="input" type="number" value="70" placeholder="Pass score (%)"/>
         <textarea id="q-json" class="input" placeholder='[{"q":"2+2?","choices":["3","4","5"],"answer":1,"feedbackOk":"Correct!","feedbackNo":"Try again"}]'></textarea>
       </div>`;
-    $('#mm-foot').innerHTML = `
+      $("#mm-foot").innerHTML = `
   <button class="btn" id="q-save"><i class="ri-save-3-line"></i> Save</button>
   <button class="btn ghost" id="q-cancel">Back</button>`;
-openModal('m-modal');
+      openModal("m-modal");
 
-on($('#q-cancel'), 'click', () => closeModal('m-modal'));
-on($('#q-save'), 'click', async () => {
-  const t = $('#q-title')?.value.trim(); const courseId = $('#q-course')?.value; const pass = +($('#q-pass')?.value || 70);
-  if (!t || !courseId) return notify('Fill title & course', 'warn');
-  let items = []; try { items = JSON.parse($('#q-json')?.value || '[]'); } catch { return notify('Invalid JSON', 'danger'); }
-  const course = state.courses.find(c => c.id === courseId) || {};
-  await col('quizzes').add(clean({ title: t, courseId, courseTitle: course.title, passScore: pass, items, isFinal: true, ownerUid: auth.currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
-  closeModal('m-modal'); notify('Final saved');
-});
-  });
+      on($("#q-cancel"), "click", () => closeModal("m-modal"));
+      on($("#q-save"), "click", async () => {
+        const t = $("#q-title")?.value.trim();
+        const courseId = $("#q-course")?.value;
+        const pass = +($("#q-pass")?.value || 70);
+        if (!t || !courseId) return notify("Fill title & course", "warn");
+        let items = [];
+        try {
+          items = JSON.parse($("#q-json")?.value || "[]");
+        } catch {
+          return notify("Invalid JSON", "danger");
+        }
+        const course = state.courses.find((c) => c.id === courseId) || {};
+        await col("quizzes").add(
+          clean({
+            title: t,
+            courseId,
+            courseTitle: course.title,
+            passScore: pass,
+            items,
+            isFinal: true,
+            ownerUid: auth.currentUser.uid,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          })
+        );
+        closeModal("m-modal");
+        notify("Final saved");
+      });
+    });
 
-  const sec = $('[data-sec="quizzes"]'); if (!sec || sec.__wired) return; sec.__wired = true;
+    const sec = $('[data-sec="quizzes"]');
+    if (!sec || sec.__wired) return;
+    sec.__wired = true;
 
-  // Take quiz
-  delegate(sec, 'button[data-take]', 'click', async (_e, btn) => {
-    const id = btn.getAttribute('data-take'); const snap = await doc('quizzes', id).get(); if (!snap.exists) return;
-    const q = { id: snap.id, ...snap.data() };
-    if (!isEnrolled(q.courseId) && state.role === 'student') return notify('Enroll first', 'warn');
+    // Take quiz
+    delegate(sec, "button[data-take]", "click", async (_e, btn) => {
+      const id = btn.getAttribute("data-take");
+      const snap = await doc("quizzes", id).get();
+      if (!snap.exists) return;
+      const q = { id: snap.id, ...snap.data() };
+      if (!isEnrolled(q.courseId) && state.role === "student")
+        return notify("Enroll first", "warn");
 
-    $('#mm-title').textContent = q.title;
-    $('#mm-body').innerHTML = (q.items || []).map((it, idx) => `
+      $("#mm-title").textContent = q.title;
+      $("#mm-body").innerHTML = (q.items || [])
+        .map(
+          (it, idx) => `
       <div class="card"><div class="card-body">
         <div style="font-weight:700">Q${idx + 1}. ${it.q}</div>
         <div style="margin-top:6px;display:grid;gap:6px">
-          ${(it.choices || []).map((c, i) => `
+          ${(it.choices || [])
+            .map(
+              (c, i) => `
             <label style="display:flex;gap:8px;align-items:center">
               <input type="radio" name="q${idx}" value="${i}"/> <span>${c}</span>
-            </label>`).join('')}
+            </label>`
+            )
+            .join("")}
         </div>
         <div class="muted" id="fb-${idx}" style="margin-top:6px"></div>
-      </div></div>`).join('');
-    $('#mm-foot').innerHTML = `<button class="btn" id="q-submit"><i class="ri-checkbox-circle-line"></i> Submit</button>`;
-    openModal('m-modal');
+      </div></div>`
+        )
+        .join("");
+      $(
+        "#mm-foot"
+      ).innerHTML = `<button class="btn" id="q-submit"><i class="ri-checkbox-circle-line"></i> Submit</button>`;
+      openModal("m-modal");
 
-    const bodyEl = $('#mm-body');
-    bodyEl.addEventListener('change', safe((ev) => {
-      const t = ev.target;
-      if (!t?.name?.startsWith('q')) return;
-      const idx = Number(t.name.slice(1));
-      const it = (q.items || [])[idx];
-      if (!it) return;
-      const val = +t.value;
-      const fb = $(`#fb-${idx}`);
-      if (!fb) return;
-      if (val === +it.answer) { fb.textContent = it.feedbackOk || 'Correct'; fb.style.color = 'var(--ok)'; }
-      else { fb.textContent = it.feedbackNo || 'Incorrect'; fb.style.color = 'var(--danger)'; }
-    }));
+      const bodyEl = $("#mm-body");
+      bodyEl.addEventListener(
+        "change",
+        safe((ev) => {
+          const t = ev.target;
+          if (!t?.name?.startsWith("q")) return;
+          const idx = Number(t.name.slice(1));
+          const it = (q.items || [])[idx];
+          if (!it) return;
+          const val = +t.value;
+          const fb = $(`#fb-${idx}`);
+          if (!fb) return;
+          if (val === +it.answer) {
+            fb.textContent = it.feedbackOk || "Correct";
+            fb.style.color = "var(--ok)";
+          } else {
+            fb.textContent = it.feedbackNo || "Incorrect";
+            fb.style.color = "var(--danger)";
+          }
+        })
+      );
 
-    bodyEl.scrollTop = 0;
+      bodyEl.scrollTop = 0;
 
-    on($('#q-submit'), 'click', async () => {
-      let correct = 0;
-      (q.items || []).forEach((it, idx) => {
-        const v = (document.querySelector(`input[name="q${idx}"]:checked`)?.value) || '-1';
-        if (+v === +it.answer) correct++;
+      on($("#q-submit"), "click", async () => {
+        let correct = 0;
+        (q.items || []).forEach((it, idx) => {
+          const v =
+            document.querySelector(`input[name="q${idx}"]:checked`)?.value ||
+            "-1";
+          if (+v === +it.answer) correct++;
+        });
+        const total = (q.items || []).length || 1;
+        const score = Math.round((correct / total) * 100);
+        await col("attempts").add({
+          uid: auth.currentUser.uid,
+          email: auth.currentUser.email,
+          quizId: q.id,
+          quizTitle: q.title,
+          courseId: q.courseId,
+          score,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        closeModal("m-modal");
+        notify(`Your score: ${score}%`);
       });
-      const total = (q.items || []).length || 1;
-      const score = Math.round((correct / total) * 100);
-      await col('attempts').add({
-        uid: auth.currentUser.uid, email: auth.currentUser.email, quizId: q.id, quizTitle: q.title, courseId: q.courseId, score,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      closeModal('m-modal'); notify(`Your score: ${score}%`);
     });
-  });
 
-  // Edit quiz
-  delegate(sec, 'button[data-edit]', 'click', async (_e, btn) => {
-    const id = btn.getAttribute('data-edit'); const snap = await doc('quizzes', id).get(); if (!snap.exists) return;
-    const q = { id: snap.id, ...snap.data() }; if (!(canTeach() || q.ownerUid === auth.currentUser?.uid)) return notify('No permission', 'warn');
+    // Edit quiz
+    delegate(sec, "button[data-edit]", "click", async (_e, btn) => {
+      const id = btn.getAttribute("data-edit");
+      const snap = await doc("quizzes", id).get();
+      if (!snap.exists) return;
+      const q = { id: snap.id, ...snap.data() };
+      if (!(canTeach() || q.ownerUid === auth.currentUser?.uid))
+        return notify("No permission", "warn");
 
-    $('#mm-title').textContent = 'Edit Final';
-    $('#mm-body').innerHTML = `
+      $("#mm-title").textContent = "Edit Final";
+      $("#mm-body").innerHTML = `
       <div class="grid">
-        <input id="q-title" class="input" value="${q.title || ''}"/>
-        <input id="q-pass" class="input" type="number" value="${q.passScore || 70}"/>
-        <textarea id="q-json" class="input">${JSON.stringify(q.items || [], null, 2)}</textarea>
+        <input id="q-title" class="input" value="${q.title || ""}"/>
+        <input id="q-pass" class="input" type="number" value="${
+          q.passScore || 70
+        }"/>
+        <textarea id="q-json" class="input">${JSON.stringify(
+          q.items || [],
+          null,
+          2
+        )}</textarea>
       </div>`;
-    $('#mm-foot').innerHTML = `
+      $("#mm-foot").innerHTML = `
   <button class="btn" id="q-save"><i class="ri-save-3-line"></i> Save</button>
   <button class="btn ghost" id="q-cancel">Back</button>`;
-openModal('m-modal');
+      openModal("m-modal");
 
-on($('#q-cancel'), 'click', () => closeModal('m-modal'));
-on($('#q-save'), 'click', async () => {
-  const t = $('#q-title')?.value.trim(); const courseId = $('#q-course')?.value; const pass = +($('#q-pass')?.value || 70);
-  if (!t || !courseId) return notify('Fill title & course', 'warn');
-  let items = []; try { items = JSON.parse($('#q-json')?.value || '[]'); } catch { return notify('Invalid JSON', 'danger'); }
-  const course = state.courses.find(c => c.id === courseId) || {};
-  await col('quizzes').add(clean({ title: t, courseId, courseTitle: course.title, passScore: pass, items, isFinal: true, ownerUid: auth.currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
-  closeModal('m-modal'); notify('Final saved');
-});
-  });
-}
+      on($("#q-cancel"), "click", () => closeModal("m-modal"));
+      on($("#q-save"), "click", async () => {
+        const t = $("#q-title")?.value.trim();
+        const courseId = $("#q-course")?.value;
+        const pass = +($("#q-pass")?.value || 70);
+        if (!t || !courseId) return notify("Fill title & course", "warn");
+        let items = [];
+        try {
+          items = JSON.parse($("#q-json")?.value || "[]");
+        } catch {
+          return notify("Invalid JSON", "danger");
+        }
+        const course = state.courses.find((c) => c.id === courseId) || {};
+        await col("quizzes").add(
+          clean({
+            title: t,
+            courseId,
+            courseTitle: course.title,
+            passScore: pass,
+            items,
+            isFinal: true,
+            ownerUid: auth.currentUser.uid,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          })
+        );
+        closeModal("m-modal");
+        notify("Final saved");
+      });
+    });
+  }
 
   // ---- Chat
   function wireChat() {
-  const box = $('#chat-box');
-  const modeSel = $('#chat-mode');
-  const courseSel = $('#chat-course');
-  const dmSel = $('#chat-dm');
-  const groupInp = $('#chat-group');
-  const input = $('#chat-input');
-  const send = $('#chat-send');
+    const box = $("#chat-box");
+    const modeSel = $("#chat-mode");
+    const courseSel = $("#chat-course");
+    const dmSel = $("#chat-dm");
+    const groupInp = $("#chat-group");
+    const input = $("#chat-input");
+    const send = $("#chat-send");
 
-  populateDmUserSelect();
+    populateDmUserSelect();
 
-  let unsub = null;
+    let unsub = null;
 
-  const uiByMode = () => {
-    const m = modeSel.value;
-    courseSel.classList.toggle('hidden', m !== 'course');
-    dmSel.classList.toggle('hidden', m !== 'dm');
-    groupInp.classList.toggle('hidden', m !== 'group');
-    if (m === 'dm') populateDmUserSelect();
-  };
+    const uiByMode = () => {
+      const m = modeSel.value;
+      courseSel.classList.toggle("hidden", m !== "course");
+      dmSel.classList.toggle("hidden", m !== "dm");
+      groupInp.classList.toggle("hidden", m !== "group");
+      if (m === "dm") populateDmUserSelect();
+    };
 
-  // Pick a sensible default: first course if exists
-  if (!courseSel.value && state.courses.length) courseSel.value = state.courses[0].id;
-  uiByMode();
+    // Pick a sensible default: first course if exists
+    if (!courseSel.value && state.courses.length)
+      courseSel.value = state.courses[0].id;
+    uiByMode();
 
-  function channelKey() {
-    const m = modeSel.value;
-    if (m === 'course') {
-      const c = courseSel.value; return c ? `course_${c}` : '';
-    } else if (m === 'dm') {
-      const peer = dmSel.value; if (!peer) return '';
-      const pair = [auth.currentUser.uid, peer].sort(); return `dm_${pair[0]}_${pair[1]}`;
-    } else {
-      const gid = (groupInp.value || '').trim(); return gid ? `group_${gid}` : '';
+    function channelKey() {
+      const m = modeSel.value;
+      if (m === "course") {
+        const c = courseSel.value;
+        return c ? `course_${c}` : "";
+      } else if (m === "dm") {
+        const peer = dmSel.value;
+        if (!peer) return "";
+        const pair = [auth.currentUser.uid, peer].sort();
+        return `dm_${pair[0]}_${pair[1]}`;
+      } else {
+        const gid = (groupInp.value || "").trim();
+        return gid ? `group_${gid}` : "";
+      }
     }
-  }
 
-  function paint(msgs) {
-    if (!Array.isArray(msgs) || !msgs.length) {
-      box.innerHTML = '<div class="muted">No messages yet. Type a message and press Send.</div>';
-      return;
-    }
-    box.innerHTML = msgs
-      .sort((a,b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0))
-      .map(m => `
+    function paint(msgs) {
+      if (!Array.isArray(msgs) || !msgs.length) {
+        box.innerHTML =
+          '<div class="muted">No messages yet. Type a message and press Send.</div>';
+        return;
+      }
+      box.innerHTML = msgs
+        .sort(
+          (a, b) =>
+            (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0)
+        )
+        .map(
+          (m) => `
         <div style="margin-bottom:8px">
-          <div style="font-weight:600">${m.name || m.email || 'User'} <span class="muted" style="font-size:12px">• ${new Date(m.createdAt?.toDate?.() || m.createdAt || Date.now()).toLocaleTimeString()}</span></div>
-          <div>${(m.text || '').replace(/</g, '&lt;')}</div>
-        </div>`).join('');
-    box.scrollTop = box.scrollHeight;
-  }
-
-  function sub() {
-    if (unsub) { try { unsub(); } catch {} unsub = null; }
-    if (state._unsubChat) { try { state._unsubChat(); } catch {} state._unsubChat = null; }
-    const ch = channelKey();
-    if (!ch) { box.innerHTML = '<div class="muted">Pick a channel (select a course / a user / or enter a group id)…</div>'; return; }
-    unsub = col('messages').where('channel', '==', ch).onSnapshot(
-      s => paint(s.docs.map(d => ({ id: d.id, ...d.data() }))),
-      err => { console.warn('chat listener error:', err); notify('Chat read failed', 'danger'); }
-    );
-    state._unsubChat = unsub;
-  }
-
-  on(modeSel, 'change', () => { uiByMode(); sub(); });
-  on(courseSel, 'change', () => { populateDmUserSelect(); sub(); });
-  on(dmSel, 'change', sub);
-  on(groupInp, 'input', sub);
-  on(groupInp, 'keydown', (e) => { if (e.key === 'Enter') sub(); });
-
-  on(send, 'click', async () => {
-    const ch = channelKey(); const text = input.value.trim();
-    if (!ch) { notify('Pick a channel (course / DM / group) first', 'warn'); return; }
-    if (!text) return;
-    const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || {};
-    const payload = clean({
-      channel: ch,
-      type: modeSel.value,
-      uid: auth.currentUser.uid,
-      email: auth.currentUser.email,
-      name: me.name || '',
-      text,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      courseId: modeSel.value === 'course' ? courseSel.value : undefined,
-      peerUid: modeSel.value === 'dm' ? dmSel.value : undefined,
-      groupId: modeSel.value === 'group' ? groupInp.value.trim() : undefined
-    });
-    try {
-      await col('messages').add(payload);
-      input.value = '';
-    } catch (e) {
-      console.error(e);
-      notify(e?.message || 'Chat send failed (check Firestore rules)', 'danger');
+          <div style="font-weight:600">${
+            m.name || m.email || "User"
+          } <span class="muted" style="font-size:12px">• ${new Date(
+            m.createdAt?.toDate?.() || m.createdAt || Date.now()
+          ).toLocaleTimeString()}</span></div>
+          <div>${(m.text || "").replace(/</g, "&lt;")}</div>
+        </div>`
+        )
+        .join("");
+      box.scrollTop = box.scrollHeight;
     }
-  });
 
-  sub();
-}
+    function sub() {
+      if (unsub) {
+        try {
+          unsub();
+        } catch {}
+        unsub = null;
+      }
+      if (state._unsubChat) {
+        try {
+          state._unsubChat();
+        } catch {}
+        state._unsubChat = null;
+      }
+      const ch = channelKey();
+      if (!ch) {
+        box.innerHTML =
+          '<div class="muted">Pick a channel (select a course / a user / or enter a group id)…</div>';
+        return;
+      }
+      unsub = col("messages")
+        .where("channel", "==", ch)
+        .onSnapshot(
+          (s) => paint(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+          (err) => {
+            console.warn("chat listener error:", err);
+            notify("Chat read failed", "danger");
+          }
+        );
+      state._unsubChat = unsub;
+    }
+
+    on(modeSel, "change", () => {
+      uiByMode();
+      sub();
+    });
+    on(courseSel, "change", () => {
+      populateDmUserSelect();
+      sub();
+    });
+    on(dmSel, "change", sub);
+    on(groupInp, "input", sub);
+    on(groupInp, "keydown", (e) => {
+      if (e.key === "Enter") sub();
+    });
+
+    on(send, "click", async () => {
+      const ch = channelKey();
+      const text = input.value.trim();
+      if (!ch) {
+        notify("Pick a channel (course / DM / group) first", "warn");
+        return;
+      }
+      if (!text) return;
+      const me =
+        state.profiles.find((p) => p.uid === auth.currentUser?.uid) || {};
+      const payload = clean({
+        channel: ch,
+        type: modeSel.value,
+        uid: auth.currentUser.uid,
+        email: auth.currentUser.email,
+        name: me.name || "",
+        text,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        courseId: modeSel.value === "course" ? courseSel.value : undefined,
+        peerUid: modeSel.value === "dm" ? dmSel.value : undefined,
+        groupId: modeSel.value === "group" ? groupInp.value.trim() : undefined,
+      });
+      try {
+        await col("messages").add(payload);
+        input.value = "";
+      } catch (e) {
+        console.error(e);
+        notify(
+          e?.message || "Chat send failed (check Firestore rules)",
+          "danger"
+        );
+      }
+    });
+
+    sub();
+  }
 
   // ---- Contact wiring (EmailJS send) ----
   function wireContact() {
-    const sendBtn = $('#ct-send');
+    const sendBtn = $("#ct-send");
     if (!sendBtn) return;
 
     // init SDK if available
     ensureEmailJsInit();
 
-    on($('#ct-send'), 'click', async () => {
-  const name = $('#ct-name')?.value.trim();
-  const email = $('#ct-email')?.value.trim();
-  const subject = $('#ct-subject')?.value.trim();
-  const message = $('#ct-message')?.value.trim();
-  const cfg = getEmailJsConfig();
+    on($("#ct-send"), "click", async () => {
+      const name = $("#ct-name")?.value.trim();
+      const email = $("#ct-email")?.value.trim();
+      const subject = $("#ct-subject")?.value.trim();
+      const message = $("#ct-message")?.value.trim();
+      const cfg = getEmailJsConfig();
 
-  if (!name || !email || !subject || !message) { notify('Fill all fields', 'warn'); return; }
-  if (!window.emailjs) { notify('EmailJS SDK missing (include their script in index.html)', 'danger'); return; }
-  if (!cfg.serviceId || !cfg.templateId) { notify('EmailJS serviceId/templateId missing', 'danger'); return; }
+      if (!name || !email || !subject || !message) {
+        notify("Fill all fields", "warn");
+        return;
+      }
+      if (!window.emailjs) {
+        notify(
+          "EmailJS SDK missing (include their script in index.html)",
+          "danger"
+        );
+        return;
+      }
+      if (!cfg.serviceId || !cfg.templateId) {
+        notify("EmailJS serviceId/templateId missing", "danger");
+        return;
+      }
 
-  ensureEmailJsInit(); // lazy init right before send
+      ensureEmailJsInit(); // lazy init right before send
 
-  const btn = $('#ct-send');
-  const done = withBusy(btn, 'Sending…');
-  try {
-    // optional: persist to Firestore
-    try {
-      await col('contact').add({
-        uid: auth.currentUser?.uid || null,
-        name, email, subject, message,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    } catch (_) {}
+      const btn = $("#ct-send");
+      const done = withBusy(btn, "Sending…");
+      try {
+        // optional: persist to Firestore
+        try {
+          await col("contact").add({
+            uid: auth.currentUser?.uid || null,
+            name,
+            email,
+            subject,
+            message,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+        } catch (_) {}
 
-    await emailjs.send(cfg.serviceId, cfg.templateId, {
-      from_name: name,
-      from_email: email,
-      subject,
-      message,
-      reply_to: email,
-      to_email: cfg.toEmail || undefined,
-      user_uid: auth.currentUser?.uid || '',
-      app_name: 'LearnHub'
+        await emailjs.send(cfg.serviceId, cfg.templateId, {
+          from_name: name,
+          from_email: email,
+          subject,
+          message,
+          reply_to: email,
+          to_email: cfg.toEmail || undefined,
+          user_uid: auth.currentUser?.uid || "",
+          app_name: "LearnHub",
+        });
+
+        notify("Message sent — thank you!");
+        $("#ct-subject").value = "";
+        $("#ct-message").value = "";
+      } catch (e) {
+        console.error("EmailJS send failed:", e);
+        notify(e?.text || e?.message || "Send failed", "danger");
+      } finally {
+        done();
+      }
     });
-
-    notify('Message sent — thank you!');
-    $('#ct-subject').value = '';
-    $('#ct-message').value = '';
-  } catch (e) {
-    console.error('EmailJS send failed:', e);
-    notify(e?.text || e?.message || 'Send failed', 'danger');
-  } finally {
-    done();
-  }
-});
   }
 
   // ---- Tasks
   function wireTasks() {
-  const sec = $('[data-sec="tasks"]'); if (!sec || sec.__wired) return; sec.__wired = true;
+    const sec = $('[data-sec="tasks"]');
+    if (!sec || sec.__wired) return;
+    sec.__wired = true;
 
-  // Add Task
-  delegate(sec, '#addTask', 'click', async () => {
-    $('#mm-title').textContent = 'New Task';
-    $('#mm-body').innerHTML = `
+    // Add Task
+    delegate(sec, "#addTask", "click", async () => {
+      $("#mm-title").textContent = "New Task";
+      $("#mm-body").innerHTML = `
       <div class="grid">
         <input id="t-title" class="input" placeholder="Task title"/>
       </div>`;
-    // New Task foot
-$('#mm-foot').innerHTML = `
-  <button class="btn" id="t-save"><i class="ri-save-3-line"></i> Save</button>
-  <button class="btn ghost" id="t-cancel">Close</button>`;
-openModal('m-modal');
+      $("#mm-foot").innerHTML = `<button class="btn" id="t-save">Save</button>`;
+      openModal("m-modal");
 
-on($('#t-cancel'), 'click', () => closeModal('m-modal'));
-on($('#t-save'), 'click', (e) => safeWrite(e.currentTarget, async () => {
-  const title = $('#t-title')?.value.trim();
-  if (!title) throw new Error('Enter a title');
-  await col('tasks').add({
-    uid: auth.currentUser.uid,
-    title,
-    status: 'todo',
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
-}, { ok:'Task added' }));
+      const saveBtn = $("#t-save");
+      on(saveBtn, "click", async () => {
+        const title = $("#t-title")?.value.trim();
+        if (!title) return notify("Enter a title", "warn");
+        try {
+          saveBtn.disabled = true;
+          saveBtn.textContent = "Saving…";
+          await col("tasks").add({
+            uid: auth.currentUser.uid,
+            title,
+            status: "todo",
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+          closeModal("m-modal");
+          notify("Task added");
+        } catch (e) {
+          notify(e?.message || "Failed to add task", "danger");
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save";
+        }
+      });
+    });
 
-// Edit Task foot
-$('#mm-foot').innerHTML = `
-  <button class="btn" id="t-save"><i class="ri-save-3-line"></i> Save</button>
-  <button class="btn ghost" id="t-cancel">Close</button>`;
-on($('#t-cancel'), 'click', () => closeModal('m-modal'));
-on($('#t-save'), 'click', (e) => safeWrite(e.currentTarget, async () => {
-  await doc('tasks', id).set({ title: $('#t-title').value }, { merge: true });
-}));
-  });
+    // Delete
+    delegate(sec, "[data-del]", "click", async (_e, btn) => {
+      const taskId = btn.getAttribute("data-del");
+      try {
+        await doc("tasks", taskId).delete();
+        notify("Deleted");
+      } catch (e) {
+        notify(e?.message || "Delete failed", "danger");
+      }
+    });
 
-  // Delete
-  delegate(sec, '[data-del]', 'click', async (_e, btn) => {
-    const id = btn.getAttribute('data-del');
-    await doc('tasks', id).delete();
-    notify('Deleted');
-  });
+    // Edit
+    delegate(sec, "[data-edit]", "click", async (_e, btn) => {
+      const taskId = btn.getAttribute("data-edit");
+      const snap = await doc("tasks", taskId).get();
+      if (!snap.exists) return;
+      const t = { id: snap.id, ...snap.data() };
 
-  // Edit
-  delegate(sec, '[data-edit]', 'click', async (_e, btn) => {
-    const id = btn.getAttribute('data-edit');
-    const snap = await doc('tasks', id).get(); if (!snap.exists) return;
-    const t = { id: snap.id, ...snap.data() };
-    $('#mm-title').textContent = 'Edit Task';
-    $('#mm-body').innerHTML = `<input id="t-title" class="input" value="${t.title || ''}"/>`;
-    $('#mm-foot').innerHTML = `
-  <button class="btn" id="t-save"><i class="ri-save-3-line"></i> Save</button>
-  <button class="btn ghost" id="t-cancel">Close</button>`;
-openModal('m-modal');
+      $("#mm-title").textContent = "Edit Task";
+      $("#mm-body").innerHTML = `<input id="t-title" class="input" value="${(
+        t.title || ""
+      ).replace(/"/g, "&quot;")}"/>`;
+      $("#mm-foot").innerHTML = `<button class="btn" id="t-save">Save</button>`;
+      openModal("m-modal");
 
-on($('#t-cancel'), 'click', () => closeModal('m-modal'));
-on($('#t-save'), 'click', async () => {
-  const title = $('#t-title')?.value.trim();
-  if (!title) return notify('Enter a title', 'warn');
-  await col('tasks').add({
-    uid: auth.currentUser.uid,
-    title,
-    status: 'todo',
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
-  closeModal('m-modal'); notify('Task added');
-});
-  });
-}
-
-  function renderCertificatePNG({ name, courseTitle, dateText, certId, logoUrl }) {
-  // US Letter 8.5x11 at 300dpi = 2550x3300
-  const W = 2550, H = 3300;
-  const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext('2d');
-
-  // Background
-  ctx.fillStyle = '#fafaf9'; ctx.fillRect(0,0,W,H);
-
-  // Ornamental border
-  ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 8; ctx.strokeRect(80,80,W-160,H-160);
-  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.strokeRect(120,120,W-240,H-240);
-
-  // Seal (simple rosette)
-  ctx.save();
-  ctx.translate(W-420, H-520);
-  ctx.fillStyle = '#0ea5e9';
-  for (let i=0;i<36;i++){ ctx.rotate(Math.PI/18); ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,140,0,Math.PI/12); ctx.fill(); }
-  ctx.restore();
-  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(W-420, H-520, 100, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#0ea5e9'; ctx.font = 'bold 44px Inter'; ctx.textAlign = 'center'; ctx.fillText('LEARNHUB', W-420, H-512);
-  ctx.font = '24px Inter'; ctx.fillText('Seal of Excellence', W-420, H-470);
-
-  // Title
-  ctx.fillStyle = '#111827';
-  ctx.font = 'bold 96px "Georgia", serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Certificate of Completion', W/2, 580);
-
-  // Student name
-  ctx.font = 'bold 72px "Georgia", serif';
-  ctx.fillText(name || 'Student Name', W/2, 860);
-
-  // Subtitle
-  ctx.font = '28px Inter';
-  ctx.fillStyle = '#334155';
-  ctx.fillText('This certifies that', W/2, 800);
-  ctx.fillText('has successfully completed the course', W/2, 920);
-
-  // Course
-  ctx.fillStyle = '#111827';
-  ctx.font = 'bold 48px Inter';
-  ctx.fillText(courseTitle || 'Course Title', W/2, 1000);
-
-  // Date + ID
-  ctx.fillStyle = '#334155';
-  ctx.font = '26px Inter';
-  ctx.fillText(`Date: ${dateText || new Date().toLocaleDateString()}`, W/2, 1080);
-  ctx.fillText(`Certificate ID: ${certId || 'LH-XXXX-XXXX'}`, W/2, 1120);
-
-  // Signature line
-  ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(W/2-300, 1320); ctx.lineTo(W/2+300, 1320); ctx.stroke();
-  ctx.fillStyle = '#111827'; ctx.font = '24px Inter';
-  ctx.fillText('Authorized Signature', W/2, 1360);
-
-  // Logo (optional)
-  if (logoUrl) {
-    const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => {
-      ctx.drawImage(img, 200, 210, 240, 240);
-      finish();
-    }; img.src = logoUrl;
-  } else finish();
-
-  function finish(){
-    const url = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = url; a.download = `certificate_${(courseTitle||'course').replace(/\s+/g,'_')}.png`; a.click();
+      const saveBtn = $("#t-save");
+      on(saveBtn, "click", async () => {
+        try {
+          saveBtn.disabled = true;
+          saveBtn.textContent = "Saving…";
+          await doc("tasks", taskId).set(
+            { title: $("#t-title")?.value.trim() },
+            { merge: true }
+          );
+          closeModal("m-modal");
+          notify("Saved");
+        } catch (e) {
+          notify(e?.message || "Failed to save", "danger");
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save";
+        }
+      });
+    });
   }
-}
+
+  function renderCertificatePNG({
+    name,
+    courseTitle,
+    dateText,
+    certId,
+    logoUrl,
+  }) {
+    // US Letter 8.5x11 at 300dpi = 2550x3300
+    const W = 2550,
+      H = 3300;
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    // Background
+    ctx.fillStyle = "#fafaf9";
+    ctx.fillRect(0, 0, W, H);
+
+    // Ornamental border
+    ctx.strokeStyle = "#1f2937";
+    ctx.lineWidth = 8;
+    ctx.strokeRect(80, 80, W - 160, H - 160);
+    ctx.strokeStyle = "#94a3b8";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(120, 120, W - 240, H - 240);
+
+    // Seal (simple rosette)
+    ctx.save();
+    ctx.translate(W - 420, H - 520);
+    ctx.fillStyle = "#0ea5e9";
+    for (let i = 0; i < 36; i++) {
+      ctx.rotate(Math.PI / 18);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, 140, 0, Math.PI / 12);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(W - 420, H - 520, 100, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#0ea5e9";
+    ctx.font = "bold 44px Inter";
+    ctx.textAlign = "center";
+    ctx.fillText("LEARNHUB", W - 420, H - 512);
+    ctx.font = "24px Inter";
+    ctx.fillText("Seal of Excellence", W - 420, H - 470);
+
+    // Title
+    ctx.fillStyle = "#111827";
+    ctx.font = 'bold 96px "Georgia", serif';
+    ctx.textAlign = "center";
+    ctx.fillText("Certificate of Completion", W / 2, 580);
+
+    // Student name
+    ctx.font = 'bold 72px "Georgia", serif';
+    ctx.fillText(name || "Student Name", W / 2, 860);
+
+    // Subtitle
+    ctx.font = "28px Inter";
+    ctx.fillStyle = "#334155";
+    ctx.fillText("This certifies that", W / 2, 800);
+    ctx.fillText("has successfully completed the course", W / 2, 920);
+
+    // Course
+    ctx.fillStyle = "#111827";
+    ctx.font = "bold 48px Inter";
+    ctx.fillText(courseTitle || "Course Title", W / 2, 1000);
+
+    // Date + ID
+    ctx.fillStyle = "#334155";
+    ctx.font = "26px Inter";
+    ctx.fillText(
+      `Date: ${dateText || new Date().toLocaleDateString()}`,
+      W / 2,
+      1080
+    );
+    ctx.fillText(`Certificate ID: ${certId || "LH-XXXX-XXXX"}`, W / 2, 1120);
+
+    // Signature line
+    ctx.strokeStyle = "#64748b";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - 300, 1320);
+    ctx.lineTo(W / 2 + 300, 1320);
+    ctx.stroke();
+    ctx.fillStyle = "#111827";
+    ctx.font = "24px Inter";
+    ctx.fillText("Authorized Signature", W / 2, 1360);
+
+    // Logo (optional)
+    if (logoUrl) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        ctx.drawImage(img, 200, 210, 240, 240);
+        finish();
+      };
+      img.src = logoUrl;
+    } else finish();
+
+    function finish() {
+      const url = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `certificate_${(courseTitle || "course").replace(
+        /\s+/g,
+        "_"
+      )}.png`;
+      a.click();
+    }
+  }
 
   // ---- Profile
   function wireProfile() {
-  on($('#pf-pick'), 'click', () => $('#pf-avatar')?.click());
-  on($('#pf-pick-sign'), 'click', () => $('#pf-sign')?.click());
+    on($("#pf-pick"), "click", () => $("#pf-avatar")?.click());
+    on($("#pf-pick-sign"), "click", () => $("#pf-sign")?.click());
 
-  on($('#pf-save'), 'click', (e) => safeWrite(e.currentTarget, async () => {
-  const uid = auth.currentUser.uid;
-  await doc('profiles', uid).set({
-    name: $('#pf-name')?.value.trim(),
-    portfolio: $('#pf-portfolio')?.value.trim(),
-    bio: $('#pf-bio')?.value.trim(),
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }, { merge: true });
+    // SAVE profile (includes uid so "create" passes rules)
+    on($("#pf-save"), "click", async () => {
+      const uid = auth.currentUser.uid;
+      const base = {
+        uid,
+        email: auth.currentUser.email || "",
+        name: $("#pf-name")?.value.trim(),
+        portfolio: $("#pf-portfolio")?.value.trim(),
+        bio: $("#pf-bio")?.value.trim(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      };
 
-  if (!stg || !stg.ref) throw new Error('Storage SDK missing');
+      try {
+        await doc("profiles", uid).set(base, { merge: true });
 
-  const fileA = $('#pf-avatar')?.files?.[0];
-  if (fileA) {
-    const refA = stg.ref().child(`avatars/${uid}/${Date.now()}_${fileA.name}`);
-    await refA.put(fileA);
-    const urlA = await refA.getDownloadURL();
-    await doc('profiles', uid).set({ avatar: urlA, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-  }
+        const fileA = $("#pf-avatar")?.files?.[0];
+        if (fileA) {
+          const ref = stg
+            .ref()
+            .child(`avatars/${uid}/${Date.now()}_${fileA.name}`);
+          await ref.put(fileA);
+          const url = await ref.getDownloadURL();
+          await doc("profiles", uid).set(
+            {
+              avatar: url,
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
 
-  const fileS = $('#pf-sign')?.files?.[0];
-  if (fileS) {
-    const refS = stg.ref().child(`signatures/${uid}/${Date.now()}_${fileS.name}`);
-    await refS.put(fileS);
-    const urlS = await refS.getDownloadURL();
-    await doc('profiles', uid).set({ signature: urlS, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-  }
+        const fileS = $("#pf-sign")?.files?.[0];
+        if (fileS) {
+          const ref = stg
+            .ref()
+            .child(`signatures/${uid}/${Date.now()}_${fileS.name}`);
+          await ref.put(fileS);
+          const url = await ref.getDownloadURL();
+          await doc("profiles", uid).set(
+            {
+              signature: url,
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
 
-  // show new media right away
-  render();
-}, { ok:'Profile saved' }));
+        notify("Profile saved");
+      } catch (e) {
+        notify(e?.message || "Save failed", "danger");
+      }
+    });
 
-  on($('#pf-delete'), 'click', async () => {
-    const uid = auth.currentUser.uid;
-    await doc('profiles', uid).delete();
-    notify('Profile deleted');
-  });
+    // DELETE profile
+    on($("#pf-delete"), "click", async () => {
+      try {
+        await doc("profiles", auth.currentUser.uid).delete();
+        notify("Profile deleted");
+      } catch (e) {
+        notify(e?.message || "Delete failed", "danger");
+      }
+    });
 
-  on($('#pf-view'), 'click', () => {
-    const me = state.profiles.find(p => p.uid === auth.currentUser?.uid) || {};
-    $('#mm-title').textContent = 'Profile Card';
-    $('#mm-body').innerHTML = `
-      <div style="
-        background:linear-gradient(135deg,#f8fafc,#eef2ff);
-        color:#0b1220; border:1px solid var(--border);
-        border-radius:14px; padding:16px; display:grid; gap:12px">
+    // VIEW card (modal) — all wired via safe on()
+    on($("#pf-view"), "click", () => {
+      const me =
+        state.profiles.find((p) => p.uid === auth.currentUser?.uid) || {};
+      $("#mm-title").textContent = "Profile Card";
+      $("#mm-body").innerHTML = `
+      <div style="background:linear-gradient(135deg,#f8fafc,#eef2ff);color:#0b1220;border:1px solid var(--border);
+                  border-radius:14px;padding:16px;display:grid;gap:12px">
         <div style="display:flex;gap:12px;align-items:center">
-          <img src="${me.avatar || '/icons/learnhub-cap.svg'}" alt="avatar"
-               style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:1px solid var(--border); background:#fff"/>
+          <img src="${me.avatar || "/icons/learnhub-cap.svg"}" alt="avatar"
+               style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:1px solid var(--border);background:#fff"/>
           <div>
-            <div style="font-weight:800;font-size:18px">${me.name || me.email || '—'}</div>
-            <div class="muted" style="color:#334155">${me.email || ''}</div>
+            <div style="font-weight:800;font-size:18px">${
+              me.name || me.email || "—"
+            }</div>
+            <div class="muted" style="color:#334155">${me.email || ""}</div>
           </div>
         </div>
-        <div style="white-space:pre-wrap; line-height:1.5">${(me.bio || '').replace(/</g, '&lt;')}</div>
-        ${me.signature ? `
+        <div style="white-space:pre-wrap; line-height:1.5">${(
+          me.bio || ""
+        ).replace(/</g, "&lt;")}</div>
+        ${
+          me.signature
+            ? `
           <div>
             <div class="muted" style="color:#475569;margin-bottom:4px">Signature</div>
-            <img src="${me.signature}" alt="signature" style="max-height:60px; background:#fff; border:1px solid var(--border); border-radius:8px; padding:6px">
-          </div>` : ''}
+            <img src="${me.signature}" alt="signature" style="max-height:60px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px">
+          </div>`
+            : ""
+        }
       </div>`;
-    $('#mm-foot').innerHTML = `<button class="btn" id="mm-ok">Close</button>`;
-    openModal('m-modal');
-    on($('#mm-ok'), 'click', () => closeModal('m-modal'));
-  });
-
-  // Certificate button (unchanged)
-  on($('#main'), 'click', async (e) => {
-    const b = e.target.closest?.('button[data-cert]'); if (!b) return;
-    const courseId = b.getAttribute('data-cert');
-    const course = state.courses.find(c => c.id === courseId) || {};
-    const p = state.profiles.find(x => x.uid === auth.currentUser?.uid) || { name: auth.currentUser.email };
-    const certId = 'LH-' + (courseId || 'xxxx').slice(0,6).toUpperCase() + '-' + (auth.currentUser.uid || 'user').slice(0,6).toUpperCase();
-    renderCertificatePNG({
-      name: p.name || p.email,
-      courseTitle: course.title || courseId,
-      dateText: new Date().toLocaleDateString(),
-      certId,
-      logoUrl: '/icons/learnhub-cap.svg'
+      $("#mm-foot").innerHTML = `<button class="btn" id="mm-ok">Close</button>`;
+      openModal("m-modal");
+      on($("#mm-ok"), "click", () => closeModal("m-modal"));
     });
-  });
-}
+
+    // Certificate button (unchanged)
+    on($("#main"), "click", async (e) => {
+      const b = e.target.closest?.("button[data-cert]");
+      if (!b) return;
+      const courseId = b.getAttribute("data-cert");
+      const course = state.courses.find((c) => c.id === courseId) || {};
+      const p = state.profiles.find((x) => x.uid === auth.currentUser?.uid) || {
+        name: auth.currentUser.email,
+      };
+      const certId =
+        "LH-" +
+        (courseId || "xxxx").slice(0, 6).toUpperCase() +
+        "-" +
+        (auth.currentUser.uid || "user").slice(0, 6).toUpperCase();
+      renderCertificatePNG({
+        name: p.name || p.email,
+        courseTitle: course.title || courseId,
+        dateText: new Date().toLocaleDateString(),
+        certId,
+        logoUrl: "/icons/learnhub-cap.svg",
+      });
+    });
+  }
 
   // ---- Admin
   function wireAdmin() {
-    $('#rm-save')?.addEventListener('click', async () => {
-      const uid = $('#rm-uid')?.value.trim();
-      const raw = $('#rm-role')?.value || 'student';
-      const role = (raw + '').toLowerCase(); // normalize
-      if (!uid) return notify('Enter UID + valid role', 'warn');
-      await doc('roles', uid).set({
-        uid, role,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-      notify('Role saved');
+    $("#rm-save")?.addEventListener("click", async () => {
+      const uid = $("#rm-uid")?.value.trim();
+      const raw = $("#rm-role")?.value || "student";
+      const role = (raw + "").toLowerCase(); // normalize
+      if (!uid) return notify("Enter UID + valid role", "warn");
+      await doc("roles", uid).set(
+        {
+          uid,
+          role,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      notify("Role saved");
     });
 
-    $('#main')?.addEventListener('click', async (e) => {
-      const ed = e.target.closest?.('button[data-admin-edit]'); const del = e.target.closest?.('button[data-admin-del]');
+    $("#main")?.addEventListener("click", async (e) => {
+      const ed = e.target.closest?.("button[data-admin-edit]");
+      const del = e.target.closest?.("button[data-admin-del]");
       if (ed) {
-        const uid = ed.getAttribute('data-admin-edit'); const snap = await doc('profiles', uid).get(); if (!snap.exists) return;
+        const uid = ed.getAttribute("data-admin-edit");
+        const snap = await doc("profiles", uid).get();
+        if (!snap.exists) return;
         const p = { id: snap.id, ...snap.data() };
-        $('#mm-title').textContent = 'Edit Profile (admin)';
-        $('#mm-body').innerHTML = `<div class="grid">
-          <input id="ap-name" class="input" value="${p.name || ''}"/>
-          <input id="ap-portfolio" class="input" value="${p.portfolio || ''}"/>
-          <textarea id="ap-bio" class="input">${p.bio || ''}</textarea>
+        $("#mm-title").textContent = "Edit Profile (admin)";
+        $("#mm-body").innerHTML = `<div class="grid">
+          <input id="ap-name" class="input" value="${p.name || ""}"/>
+          <input id="ap-portfolio" class="input" value="${p.portfolio || ""}"/>
+          <textarea id="ap-bio" class="input">${p.bio || ""}</textarea>
         </div>`;
-        $('#mm-foot').innerHTML = `<button class="btn" id="ap-save">Save</button>`; openModal('m-modal');
-        $('#ap-save').onclick = async () => {
-          await doc('profiles', uid).set({ name: $('#ap-name')?.value.trim(), portfolio: $('#ap-portfolio')?.value.trim(), bio: $('#ap-bio')?.value.trim(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-          closeModal('m-modal'); notify('Saved');
+        $(
+          "#mm-foot"
+        ).innerHTML = `<button class="btn" id="ap-save">Save</button>`;
+        openModal("m-modal");
+        $("#ap-save").onclick = async () => {
+          await doc("profiles", uid).set(
+            {
+              name: $("#ap-name")?.value.trim(),
+              portfolio: $("#ap-portfolio")?.value.trim(),
+              bio: $("#ap-bio")?.value.trim(),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+          closeModal("m-modal");
+          notify("Saved");
         };
       }
       if (del) {
-        const uid = del.getAttribute('data-admin-del');
-        await doc('profiles', uid).delete();
-        notify('Profile deleted');
+        const uid = del.getAttribute("data-admin-del");
+        await doc("profiles", uid).delete();
+        notify("Profile deleted");
       }
     });
 
     // ---- Roster tools
-    $('#btn-roster-sync')?.addEventListener('click', async () => {
-      const cid = $('#roster-course')?.value;
-      if (!cid) return notify('Pick a course', 'warn');
+    $("#btn-roster-sync")?.addEventListener("click", async () => {
+      const cid = $("#roster-course")?.value;
+      if (!cid) return notify("Pick a course", "warn");
       try {
         const [enrSnap, cSnap] = await Promise.all([
-          col('enrollments').where('courseId', '==', cid).get(),
-          doc('courses', cid).get()
+          col("enrollments").where("courseId", "==", cid).get(),
+          doc("courses", cid).get(),
         ]);
-        const uids = new Set(enrSnap.docs.map(d => d.data().uid));
+        const uids = new Set(enrSnap.docs.map((d) => d.data().uid));
         const c = cSnap.data() || {};
         if (c.ownerUid) uids.add(c.ownerUid);
-        await doc('courses', cid).set({ participants: Array.from(uids) }, { merge: true });
-        notify('Roster synced');
-        $('#roster-out').textContent = `Participants: ${Array.from(uids).join(', ')}`;
+        await doc("courses", cid).set(
+          { participants: Array.from(uids) },
+          { merge: true }
+        );
+        notify("Roster synced");
+        $("#roster-out").textContent = `Participants: ${Array.from(uids).join(
+          ", "
+        )}`;
       } catch (e) {
-        notify(e?.message || 'Sync failed', 'danger');
+        notify(e?.message || "Sync failed", "danger");
       }
     });
 
-    $('#btn-roster-view')?.addEventListener('click', async () => {
-      const cid = $('#roster-course')?.value;
-      if (!cid) return notify('Pick a course', 'warn');
-      const s = await doc('courses', cid).get();
+    $("#btn-roster-view")?.addEventListener("click", async () => {
+      const cid = $("#roster-course")?.value;
+      if (!cid) return notify("Pick a course", "warn");
+      const s = await doc("courses", cid).get();
       const arr = s.data()?.participants || [];
-      $('#roster-out').textContent = `Participants: ${arr.join(', ') || '—'}`;
+      $("#roster-out").textContent = `Participants: ${arr.join(", ") || "—"}`;
     });
 
-    $('#preview-cert')?.addEventListener('click', () => {
-  $('#mm-title').textContent = 'Certificate Preview';
-  $('#mm-body').innerHTML = `<canvas id="cert-preview" width="2550" height="3300" style="width:min(100%,800px);height:auto;display:block;margin:auto;border:1px solid var(--border);border-radius:12px;background:#fff"></canvas>`;
-  $('#mm-foot').innerHTML = `<button class="btn" id="mm-close-prev">Close</button>`;
-  openModal('m-modal');
-  $('#mm-close-prev').onclick = () => closeModal('m-modal');
+    $("#preview-cert")?.addEventListener("click", () => {
+      $("#mm-title").textContent = "Certificate Preview";
+      $(
+        "#mm-body"
+      ).innerHTML = `<canvas id="cert-preview" width="2550" height="3300" style="width:min(100%,800px);height:auto;display:block;margin:auto;border:1px solid var(--border);border-radius:12px;background:#fff"></canvas>`;
+      $(
+        "#mm-foot"
+      ).innerHTML = `<button class="btn" id="mm-close-prev">Close</button>`;
+      openModal("m-modal");
+      $("#mm-close-prev").onclick = () => closeModal("m-modal");
 
-  const ctx = document.getElementById('cert-preview').getContext('2d');
-  drawCertificate(ctx, {
-    name: 'Student Name',
-    courseTitle: 'Sample Course for Design Approval',
-    certId: 'LH-SAMPLE-000001',
-    dateText: new Date().toLocaleDateString()
-  });
-});
+      const ctx = document.getElementById("cert-preview").getContext("2d");
+      drawCertificate(ctx, {
+        name: "Student Name",
+        courseTitle: "Sample Course for Design Approval",
+        certId: "LH-SAMPLE-000001",
+        dateText: new Date().toLocaleDateString(),
+      });
+    });
 
-$('#preview-transcript')?.addEventListener('click', () => {
-  $('#mm-title').textContent = 'Transcript Preview';
-  $('#mm-body').innerHTML = `
+    $("#preview-transcript")?.addEventListener("click", () => {
+      $("#mm-title").textContent = "Transcript Preview";
+      $("#mm-body").innerHTML = `
     <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;max-width:900px;margin:auto;color:#0b1220">
       <div style="text-align:center;font-weight:800;font-size:22px;margin-bottom:6px">LearnHub — Official Transcript</div>
       <div class="muted" style="text-align:center;margin-bottom:10px">This is a design preview.</div>
@@ -2383,87 +3485,160 @@ $('#preview-transcript')?.addEventListener('click', () => {
         <div>Registrar • LearnHub</div>
       </div>
     </div>`;
-  $('#mm-foot').innerHTML = `<button class="btn" id="mm-close-prev2">Close</button>`;
-  openModal('m-modal');
-  $('#mm-close-prev2').onclick = () => closeModal('m-modal');
-});
+      $(
+        "#mm-foot"
+      ).innerHTML = `<button class="btn" id="mm-close-prev2">Close</button>`;
+      openModal("m-modal");
+      $("#mm-close-prev2").onclick = () => closeModal("m-modal");
+    });
   }
 
   // ---- Announcements (Dashboard)
   function wireAnnouncements() {
     if (!canManageUsers()) return;
-    $('#add-ann')?.addEventListener('click', () => {
-      $('#mm-title').textContent = 'Announcement';
-      $('#mm-body').innerHTML = `<div class="grid">
-        <input id="an-title" class="input" placeholder="Title"/>
-        <textarea id="an-body" class="input" placeholder="Body"></textarea>
-      </div>`;
-      $('#mm-foot').innerHTML = `<button class="btn" id="an-save">Save</button>`; openModal('m-modal');
-      $('#an-save').onclick = async () => {
-        await col('announcements').add({ title: $('#an-title')?.value.trim(), body: $('#an-body')?.value.trim(), createdAt: firebase.firestore.FieldValue.serverTimestamp(), uid: auth.currentUser.uid });
-        closeModal('m-modal'); notify('Announcement posted');
-      };
+
+    // New
+    on($("#add-ann"), "click", () => {
+      $("#mm-title").textContent = "Announcement";
+      $("#mm-body").innerHTML = `<div class="grid">
+      <input id="an-title" class="input" placeholder="Title"/>
+      <textarea id="an-body" class="input" placeholder="Body"></textarea>
+    </div>`;
+      $(
+        "#mm-foot"
+      ).innerHTML = `<button class="btn" id="an-save">Save</button>`;
+      openModal("m-modal");
+
+      const saveBtn = $("#an-save");
+      on(saveBtn, "click", async () => {
+        try {
+          saveBtn.disabled = true;
+          saveBtn.textContent = "Saving…";
+          await col("announcements").add({
+            title: $("#an-title")?.value.trim(),
+            body: $("#an-body")?.value.trim(),
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            uid: auth.currentUser.uid,
+          });
+          closeModal("m-modal");
+          notify("Announcement posted");
+        } catch (e) {
+          notify(e?.message || "Save failed", "danger");
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save";
+        }
+      });
     });
 
-    $('#ann-list')?.addEventListener('click', async (e) => {
-      const ed = e.target.closest?.('button[data-edit-ann]'); const del = e.target.closest?.('button[data-del-ann]');
+    // Edit / Delete
+    on($("#ann-list"), "click", async (e) => {
+      const ed = e.target.closest?.("button[data-edit-ann]");
+      const del = e.target.closest?.("button[data-del-ann]");
+
       if (ed) {
-        const id = ed.getAttribute('data-edit-ann'); const s = await doc('announcements', id).get(); if (!s.exists) return;
+        const annId = ed.getAttribute("data-edit-ann");
+        const s = await doc("announcements", annId).get();
+        if (!s.exists) return;
         const a = { id: s.id, ...s.data() };
-        $('#mm-title').textContent = 'Edit Announcement';
-        $('#mm-body').innerHTML = `<div class="grid">
-          <input id="an-title" class="input" value="${a.title || ''}"/>
-          <textarea id="an-body" class="input">${a.body || ''}</textarea>
-        </div>`;
-        $('#mm-foot').innerHTML = `<button class="btn" id="an-save">Save</button>`; openModal('m-modal');
-        $('#an-save').onclick = async () => { await doc('announcements', id).set({ title: $('#an-title')?.value.trim(), body: $('#an-body')?.value.trim(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true }); closeModal('m-modal'); notify('Saved'); };
+
+        $("#mm-title").textContent = "Edit Announcement";
+        $("#mm-body").innerHTML = `<div class="grid">
+        <input id="an-title" class="input" value="${(a.title || "").replace(
+          /"/g,
+          "&quot;"
+        )}"/>
+        <textarea id="an-body" class="input">${a.body || ""}</textarea>
+      </div>`;
+        $(
+          "#mm-foot"
+        ).innerHTML = `<button class="btn" id="an-save">Save</button>`;
+        openModal("m-modal");
+
+        const saveBtn = $("#an-save");
+        on(saveBtn, "click", async () => {
+          try {
+            saveBtn.disabled = true;
+            saveBtn.textContent = "Saving…";
+            await doc("announcements", annId).set(
+              {
+                title: $("#an-title")?.value.trim(),
+                body: $("#an-body")?.value.trim(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+            closeModal("m-modal");
+            notify("Saved");
+          } catch (e) {
+            notify(e?.message || "Save failed", "danger");
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save";
+          }
+        });
       }
+
       if (del) {
-        const id = del.getAttribute('data-del-ann'); await doc('announcements', id).delete(); notify('Deleted');
+        const annId = del.getAttribute("data-del-ann");
+        try {
+          await doc("announcements", annId).delete();
+          notify("Deleted");
+        } catch (e) {
+          notify(e?.message || "Delete failed", "danger");
+        }
       }
     });
   }
 
   // ---- Guide wiring (minor helpers)
   function wireGuide() {
-    const root = document.querySelector('.guide');
+    const root = document.querySelector(".guide");
     if (!root || root.__wired) return;
     root.__wired = true;
 
     // smooth-scroll for in-page anchors
-    root.querySelectorAll('.nav a[href^="#"]').forEach(a => {
-      a.addEventListener('click', (e) => {
+    root.querySelectorAll('.nav a[href^="#"]').forEach((a) => {
+      a.addEventListener("click", (e) => {
         e.preventDefault();
-        const id = a.getAttribute('href').slice(1);
+        const id = a.getAttribute("href").slice(1);
         const el = document.getElementById(id);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
 
     // copy buttons for code samples
-    root.addEventListener('click', (e) => {
-      const btn = e.target.closest('.copy-btn');
+    root.addEventListener("click", (e) => {
+      const btn = e.target.closest(".copy-btn");
       if (!btn) return;
-      const targetId = btn.getAttribute('data-copy');
-      const pre = targetId ? document.getElementById(targetId) : btn.closest('.code-card')?.querySelector('pre');
-      const text = pre ? pre.innerText : '';
+      const targetId = btn.getAttribute("data-copy");
+      const pre = targetId
+        ? document.getElementById(targetId)
+        : btn.closest(".code-card")?.querySelector("pre");
+      const text = pre ? pre.innerText : "";
       if (!text) return;
-      (navigator.clipboard?.writeText(text) || Promise.reject()).then(() => {
-        const old = btn.textContent;
-        btn.textContent = 'Copied!';
-        setTimeout(() => btn.textContent = old || 'Copy', 1200);
-        try { notify('Copied to clipboard'); } catch { }
-      }).catch(() => { /* ignore */ });
+      (navigator.clipboard?.writeText(text) || Promise.reject())
+        .then(() => {
+          const old = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => (btn.textContent = old || "Copy"), 1200);
+          try {
+            notify("Copied to clipboard");
+          } catch {}
+        })
+        .catch(() => {
+          /* ignore */
+        });
     });
   }
 
   // drop-in: replace previous injector and keep onReady(injectCourseCardStyles)
-// drop-in: replace previous injector and keep onReady(injectCourseCardStyles)
-function injectCourseCardStyles() {
-  const ID = 'lh-course-card-styles';
-  if (document.getElementById(ID)) return;
+  // drop-in: replace previous injector and keep onReady(injectCourseCardStyles)
+  function injectCourseCardStyles() {
+    const ID = "lh-course-card-styles";
+    if (document.getElementById(ID)) return;
 
-  const css = `
+    const css = `
   /* ============ 1) COURSES GRID: 3 / 2 / 1 columns ============ */
   [data-sec="courses"].grid{
     display:grid;
@@ -2548,16 +3723,16 @@ function injectCourseCardStyles() {
   .card.course-card, .card.course-card *{ color: inherit; }
   `;
 
-  const style = document.createElement('style');
-  style.id = ID;
-  style.textContent = css;
-  document.head.appendChild(style);
-}
+    const style = document.createElement("style");
+    style.id = ID;
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
 
-// Add after your previous injectCourseCardStyles()
-function enforceReadableCardText() {
-  const ID = 'lh-course-card-text-fix';
-  const css = `
+  // Add after your previous injectCourseCardStyles()
+  function enforceReadableCardText() {
+    const ID = "lh-course-card-text-fix";
+    const css = `
   /* Root text color for all course cards (strong, readable on light gradients) */
   .card.course-card{ color:#0b1220 !important; }
 
@@ -2601,15 +3776,17 @@ function enforceReadableCardText() {
   }
   `;
 
-  const el = document.getElementById(ID) || Object.assign(document.createElement('style'), { id: ID });
-  el.textContent = css;
-  if (!el.parentNode) document.head.appendChild(el);
-}
+    const el =
+      document.getElementById(ID) ||
+      Object.assign(document.createElement("style"), { id: ID });
+    el.textContent = css;
+    if (!el.parentNode) document.head.appendChild(el);
+  }
 
-// Courses + My Learning: parity & readability
-(function applyCourseAndLearningCardParity(){
-  const ID = 'lh-cards-courses-learning-parity';
-  const css = `
+  // Courses + My Learning: parity & readability
+  (function applyCourseAndLearningCardParity() {
+    const ID = "lh-cards-courses-learning-parity";
+    const css = `
   /* 3 / 2 / 1 responsive grid, only when a grid actually contains course cards */
   .grid.cols-2:has(.card.course-card){
     display:grid;
@@ -2675,17 +3852,31 @@ function enforceReadableCardText() {
   }
   `;
 
-  let el = document.getElementById(ID);
-  if (!el) { el = document.createElement('style'); el.id = ID; document.head.appendChild(el); }
-  el.textContent = css;
+    let el = document.getElementById(ID);
+    if (!el) {
+      el = document.createElement("style");
+      el.id = ID;
+      document.head.appendChild(el);
+    }
+    el.textContent = css;
+  })();
+
+
+  (function ensureBackButtonStyles(){
+  const ID='lh-back-button-style'; if (document.getElementById(ID)) return;
+  const css = `
+    #cd-back.btn{ background:#111827;color:#fff;border:1px solid #0b1220; }
+    .theme-light #cd-back.btn{ background:#0b1220;color:#fff;border-color:#0b1220; }
+    #cd-back.btn i{ opacity:.9 }
+  `;
+  const el=document.createElement('style'); el.id=ID; el.textContent=css; document.head.appendChild(el);
 })();
 
-// Fix: solid, readable course detail modal (no transparency) + non-cropping cover
-// Fix: solid, readable course detail modal (no transparency) + non-cropping cover
-(function fixCourseDetailReadability(){
-  const ID = 'lh-course-detail-solid';
-  if (document.getElementById(ID)) return;
-  const css = `
+  // Fix: solid, readable course detail modal (no transparency) + non-cropping cover
+  (function fixCourseDetailReadability() {
+    const ID = "lh-course-detail-solid";
+    if (document.getElementById(ID)) return;
+    const css = `
   .modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 100; }
   .modal.active { display: flex; }
   .modal .dialog{
@@ -2719,113 +3910,196 @@ function enforceReadableCardText() {
     border: 1px solid var(--border);
     border-radius: 12px;
   }`;
-  const el = document.createElement('style');
-  el.id = ID; el.textContent = css;
-  document.head.appendChild(el);
-})();
+    const el = document.createElement("style");
+    el.id = ID;
+    el.textContent = css;
+    document.head.appendChild(el);
+  })();
 
   // ---- Transcript
   function buildTranscript(uid) {
     const byCourse = {};
-    (state.attempts || []).filter(a => a.uid === uid).forEach(a => {
-      byCourse[a.courseId] = byCourse[a.courseId] || { courseId: a.courseId, courseTitle: (state.courses.find(c => c.id === a.courseId) || {}).title || a.courseId, best: 0, completed: false };
-      byCourse[a.courseId].best = Math.max(byCourse[a.courseId].best, a.score || 0);
-      const q = state.quizzes.find(q => q.courseId === a.courseId && q.isFinal);
-      byCourse[a.courseId].completed = q ? (byCourse[a.courseId].best >= (q.passScore || 70)) : false;
-    });
-    return Object.values(byCourse).sort((a, b) => a.courseTitle.localeCompare(b.courseTitle));
+    (state.attempts || [])
+      .filter((a) => a.uid === uid)
+      .forEach((a) => {
+        byCourse[a.courseId] = byCourse[a.courseId] || {
+          courseId: a.courseId,
+          courseTitle:
+            (state.courses.find((c) => c.id === a.courseId) || {}).title ||
+            a.courseId,
+          best: 0,
+          completed: false,
+        };
+        byCourse[a.courseId].best = Math.max(
+          byCourse[a.courseId].best,
+          a.score || 0
+        );
+        const q = state.quizzes.find(
+          (q) => q.courseId === a.courseId && q.isFinal
+        );
+        byCourse[a.courseId].completed = q
+          ? byCourse[a.courseId].best >= (q.passScore || 70)
+          : false;
+      });
+    return Object.values(byCourse).sort((a, b) =>
+      a.courseTitle.localeCompare(b.courseTitle)
+    );
   }
 
   // ---- Firestore sync
-  function clearUnsubs() { state.unsub.forEach(u => { try { u() } catch { } }); state.unsub = []; }
+  function clearUnsubs() {
+    state.unsub.forEach((u) => {
+      try {
+        u();
+      } catch {}
+    });
+    state.unsub = [];
+  }
   function sync() {
     clearUnsubs();
     const uid = auth.currentUser.uid;
 
     state.unsub.push(
-      col('profiles').onSnapshot(
-        s => {
-          state.profiles = s.docs.map(d => ({ id: d.id, ...d.data() }));
-          if (state.route === 'chat') populateDmUserSelect();
-          if (['profile', 'admin', 'chat'].includes(state.route)) render();
+      col("profiles").onSnapshot(
+        (s) => {
+          state.profiles = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+          if (state.route === "chat") populateDmUserSelect();
+          if (["profile", "admin", "chat"].includes(state.route)) render();
         },
-        err => console.warn('profiles listener error:', err)
+        (err) => console.warn("profiles listener error:", err)
       )
     );
 
     state.unsub.push(
-      col('enrollments').where('uid', '==', uid).onSnapshot(s => {
-        state.enrollments = s.docs.map(d => ({ id: d.id, ...d.data() }));
-        state.myEnrolledIds = new Set(state.enrollments.map(e => e.courseId));
-        if (['dashboard', 'learning', 'assessments', 'chat'].includes(state.route)) render();
-      })
+      col("enrollments")
+        .where("uid", "==", uid)
+        .onSnapshot((s) => {
+          state.enrollments = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+          state.myEnrolledIds = new Set(
+            state.enrollments.map((e) => e.courseId)
+          );
+          if (
+            ["dashboard", "learning", "assessments", "chat"].includes(
+              state.route
+            )
+          )
+            render();
+        })
     );
 
     state.unsub.push(
-      col('courses').orderBy('createdAt', 'desc').onSnapshot(
-        s => {
-          state.courses = s.docs.map(d => ({ id: d.id, ...d.data() }));
-          if (state.route === 'chat') populateDmUserSelect();
-          if (['dashboard', 'courses', 'learning', 'assessments', 'chat'].includes(state.route)) render();
-        },
-        err => console.warn('courses listener error:', err)
-      )
+      col("courses")
+        .orderBy("createdAt", "desc")
+        .onSnapshot(
+          (s) => {
+            state.courses = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+            if (state.route === "chat") populateDmUserSelect();
+            if (
+              [
+                "dashboard",
+                "courses",
+                "learning",
+                "assessments",
+                "chat",
+              ].includes(state.route)
+            )
+              render();
+          },
+          (err) => console.warn("courses listener error:", err)
+        )
     );
 
     state.unsub.push(
-      col('quizzes').orderBy('createdAt', 'desc').onSnapshot(
-        s => { state.quizzes = s.docs.map(d => ({ id: d.id, ...d.data() })); if (['assessments', 'dashboard', 'profile'].includes(state.route)) render(); },
-        err => console.warn('quizzes listener error:', err)
-      )
+      col("quizzes")
+        .orderBy("createdAt", "desc")
+        .onSnapshot(
+          (s) => {
+            state.quizzes = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+            if (["assessments", "dashboard", "profile"].includes(state.route))
+              render();
+          },
+          (err) => console.warn("quizzes listener error:", err)
+        )
     );
 
     state.unsub.push(
-      col('attempts').where('uid', '==', uid).onSnapshot(
-        s => {
-          state.attempts = s.docs.map(d => ({ id: d.id, ...d.data() }))
-            .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-          if (['assessments', 'profile', 'dashboard'].includes(state.route)) render();
-        },
-        err => console.warn('attempts listener error:', err)
-      )
+      col("attempts")
+        .where("uid", "==", uid)
+        .onSnapshot(
+          (s) => {
+            state.attempts = s.docs
+              .map((d) => ({ id: d.id, ...d.data() }))
+              .sort(
+                (a, b) =>
+                  (b.createdAt?.toMillis?.() || 0) -
+                  (a.createdAt?.toMillis?.() || 0)
+              );
+            if (["assessments", "profile", "dashboard"].includes(state.route))
+              render();
+          },
+          (err) => console.warn("attempts listener error:", err)
+        )
     );
 
     state.unsub.push(
-      col('tasks').where('uid', '==', uid).onSnapshot(
-        s => { state.tasks = s.docs.map(d => ({ id: d.id, ...d.data() })); if (['tasks', 'dashboard'].includes(state.route)) render(); },
-        err => console.warn('tasks listener error:', err)
-      )
+      col("tasks")
+        .where("uid", "==", uid)
+        .onSnapshot(
+          (s) => {
+            state.tasks = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+            if (["tasks", "dashboard"].includes(state.route)) render();
+          },
+          (err) => console.warn("tasks listener error:", err)
+        )
     );
 
     state.unsub.push(
-      col('announcements').orderBy('createdAt', 'desc').limit(25).onSnapshot(s => {
-        state.announcements = s.docs.map(d => ({ id: d.id, ...d.data() })); if (['dashboard'].includes(state.route)) render();
-      })
+      col("announcements")
+        .orderBy("createdAt", "desc")
+        .limit(25)
+        .onSnapshot((s) => {
+          state.announcements = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+          if (["dashboard"].includes(state.route)) render();
+        })
     );
   }
 
   async function resolveRole(uid) {
     try {
-      const r = await doc('roles', uid).get(); const role = (r.data()?.role || 'student').toLowerCase();
-      return VALID_ROLES.includes(role) ? role : 'student';
-    } catch { return 'student'; }
+      const r = await doc("roles", uid).get();
+      const role = (r.data()?.role || "student").toLowerCase();
+      return VALID_ROLES.includes(role) ? role : "student";
+    } catch {
+      return "student";
+    }
   }
 
   /* === Card → Detail Theme Bridge + Adaptive Text (Courses & My Learning) === */
-(function cardToDetailThemePatch(){
-  const STYLE_ID = 'lh-card-theme-bridge';
-  const GRAD_CLASSES = ['bg-grad-1','bg-grad-2','bg-grad-3','bg-grad-4','bg-grad-5','bg-grad-6'];
+  (function cardToDetailThemePatch() {
+    const STYLE_ID = "lh-card-theme-bridge";
+    const GRAD_CLASSES = [
+      "bg-grad-1",
+      "bg-grad-2",
+      "bg-grad-3",
+      "bg-grad-4",
+      "bg-grad-5",
+      "bg-grad-6",
+    ];
 
-  // Map each gradient to the preferred text theme for accessibility.
-  // (All below gradients are light → dark text; if you add darker gradients, map them to 'light'.)
-  const TEXT_THEME = {
-    'bg-grad-1':'dark', 'bg-grad-2':'dark', 'bg-grad-3':'dark',
-    'bg-grad-4':'dark', 'bg-grad-5':'dark', 'bg-grad-6':'dark'
-  };
+    // Map each gradient to the preferred text theme for accessibility.
+    // (All below gradients are light → dark text; if you add darker gradients, map them to 'light'.)
+    const TEXT_THEME = {
+      "bg-grad-1": "dark",
+      "bg-grad-2": "dark",
+      "bg-grad-3": "dark",
+      "bg-grad-4": "dark",
+      "bg-grad-5": "dark",
+      "bg-grad-6": "dark",
+    };
 
-  // Inject styles (gradients, text themes, modal readability, hide thumbnail column)
-  (function injectCSS(){
-    const css = `
+    // Inject styles (gradients, text themes, modal readability, hide thumbnail column)
+    (function injectCSS() {
+      const css = `
     /* Pastel / soft two-tone gradients (cohesive + readable) */
     .bg-grad-1{ background-image: linear-gradient(135deg,#d4fc79,#96e6a1) !important; }
     .bg-grad-2{ background-image: linear-gradient(135deg,#a1c4fd,#c2e9fb) !important; }
@@ -2888,110 +4162,144 @@ function enforceReadableCardText() {
     .course-card.theme-text-dark .short,
     .course-card.theme-text-light .short{ opacity:.95; }
     `;
-    let s = document.getElementById(STYLE_ID);
-    if (!s){ s = document.createElement('style'); s.id = STYLE_ID; document.head.appendChild(s); }
-    s.textContent = css;
+      let s = document.getElementById(STYLE_ID);
+      if (!s) {
+        s = document.createElement("style");
+        s.id = STYLE_ID;
+        document.head.appendChild(s);
+      }
+      s.textContent = css;
+    })();
+
+    // Deterministic assignment: same course id → same gradient every render.
+    function hashId(id = "") {
+      let h = 0;
+      for (let i = 0; i < id.length; i++) {
+        h = (h << 5) - h + id.charCodeAt(i);
+        h |= 0;
+      }
+      return Math.abs(h);
+    }
+    function pickGradient(id) {
+      return GRAD_CLASSES[hashId(id) % GRAD_CLASSES.length];
+    }
+
+    function applyCardSkins() {
+      document.querySelectorAll(".course-card").forEach((card) => {
+        // Try to get a stable id (prefers element id; else look for embedded buttons carrying ids)
+        const id =
+          card.getAttribute("id") ||
+          card.querySelector("[data-open]")?.getAttribute("data-open") ||
+          card
+            .querySelector("[data-open-course]")
+            ?.getAttribute("data-open-course") ||
+          "";
+        if (!id) return;
+
+        // remove old classes, then add the new gradient and text theme
+        GRAD_CLASSES.forEach((c) => card.classList.remove(c));
+        card.classList.remove("theme-text-dark", "theme-text-light");
+
+        const g = pickGradient(id);
+        card.classList.add(g);
+        const theme = TEXT_THEME[g] || "dark";
+        card.classList.add(
+          theme === "light" ? "theme-text-light" : "theme-text-dark"
+        );
+      });
+    }
+
+    // Capture which card theme was clicked, then apply it when the modal is shown.
+    let nextThemeClass = null;
+
+    // Listen for clicks on "Details" (Courses) and "Open" (My Learning)
+    document.addEventListener(
+      "click",
+      (e) => {
+        const trigger = e.target.closest(
+          "button[data-open], button[data-open-course]"
+        );
+        if (!trigger) return;
+        const card = trigger.closest(".course-card");
+        if (!card) return;
+
+        // Find the gradient class on the card
+        const g = Array.from(card.classList).find((c) =>
+          c.startsWith("bg-grad-")
+        );
+        nextThemeClass = g || null;
+      },
+      true
+    );
+
+    function clearModalTheme(dialog) {
+      if (!dialog) return;
+      GRAD_CLASSES.forEach((c) => dialog.classList.remove(c));
+      dialog.classList.remove("theme-text-dark", "theme-text-light");
+    }
+    function applyModalTheme() {
+      const modal = document.getElementById("m-modal");
+      if (!modal || !modal.classList.contains("active")) return;
+      const dialog = modal.querySelector(".dialog");
+      if (!dialog) return;
+
+      clearModalTheme(dialog);
+
+      const g = nextThemeClass;
+      if (!g) {
+        return;
+      }
+
+      dialog.classList.add(g);
+      const theme = TEXT_THEME[g] || "dark";
+      dialog.classList.add(
+        theme === "light" ? "theme-text-light" : "theme-text-dark"
+      );
+    }
+
+    // Re-apply skins after every render and watch modal open/close to set theme
+    function postRenderEnhancements() {
+      try {
+        applyCardSkins();
+      } catch {}
+      try {
+        const modal = document.getElementById("m-modal");
+        if (!modal) return;
+        // Observe class changes to know when modal opens/closes
+        if (modal.__themeObs) return; // only once per modal instance
+        const obs = new MutationObserver((muts) => {
+          for (const m of muts) {
+            if (m.attributeName === "class") {
+              if (modal.classList.contains("active")) applyModalTheme();
+              else {
+                clearModalTheme(modal.querySelector(".dialog"));
+                nextThemeClass = null;
+              }
+            }
+          }
+        });
+        obs.observe(modal, { attributes: true });
+        modal.__themeObs = obs;
+      } catch {}
+    }
+
+    // Wrap the existing render() so our enhancements run every time the UI re-renders.
+    const __origRender = render;
+    render = function () {
+      __origRender.apply(this, arguments);
+      postRenderEnhancements();
+    };
+
+    // Also run once now (in case we're already rendered)
+    try {
+      postRenderEnhancements();
+    } catch {}
   })();
 
-  // Deterministic assignment: same course id → same gradient every render.
-  function hashId(id=''){
-    let h = 0;
-    for (let i=0;i<id.length;i++){ h = ((h<<5)-h) + id.charCodeAt(i); h |= 0; }
-    return Math.abs(h);
-  }
-  function pickGradient(id){ return GRAD_CLASSES[ hashId(id) % GRAD_CLASSES.length ]; }
-
-  function applyCardSkins(){
-    document.querySelectorAll('.course-card').forEach(card => {
-      // Try to get a stable id (prefers element id; else look for embedded buttons carrying ids)
-      const id = card.getAttribute('id')
-        || card.querySelector('[data-open]')?.getAttribute('data-open')
-        || card.querySelector('[data-open-course]')?.getAttribute('data-open-course')
-        || '';
-      if (!id) return;
-
-      // remove old classes, then add the new gradient and text theme
-      GRAD_CLASSES.forEach(c => card.classList.remove(c));
-      card.classList.remove('theme-text-dark','theme-text-light');
-
-      const g = pickGradient(id);
-      card.classList.add(g);
-      const theme = TEXT_THEME[g] || 'dark';
-      card.classList.add(theme === 'light' ? 'theme-text-light' : 'theme-text-dark');
-    });
-  }
-
-  // Capture which card theme was clicked, then apply it when the modal is shown.
-  let nextThemeClass = null;
-
-  // Listen for clicks on "Details" (Courses) and "Open" (My Learning)
-  document.addEventListener('click', (e) => {
-    const trigger = e.target.closest('button[data-open], button[data-open-course]');
-    if (!trigger) return;
-    const card = trigger.closest('.course-card');
-    if (!card) return;
-
-    // Find the gradient class on the card
-    const g = Array.from(card.classList).find(c => c.startsWith('bg-grad-'));
-    nextThemeClass = g || null;
-  }, true);
-
-  function clearModalTheme(dialog){
-    if (!dialog) return;
-    GRAD_CLASSES.forEach(c => dialog.classList.remove(c));
-    dialog.classList.remove('theme-text-dark','theme-text-light');
-  }
-  function applyModalTheme(){
-    const modal = document.getElementById('m-modal');
-    if (!modal || !modal.classList.contains('active')) return;
-    const dialog = modal.querySelector('.dialog'); if (!dialog) return;
-
-    clearModalTheme(dialog);
-
-    const g = nextThemeClass;
-    if (!g){ return; }
-
-    dialog.classList.add(g);
-    const theme = TEXT_THEME[g] || 'dark';
-    dialog.classList.add(theme === 'light' ? 'theme-text-light' : 'theme-text-dark');
-  }
-
-  // Re-apply skins after every render and watch modal open/close to set theme
-  function postRenderEnhancements(){
-    try { applyCardSkins(); } catch {}
-    try {
-      const modal = document.getElementById('m-modal');
-      if (!modal) return;
-      // Observe class changes to know when modal opens/closes
-      if (modal.__themeObs) return; // only once per modal instance
-      const obs = new MutationObserver((muts) => {
-        for (const m of muts){
-          if (m.attributeName === 'class'){
-            if (modal.classList.contains('active')) applyModalTheme();
-            else { clearModalTheme(modal.querySelector('.dialog')); nextThemeClass = null; }
-          }
-        }
-      });
-      obs.observe(modal, { attributes:true });
-      modal.__themeObs = obs;
-    } catch {}
-  }
-
-  // Wrap the existing render() so our enhancements run every time the UI re-renders.
-  const __origRender = render;
-  render = function(){
-    __origRender.apply(this, arguments);
-    postRenderEnhancements();
-  };
-
-  // Also run once now (in case we're already rendered)
-  try { postRenderEnhancements(); } catch {}
-})();
-
-/* === In-page Course Detail (Full-screen Overlay) + Hover Sidebar (Desktop/Tablet) === */
-(function overlayAndSidebarPatch(){
-  const STYLE_ID = 'lh-overlay-and-sidebar';
-  const css = `
+  /* === In-page Course Detail (Full-screen Overlay) + Hover Sidebar (Desktop/Tablet) === */
+  (function overlayAndSidebarPatch() {
+    const STYLE_ID = "lh-overlay-and-sidebar";
+    const css = `
   :root{
     --sb-collapsed: 76px;
     --sb-expanded: 256px;
@@ -3082,100 +4390,123 @@ function enforceReadableCardText() {
   /* Mobile stays as-is (hamburger / drawer) — no hover behavior applied */
   `;
 
-  // inject CSS once
-  (function injectCSS(){
-    let s = document.getElementById(STYLE_ID);
-    if (!s){ s = document.createElement('style'); s.id = STYLE_ID; document.head.appendChild(s); }
-    s.textContent = css;
+    // inject CSS once
+    (function injectCSS() {
+      let s = document.getElementById(STYLE_ID);
+      if (!s) {
+        s = document.createElement("style");
+        s.id = STYLE_ID;
+        document.head.appendChild(s);
+      }
+      s.textContent = css;
+    })();
+
+    /* ---------------------- JS: open course detail as in-page overlay ---------------------- */
+    // We tag the next modal open as a "course detail" when the user clicks a course card action.
+    let nextIsCourseDetail = false;
+    document.addEventListener(
+      "click",
+      (e) => {
+        const trigger = e.target.closest(
+          "button[data-open], button[data-open-course]"
+        );
+        if (!trigger) return;
+        nextIsCourseDetail = true;
+      },
+      true
+    );
+
+    function onModalOpenIfCourse() {
+      const modal = document.getElementById("m-modal");
+      if (!modal || !modal.classList.contains("active")) return;
+
+      if (nextIsCourseDetail) {
+        modal.classList.add("sheet-mode"); // make it full-screen overlay
+        // Make the close button read “Back”
+        const closeBtn = document.getElementById("mm-close");
+        if (closeBtn)
+          closeBtn.innerHTML = '<i class="ri-arrow-left-line"></i> Back';
+      }
+      nextIsCourseDetail = false;
+    }
+
+    // Observe #m-modal to toggle sheet-mode cleanly on open/close.
+    function attachModalObserver() {
+      const modal = document.getElementById("m-modal");
+      if (!modal || modal.__overlayObserver) return;
+      const obs = new MutationObserver(() => {
+        if (modal.classList.contains("active")) onModalOpenIfCourse();
+        else modal.classList.remove("sheet-mode");
+      });
+      obs.observe(modal, { attributes: true, attributeFilter: ["class"] });
+      modal.__overlayObserver = obs;
+    }
+
+    // Run after every render
+    const __render = render;
+    render = function () {
+      __render.apply(this, arguments);
+      attachModalObserver();
+    };
+    // And attempt immediately (in case we’re already on an app view)
+    attachModalObserver();
   })();
 
-  /* ---------------------- JS: open course detail as in-page overlay ---------------------- */
-  // We tag the next modal open as a "course detail" when the user clicks a course card action.
-  let nextIsCourseDetail = false;
-  document.addEventListener('click', (e) => {
-    const trigger = e.target.closest('button[data-open], button[data-open-course]');
-    if (!trigger) return;
-    nextIsCourseDetail = true;
-  }, true);
-
-  function onModalOpenIfCourse(){
-    const modal = document.getElementById('m-modal');
-    if (!modal || !modal.classList.contains('active')) return;
-
-    if (nextIsCourseDetail){
-      modal.classList.add('sheet-mode');        // make it full-screen overlay
-      // Make the close button read “Back”
-      const closeBtn = document.getElementById('mm-close');
-      if (closeBtn) closeBtn.innerHTML = '<i class="ri-arrow-left-line"></i> Back';
-    }
-    nextIsCourseDetail = false;
-  }
-
-  // Observe #m-modal to toggle sheet-mode cleanly on open/close.
-  function attachModalObserver(){
-    const modal = document.getElementById('m-modal');
-    if (!modal || modal.__overlayObserver) return;
-    const obs = new MutationObserver(() => {
-      if (modal.classList.contains('active')) onModalOpenIfCourse();
-      else modal.classList.remove('sheet-mode');
-    });
-    obs.observe(modal, { attributes:true, attributeFilter:['class'] });
-    modal.__overlayObserver = obs;
-  }
-
-  // Run after every render
-  const __render = render;
-  render = function(){
-    __render.apply(this, arguments);
-    attachModalObserver();
-  };
-  // And attempt immediately (in case we’re already on an app view)
-  attachModalObserver();
-})();
-  
   // ---- Auth
-auth.onAuthStateChanged(async (user) => {
-  state.user = user || null;
-  if (!user) {
-    clearUnsubs();
-    if (state._unsubChat) { try { state._unsubChat(); } catch {} state._unsubChat = null; }
-    onReady(render);
-    return;
-  }
-
-  // Resolve once, then keep it live
-  state.role = await resolveRole(user.uid);
-  listenToMyRole(user.uid); // <— NEW: live updates for Admin menu
-
-  try {
-    const p = await doc('profiles', user.uid).get();
-    if (!p.exists) {
-      await doc('profiles', user.uid).set({
-        uid: user.uid, email: user.email, name: '', bio: '', portfolio: '',
-        role: state.role,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    } else {
-      await doc('profiles', user.uid).set({ role: state.role }, { merge: true });
+  auth.onAuthStateChanged(async (user) => {
+    state.user = user || null;
+    if (!user) {
+      clearUnsubs();
+      if (state._unsubChat) {
+        try {
+          state._unsubChat();
+        } catch {}
+        state._unsubChat = null;
+      }
+      onReady(render);
+      return;
     }
-  } catch {}
 
-  onReady(applyTheme);
-  onReady(() => {
-  // if an old layout injected extra modals/backdrops, clean them up once
-  const mods = Array.from(document.querySelectorAll('#m-modal'));
-  const bds  = Array.from(document.querySelectorAll('.modal-backdrop'));
-  if (mods.length > 1) mods.slice(1).forEach(n => n.remove());
-  if (bds.length > 1)  bds.slice[1]?.forEach?.(n => n.remove()); // guard
-});
-  sync();
-  onReady(render);
-});
+    // Resolve once, then keep it live
+    state.role = await resolveRole(user.uid);
+    listenToMyRole(user.uid); // <— NEW: live updates for Admin menu
 
-/* === Sidebar layout fix: content should fill remaining width === */
-(function sidebarLayoutFix(){
-  const ID = 'lh-sidebar-layout-fix';
-  const css = `
+    try {
+      const p = await doc("profiles", user.uid).get();
+      if (!p.exists) {
+        await doc("profiles", user.uid).set({
+          uid: user.uid,
+          email: user.email,
+          name: "",
+          bio: "",
+          portfolio: "",
+          role: state.role,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        await doc("profiles", user.uid).set(
+          { role: state.role },
+          { merge: true }
+        );
+      }
+    } catch {}
+
+    onReady(applyTheme);
+    onReady(() => {
+      // if an old layout injected extra modals/backdrops, clean them up once
+      const mods = Array.from(document.querySelectorAll("#m-modal"));
+      const bds = Array.from(document.querySelectorAll(".modal-backdrop"));
+      if (mods.length > 1) mods.slice(1).forEach((n) => n.remove());
+      if (bds.length > 1) bds.slice[1]?.forEach?.((n) => n.remove()); // guard
+    });
+    sync();
+    onReady(render);
+  });
+
+  /* === Sidebar layout fix: content should fill remaining width === */
+  (function sidebarLayoutFix() {
+    const ID = "lh-sidebar-layout-fix";
+    const css = `
   :root{
     --sb-collapsed: 76px; /* keep in sync with your sidebar */
   }
@@ -3209,10 +4540,14 @@ auth.onAuthStateChanged(async (user) => {
     }
   }
   `;
-  let s = document.getElementById(ID);
-  if (!s){ s = document.createElement('style'); s.id = ID; document.head.appendChild(s); }
-  s.textContent = css;
-})();
+    let s = document.getElementById(ID);
+    if (!s) {
+      s = document.createElement("style");
+      s.id = ID;
+      document.head.appendChild(s);
+    }
+    s.textContent = css;
+  })();
 
   // ---- Boot
   onReady(render);
@@ -3221,40 +4556,57 @@ auth.onAuthStateChanged(async (user) => {
 
   // ---- Seed demo courses (optional) ----
   window.seedDemoCourses = async function () {
-    const u = auth.currentUser; if (!u) return alert('Sign in first');
+    const u = auth.currentUser;
+    if (!u) return alert("Sign in first");
     const list = [
       {
-        title: 'Advanced Digital Marketing', category: 'Marketing', credits: 4, price: 250,
-        short: 'Master SEO, social media, content strategy.',
-        goals: ['Get certified', 'Hands-on project', 'Career guidance'],
-        coverImage: 'https://images.unsplash.com/photo-1554774853-b415df9eeb92?w=1200&q=80',
-        style: { cardClass: 'theme-gold' }
+        title: "Advanced Digital Marketing",
+        category: "Marketing",
+        credits: 4,
+        price: 250,
+        short: "Master SEO, social media, content strategy.",
+        goals: ["Get certified", "Hands-on project", "Career guidance"],
+        coverImage:
+          "https://images.unsplash.com/photo-1554774853-b415df9eeb92?w=1200&q=80",
+        style: { cardClass: "theme-gold" },
       },
       {
-        title: 'Modern Web Bootcamp',
-        category: 'CS', credits: 5, price: 0,
-        short: 'HTML, CSS, JS, and tooling.',
-        goals: ['Responsive sites', 'Deploy to Hosting', 'APIs basics'],
-        coverImage: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&q=80',
+        title: "Modern Web Bootcamp",
+        category: "CS",
+        credits: 5,
+        price: 0,
+        short: "HTML, CSS, JS, and tooling.",
+        goals: ["Responsive sites", "Deploy to Hosting", "APIs basics"],
+        coverImage:
+          "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&q=80",
         style: {
-          bg: 'linear-gradient(135deg,#0ea5e9,#22c55e)',
-          text: '#0b1220',
-          badgeBg: 'rgba(255,255,255,.4)',
-          badgeText: '#0b1220',
-          imgFilter: 'saturate(1.05)'
-        }
+          bg: "linear-gradient(135deg,#0ea5e9,#22c55e)",
+          text: "#0b1220",
+          badgeBg: "rgba(255,255,255,.4)",
+          badgeText: "#0b1220",
+          imgFilter: "saturate(1.05)",
+        },
       },
       {
-        title: 'Data Visualization Basics',
-        category: 'Analytics', credits: 3, price: 99,
-        short: 'Tell stories with charts and dashboards.',
-        goals: ['Chart literacy', 'D3/Chart.js basics', 'Dashboard thinking'],
-        coverImage: 'https://images.unsplash.com/photo-1551281044-8d8d0fdc864b?w=1200&q=80'
-      }
+        title: "Data Visualization Basics",
+        category: "Analytics",
+        credits: 3,
+        price: 99,
+        short: "Tell stories with charts and dashboards.",
+        goals: ["Chart literacy", "D3/Chart.js basics", "Dashboard thinking"],
+        coverImage:
+          "https://images.unsplash.com/photo-1551281044-8d8d0fdc864b?w=1200&q=80",
+      },
     ];
     for (const c of list) {
-      await col('courses').add({ ...c, ownerUid: u.uid, ownerEmail: u.email, participants: [u.uid], createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      await col("courses").add({
+        ...c,
+        ownerUid: u.uid,
+        ownerEmail: u.email,
+        participants: [u.uid],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
     }
-    alert('Demo courses added');
+    alert("Demo courses added");
   };
 })();
